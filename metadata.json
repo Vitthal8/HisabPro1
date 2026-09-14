@@ -1,0 +1,6 @@
+{
+  "name": "HisabPro",
+  "description": "All-in-one Indian SMB accounting and billing app with GST/Non-GST modes, Day Book, party ledgers, and invoices.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

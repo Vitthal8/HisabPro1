@@ -75,6 +75,7 @@ fun BusinessSetupScreen(
     var phone by remember(currentBusiness) { mutableStateOf(currentBusiness?.phone ?: "9876543210") }
     var address by remember(currentBusiness) { mutableStateOf(currentBusiness?.address ?: "Shop No. 4, Shivaji Chowk, Pune") }
     var state by remember(currentBusiness) { mutableStateOf(currentBusiness?.state ?: "Maharashtra") }
+    var upiId by remember(currentBusiness) { mutableStateOf(currentBusiness?.upiId ?: "mali.kirana@okhdfcbank") }
 
     // CRITICAL MANDATE: "GST Registered Business? Yes / No" toggle
     var gstEnabled by remember(currentBusiness) { mutableStateOf(currentBusiness?.gstEnabled ?: false) }
@@ -209,6 +210,22 @@ fun BusinessSetupScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // UPI ID for Instant Digital Payments
+            OutlinedTextField(
+                value = upiId,
+                onValueChange = { upiId = it },
+                label = { Text("Shop UPI ID / VPA (For Bharat QR)") },
+                placeholder = { Text("e.g. mobile@paytm or shop@okhdfcbank") },
+                supportingText = { Text("Used to print UPI QR code on bills & send WhatsApp payment links.") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("upi_id_input"),
+                shape = RoundedCornerShape(8.dp),
+                singleLine = true
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // CRITICAL CORE REQUIREMENT: GST Toggle Card
@@ -328,7 +345,8 @@ fun BusinessSetupScreen(
                         gstEnabled = gstEnabled,
                         gstin = gstin,
                         pan = pan,
-                        isCompositionScheme = isCompositionScheme
+                        isCompositionScheme = isCompositionScheme,
+                        upiId = upiId
                     )
                     Toast.makeText(context, "Business Profile Saved!", Toast.LENGTH_SHORT).show()
                     onNavigateBack()

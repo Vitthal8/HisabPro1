@@ -215,7 +215,8 @@ fun MainApp(viewModel: AccountingViewModel) {
                     onNavigateToReceivePayment = { navController.navigate("receive_payment") },
                     onNavigateToAddParty = { navController.navigate(Screen.Parties.route) },
                     onNavigateToAddExpense = { navController.navigate(Screen.More.route) },
-                    onNavigateToSetup = { navController.navigate("business_setup") }
+                    onNavigateToSetup = { navController.navigate("business_setup") },
+                    onNavigateToInventory = { navController.navigate("inventory") }
                 )
             }
 
@@ -242,7 +243,15 @@ fun MainApp(viewModel: AccountingViewModel) {
             composable(Screen.More.route) {
                 MoreScreen(
                     viewModel = viewModel,
-                    onNavigateToBusinessSetup = { navController.navigate("business_setup") }
+                    onNavigateToBusinessSetup = { navController.navigate("business_setup") },
+                    onNavigateToInventory = { navController.navigate("inventory") }
+                )
+            }
+
+            composable("inventory") {
+                ItemsScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
 

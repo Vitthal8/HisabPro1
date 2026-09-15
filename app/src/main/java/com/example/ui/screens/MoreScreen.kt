@@ -69,7 +69,8 @@ import com.example.util.IndianAccountingUtils
 @Composable
 fun MoreScreen(
     viewModel: AccountingViewModel,
-    onNavigateToBusinessSetup: () -> Unit
+    onNavigateToBusinessSetup: () -> Unit,
+    onNavigateToInventory: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val business by viewModel.business.collectAsState()
@@ -189,6 +190,14 @@ fun MoreScreen(
                             subtitle = "Name, Address, PAN, GSTIN & Non-GST Toggle",
                             icon = Icons.Default.Business,
                             onClick = onNavigateToBusinessSetup
+                        )
+                        HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray.copy(alpha = 0.5f))
+
+                        MoreMenuItem(
+                            title = "Inventory & Items (स्टॉक व सामान)",
+                            subtitle = "Manage items, prices, stock levels & low stock alerts",
+                            icon = Icons.Default.Inventory2,
+                            onClick = onNavigateToInventory
                         )
                         HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray.copy(alpha = 0.5f))
 

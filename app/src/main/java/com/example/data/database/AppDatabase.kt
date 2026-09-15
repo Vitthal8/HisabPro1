@@ -37,7 +37,7 @@ import com.example.data.model.Payment
         Account::class,
         JournalEntry::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

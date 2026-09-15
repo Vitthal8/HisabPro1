@@ -64,6 +64,9 @@ class AccountingRepository(private val db: AppDatabase) {
     suspend fun getItemsForInvoiceSync(invoiceId: Long): List<InvoiceItem> = db.invoiceItemDao().getItemsForInvoiceSync(invoiceId)
 
     suspend fun addItem(item: Item): Long = db.itemDao().insertItem(item)
+    suspend fun updateItem(item: Item) = db.itemDao().updateItem(item)
+    suspend fun deleteItem(item: Item) = db.itemDao().deleteItem(item)
+    suspend fun updateStock(itemId: Long, delta: Double) = db.itemDao().updateStock(itemId, delta)
 
     suspend fun getNextInvoiceSequence(): Int {
         val count = db.invoiceDao().getInvoiceCount()
@@ -75,7 +78,15 @@ class AccountingRepository(private val db: AppDatabase) {
         val itemsWithId = items.map { it.copy(invoiceId = invoiceId) }
         db.invoiceItemDao().insertInvoiceItems(itemsWithId)
 
-        // Adjust Party Balance for Sales Invoice:
+        // Inventory Stock Movement: Sale reduces stock, Purchase increases stock
+        for (item in items) {
+            if (item.itemId > 0L) {
+                val stockDelta = if (invoice.type == InvoiceType.SALE) -item.qty else item.qty
+                db.itemDao().updateStock(item.itemId, stockDelta)
+            }
+        }
+
+        // Adjust Party Balance for Sales & Purchase Invoices:
         // Due amount = total - paidAmount
         val dueAmount = invoice.total - invoice.paidAmount
         if (invoice.type == InvoiceType.SALE && dueAmount > 0) {
@@ -86,7 +97,7 @@ class AccountingRepository(private val db: AppDatabase) {
             db.partyDao().updatePartyBalance(invoice.partyId, -dueAmount)
         }
 
-        // If paid amount > 0, record payment and cash/bank inflow
+        // If paid amount > 0, record payment and cash/bank inflow/outflow
         if (invoice.paidAmount > 0) {
             db.paymentDao().insertPayment(
                 Payment(
@@ -97,7 +108,7 @@ class AccountingRepository(private val db: AppDatabase) {
                     amount = invoice.paidAmount,
                     mode = invoice.paymentMode,
                     referenceNo = "Bill #${invoice.invoiceNo}",
-                    notes = "Payment for invoice ${invoice.invoiceNo}",
+                    notes = "Payment for ${if (invoice.type == InvoiceType.SALE) "sale" else "purchase"} invoice ${invoice.invoiceNo}",
                     linkedInvoiceId = invoiceId,
                     isReceived = (invoice.type == InvoiceType.SALE)
                 )
@@ -117,13 +128,30 @@ class AccountingRepository(private val db: AppDatabase) {
             if (invoice.cgst + invoice.sgst + invoice.igst > 0) {
                 journalLines.add(JournalLine(accountName = "GST Output Liability", debitAmount = 0.0, creditAmount = invoice.cgst + invoice.sgst + invoice.igst))
             }
+        } else if (invoice.type == InvoiceType.PURCHASE) {
+            journalLines.add(JournalLine(accountName = "Purchase Account", debitAmount = invoice.subtotal, creditAmount = 0.0))
+            if (invoice.cgst + invoice.sgst + invoice.igst > 0) {
+                journalLines.add(JournalLine(accountName = "GST Input Tax Credit", debitAmount = invoice.cgst + invoice.sgst + invoice.igst, creditAmount = 0.0))
+            }
+            if (invoice.paidAmount > 0) {
+                journalLines.add(JournalLine(accountName = invoice.paymentMode.name, debitAmount = 0.0, creditAmount = invoice.paidAmount))
+            }
+            if (dueAmount > 0) {
+                journalLines.add(JournalLine(accountName = "${invoice.partyName} (Creditor)", debitAmount = 0.0, creditAmount = dueAmount))
+            }
         }
+
         if (journalLines.isNotEmpty()) {
+            val narrationText = if (invoice.type == InvoiceType.SALE) {
+                "Sales bill ${invoice.invoiceNo} to ${invoice.partyName}"
+            } else {
+                "Purchase bill ${invoice.invoiceNo} from ${invoice.partyName}"
+            }
             db.journalEntryDao().insertJournalEntry(
                 JournalEntry(
                     businessId = invoice.businessId,
                     date = invoice.date,
-                    narration = "Sales bill ${invoice.invoiceNo} to ${invoice.partyName}",
+                    narration = narrationText,
                     entries = journalLines
                 )
             )

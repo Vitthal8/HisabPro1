@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,6 +36,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -69,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Invoice
 import com.example.data.model.InvoiceItem
+import com.example.data.model.InvoiceType
 import com.example.data.model.Party
 import com.example.data.model.PartyType
 import com.example.data.model.PaymentMode
@@ -82,6 +85,7 @@ import com.example.ui.theme.Saffron
 import com.example.util.IndianAccountingUtils
 
 data class LineItemForm(
+    var itemId: Long = 0L,
     var name: String = "",
     var qty: String = "1",
     var unit: String = "PCS",
@@ -94,12 +98,15 @@ data class LineItemForm(
 @Composable
 fun AddInvoiceScreen(
     viewModel: AccountingViewModel,
+    initialInvoiceType: InvoiceType = InvoiceType.SALE,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
     val business by viewModel.business.collectAsState()
     val parties by viewModel.parties.collectAsState()
     val availableItems by viewModel.items.collectAsState()
+
+    var invoiceType by remember { mutableStateOf(initialInvoiceType) }
 
     var invoiceNo by remember { mutableStateOf("") }
     LaunchedEffect(Unit) {
@@ -158,7 +165,11 @@ fun AddInvoiceScreen(
                 title = {
                     Column {
                         Text(
-                            text = if (isGstMode) "New GST Tax Invoice" else "New Sale Bill (Non-GST)",
+                            text = if (invoiceType == InvoiceType.PURCHASE) {
+                                if (isGstMode) "Purchase Tax Invoice" else "Purchase Bill (ख़रीद)"
+                            } else {
+                                if (isGstMode) "New GST Tax Invoice" else "New Sale Bill (बिक्री)"
+                            },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -179,7 +190,7 @@ fun AddInvoiceScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepNavy)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (invoiceType == InvoiceType.PURCHASE) DeepNavy else DeepNavy)
             )
         }
     ) { innerPadding ->
@@ -191,6 +202,41 @@ fun AddInvoiceScreen(
                 .padding(16.dp)
                 .testTag("add_invoice_screen")
         ) {
+            // Bill Type Switcher: Sale vs Purchase
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = invoiceType == InvoiceType.SALE,
+                    onClick = {
+                        invoiceType = InvoiceType.SALE
+                        selectedParty = null
+                    },
+                    label = { Text("Sale Bill (बिक्री / विक्री)", fontWeight = FontWeight.Bold) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Saffron,
+                        selectedLabelColor = Color.White
+                    ),
+                    modifier = Modifier.weight(1f).testTag("select_sale_type")
+                )
+                FilterChip(
+                    selected = invoiceType == InvoiceType.PURCHASE,
+                    onClick = {
+                        invoiceType = InvoiceType.PURCHASE
+                        selectedParty = null
+                    },
+                    label = { Text("Purchase Bill (ख़रीद / खरेदी)", fontWeight = FontWeight.Bold) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = DeepNavy,
+                        selectedLabelColor = Color.White
+                    ),
+                    modifier = Modifier.weight(1f).testTag("select_purchase_type")
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
             // CRITICAL REQUIREMENT: GST Toggle Card
             Card(
                 colors = CardDefaults.cardColors(
@@ -237,9 +283,9 @@ fun AddInvoiceScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Select Customer Dropdown
+            // Select Party Dropdown (Customer for Sale, Supplier for Purchase)
             Text(
-                text = "Select Customer (पार्टी निवडा/चुनें) *",
+                text = if (invoiceType == InvoiceType.PURCHASE) "Select Supplier / Vendor (व्यापारी निवडा/चुनें) *" else "Select Customer (ग्राहक निवडा/चुनें) *",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -254,7 +300,7 @@ fun AddInvoiceScreen(
                     value = selectedParty?.name ?: "",
                     onValueChange = {},
                     readOnly = true,
-                    placeholder = { Text("Choose customer from list...") },
+                    placeholder = { Text(if (invoiceType == InvoiceType.PURCHASE) "Choose supplier from list..." else "Choose customer from list...") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = partyDropdownExpanded) },
                     modifier = Modifier
                         .menuAnchor()
@@ -267,14 +313,18 @@ fun AddInvoiceScreen(
                     expanded = partyDropdownExpanded,
                     onDismissRequest = { partyDropdownExpanded = false }
                 ) {
-                    val customerList = parties.filter { it.type != PartyType.SUPPLIER }
-                    if (customerList.isEmpty()) {
+                    val filteredPartyList = if (invoiceType == InvoiceType.PURCHASE) {
+                        parties.filter { it.type != PartyType.CUSTOMER }
+                    } else {
+                        parties.filter { it.type != PartyType.SUPPLIER }
+                    }
+                    if (filteredPartyList.isEmpty()) {
                         DropdownMenuItem(
-                            text = { Text("No customers added yet") },
+                            text = { Text(if (invoiceType == InvoiceType.PURCHASE) "No suppliers found in directory" else "No customers found in directory") },
                             onClick = { partyDropdownExpanded = false }
                         )
                     } else {
-                        customerList.forEach { p ->
+                        filteredPartyList.forEach { p ->
                             DropdownMenuItem(
                                 text = {
                                     Row(
@@ -317,6 +367,66 @@ fun AddInvoiceScreen(
                         color = if (party.currentBalance > 0) DebitRed else CreditGreen
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Quick Pick from Inventory (Stock Products)
+            if (availableItems.isNotEmpty()) {
+                Text(
+                    text = "Quick Pick from Stock (इन्व्हेंटरी सामान)",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DeepNavy
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    availableItems.forEach { itm ->
+                        val price = if (invoiceType == InvoiceType.PURCHASE) itm.purchasePrice else itm.sellPrice
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.clickable {
+                                // If first item is blank, overwrite it; otherwise add new
+                                val firstBlank = lineItems.indexOfFirst { it.name.isBlank() }
+                                val lineItem = LineItemForm(
+                                    itemId = itm.id,
+                                    name = itm.name,
+                                    qty = "1",
+                                    unit = itm.unit,
+                                    rate = price.toInt().toString(),
+                                    hsnCode = itm.hsnCode,
+                                    gstRate = itm.gstRate.toInt().toString()
+                                )
+                                if (firstBlank >= 0) {
+                                    lineItems[firstBlank] = lineItem
+                                } else {
+                                    lineItems.add(lineItem)
+                                }
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(itm.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        "${IndianAccountingUtils.formatCurrency(price)} • Stock: ${itm.stockQty.toInt()} ${itm.unit}",
+                                        fontSize = 10.sp,
+                                        color = if (itm.stockQty <= 5.0) DebitRed else Color.Gray
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -636,7 +746,7 @@ fun AddInvoiceScreen(
             Button(
                 onClick = {
                     if (selectedParty == null) {
-                        Toast.makeText(context, "Please select a customer first!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, if (invoiceType == InvoiceType.PURCHASE) "Please select a supplier first!" else "Please select a customer first!", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
                     if (lineItems.isEmpty() || lineItems.any { it.name.isBlank() }) {
@@ -652,6 +762,7 @@ fun AddInvoiceScreen(
                         val lineTax = lineAmt * (g / 100.0)
                         InvoiceItem(
                             invoiceId = 0,
+                            itemId = itm.itemId,
                             itemName = itm.name,
                             qty = q,
                             unit = itm.unit,
@@ -673,8 +784,10 @@ fun AddInvoiceScreen(
                         paymentMode = paymentMode,
                         isGst = isGstMode,
                         notes = notes,
+                        type = invoiceType,
                         onSuccess = { invoiceId ->
-                            Toast.makeText(context, "Sale Bill Saved Successfully!", Toast.LENGTH_SHORT).show()
+                            val msg = if (invoiceType == InvoiceType.PURCHASE) "Purchase Bill Saved Successfully!" else "Sale Bill Saved Successfully!"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                             savedInvoiceForPreview = Invoice(
                                 id = invoiceId,
                                 invoiceNo = invoiceNo,
@@ -688,13 +801,14 @@ fun AddInvoiceScreen(
                                 paidAmount = finalPaid,
                                 paymentMode = paymentMode,
                                 isGst = isGstMode,
-                                notes = notes
+                                notes = notes,
+                                type = invoiceType
                             )
                             savedItemsForPreview = entityItems
                         }
                     )
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Saffron),
+                colors = ButtonDefaults.buttonColors(containerColor = if (invoiceType == InvoiceType.PURCHASE) DeepNavy else Saffron),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -704,7 +818,11 @@ fun AddInvoiceScreen(
                 Icon(Icons.Default.Receipt, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Save & Print Bill (${IndianAccountingUtils.formatCurrency(grandTotal)})",
+                    text = if (invoiceType == InvoiceType.PURCHASE) {
+                        "Save Purchase Bill (${IndianAccountingUtils.formatCurrency(grandTotal)})"
+                    } else {
+                        "Save & Print Bill (${IndianAccountingUtils.formatCurrency(grandTotal)})"
+                    },
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White

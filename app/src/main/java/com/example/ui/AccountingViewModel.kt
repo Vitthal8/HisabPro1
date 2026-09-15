@@ -85,7 +85,8 @@ class AccountingViewModel(application: Application) : AndroidViewModel(applicati
         gstEnabled: Boolean,
         gstin: String,
         pan: String,
-        isCompositionScheme: Boolean
+        isCompositionScheme: Boolean,
+        upiId: String = "mali.kirana@okhdfcbank"
     ) {
         viewModelScope.launch {
             val current = business.value
@@ -97,7 +98,8 @@ class AccountingViewModel(application: Application) : AndroidViewModel(applicati
                 gstEnabled = gstEnabled,
                 gstin = gstin,
                 pan = pan,
-                isCompositionScheme = isCompositionScheme
+                isCompositionScheme = isCompositionScheme,
+                upiId = upiId
             ) ?: Business(
                 name = name,
                 phone = phone,
@@ -107,7 +109,8 @@ class AccountingViewModel(application: Application) : AndroidViewModel(applicati
                 gstin = gstin,
                 pan = pan,
                 isCompositionScheme = isCompositionScheme,
-                language = _currentLanguage.value
+                language = _currentLanguage.value,
+                upiId = upiId
             )
             repository.saveBusiness(toSave)
         }
@@ -159,6 +162,7 @@ class AccountingViewModel(application: Application) : AndroidViewModel(applicati
         paymentMode: PaymentMode,
         isGst: Boolean,
         notes: String,
+        type: InvoiceType = InvoiceType.SALE,
         onSuccess: (Long) -> Unit
     ) {
         viewModelScope.launch {
@@ -180,7 +184,7 @@ class AccountingViewModel(application: Application) : AndroidViewModel(applicati
                 invoiceNo = invoiceNo,
                 partyId = partyId,
                 partyName = partyName,
-                type = InvoiceType.SALE,
+                type = type,
                 subtotal = subtotal,
                 cgst = cgst,
                 sgst = sgst,
@@ -194,6 +198,48 @@ class AccountingViewModel(application: Application) : AndroidViewModel(applicati
 
             val invoiceId = repository.saveInvoice(invoice, items)
             onSuccess(invoiceId)
+        }
+    }
+
+    fun addItem(
+        name: String,
+        unit: String,
+        hsnCode: String,
+        purchasePrice: Double,
+        sellPrice: Double,
+        gstRate: Double,
+        category: String,
+        stockQty: Double,
+        onSuccess: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            repository.addItem(
+                Item(
+                    name = name,
+                    unit = unit,
+                    hsnCode = hsnCode,
+                    purchasePrice = purchasePrice,
+                    sellPrice = sellPrice,
+                    gstRate = gstRate,
+                    category = category,
+                    stockQty = stockQty
+                )
+            )
+            onSuccess()
+        }
+    }
+
+    fun updateStock(itemId: Long, delta: Double, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            repository.updateStock(itemId, delta)
+            onSuccess()
+        }
+    }
+
+    fun deleteItem(item: Item, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            repository.deleteItem(item)
+            onSuccess()
         }
     }
 

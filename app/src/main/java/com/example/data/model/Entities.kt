@@ -47,7 +47,8 @@ data class Business(
     @ColumnInfo(name = "fy_start") val fyStart: String = "01/04", // 1st April
     val state: String = "Maharashtra",
     @ColumnInfo(name = "composition_scheme") val isCompositionScheme: Boolean = false,
-    val language: String = "en" // en, hi, mr
+    val language: String = "en", // en, hi, mr
+    @ColumnInfo(name = "upi_id") val upiId: String = "mali.kirana@okhdfcbank"
 )
 
 @Entity(

@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -17,9 +19,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -28,6 +33,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -69,6 +76,8 @@ fun PartyLedgerDialog(
     onDismiss: () -> Unit,
     onReceivePaymentClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    val business by viewModel.business.collectAsState()
     val invoices by viewModel.getPartyInvoices(party.id).collectAsState(initial = emptyList())
     val payments by viewModel.getPartyPayments(party.id).collectAsState(initial = emptyList())
 
@@ -185,6 +194,91 @@ fun PartyLedgerDialog(
                                 Text("Receive", fontSize = 13.sp)
                             }
                         }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Quick Communication Actions Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (party.currentBalance > 0 && party.phone.isNotBlank()) {
+                        Button(
+                            onClick = {
+                                val bizName = business?.name ?: "Mali General Stores"
+                                val upi = business?.upiId ?: "mali.kirana@okhdfcbank"
+                                val dueStr = IndianAccountingUtils.formatCurrency(party.currentBalance)
+                                val text = "Namaste ${party.name},\nThis is a gentle reminder from $bizName.\nYour pending ledger balance is $dueStr.\nPlease pay via UPI to: $upi\nThank you for your business!"
+                                val sendIntent = Intent(Intent.ACTION_VIEW).apply {
+                                    data = Uri.parse("https://api.whatsapp.com/send?phone=91${party.phone}&text=${Uri.encode(text)}")
+                                }
+                                try {
+                                    context.startActivity(sendIntent)
+                                } catch (e: Exception) {
+                                    val fallback = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, text)
+                                    }
+                                    context.startActivity(Intent.createChooser(fallback, "Send Reminder via"))
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = CreditGreen),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.weight(1f).testTag("whatsapp_reminder_button")
+                        ) {
+                            Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("WhatsApp Reminder", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+
+                    if (party.phone.isNotBlank()) {
+                        OutlinedButton(
+                            onClick = {
+                                val callIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${party.phone}"))
+                                context.startActivity(callIntent)
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.testTag("call_party_button")
+                        ) {
+                            Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(14.dp), tint = DeepNavy)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Call", fontSize = 11.sp, color = DeepNavy)
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            val bizName = business?.name ?: "Mali General Stores"
+                            val summary = buildString {
+                                appendLine("📋 *LEDGER STATEMENT - $bizName*")
+                                appendLine("Party: ${party.name} (${party.phone})")
+                                appendLine("Current Balance: ${IndianAccountingUtils.formatBalanceDrCr(party.currentBalance)}")
+                                appendLine("-----------------------------")
+                                sortedEntries.take(10).forEach { e ->
+                                    val amountStr = if (e.debitAmount > 0) "+${IndianAccountingUtils.formatCurrency(e.debitAmount)} Dr" else "-${IndianAccountingUtils.formatCurrency(e.creditAmount)} Cr"
+                                    appendLine("${IndianAccountingUtils.formatDate(e.date)}: ${e.description} ($amountStr)")
+                                }
+                                appendLine("-----------------------------")
+                                appendLine("Generated via HisabPro")
+                            }
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, summary)
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Ledger Statement"))
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.testTag("share_statement_button")
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Share", fontSize = 11.sp)
                     }
                 }
 

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Receipt
@@ -78,7 +79,8 @@ fun DashboardScreen(
     onNavigateToReceivePayment: () -> Unit,
     onNavigateToAddParty: () -> Unit,
     onNavigateToAddExpense: () -> Unit,
-    onNavigateToSetup: () -> Unit
+    onNavigateToSetup: () -> Unit,
+    onNavigateToInventory: () -> Unit = {}
 ) {
     val business by viewModel.business.collectAsState()
     val parties by viewModel.parties.collectAsState()
@@ -320,6 +322,15 @@ fun DashboardScreen(
                             color = Color(0xFF6A1B9A),
                             onClick = onNavigateToAddExpense,
                             testTag = "action_add_expense"
+                        )
+                    }
+                    item {
+                        QuickActionChip(
+                            label = "Stock / Items",
+                            icon = Icons.Default.Inventory2,
+                            color = Color(0xFF00796B),
+                            onClick = onNavigateToInventory,
+                            testTag = "action_inventory"
                         )
                     }
                 }

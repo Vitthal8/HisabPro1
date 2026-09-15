@@ -46,14 +46,41 @@ jobs:
           fi
 
       - name: Build Debug APK
-        run: ./gradlew assembleDemoDebug --no-daemon --stacktrace
+        run: |
+          if ./gradlew tasks --all | grep -q "assembleDemoDebug"; then
+            echo "Building assembleDemoDebug..."
+            ./gradlew assembleDemoDebug --no-daemon --stacktrace
+          else
+            echo "Building assembleDebug..."
+            ./gradlew assembleDebug --no-daemon --stacktrace
+          fi
 
       - name: Prepare APK Artifact
         run: |
           mkdir -p release_apks
-          find app/build/outputs/apk -name "*.apk" -exec cp {} release_apks/HisabPro-debug.apk \;
-          echo "Generated APK files:"
-          ls -lh release_apks/
+
+          echo "=== Searching for generated APKs ==="
+          find . -type f -name "*.apk" || true
+
+          # Locate application APK (prefer demo-debug, then debug, excluding test APKs)
+          APK_FILE=$(find . -type f -name "*demo*debug*.apk" ! -name "*androidTest*.apk" ! -name "*Test*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            APK_FILE=$(find . -type f -name "*debug*.apk" ! -name "*androidTest*.apk" ! -name "*Test*.apk" | head -n 1)
+          fi
+          if [ -z "$APK_FILE" ]; then
+            APK_FILE=$(find . -type f -name "*.apk" ! -name "*androidTest*.apk" ! -name "*Test*.apk" | head -n 1)
+          fi
+
+          if [ -n "$APK_FILE" ] && [ -f "$APK_FILE" ]; then
+            echo "Found APK: $APK_FILE"
+            cp "$APK_FILE" release_apks/HisabPro-debug.apk
+            echo "Copied to release_apks/HisabPro-debug.apk successfully."
+            ls -lh release_apks/
+          else
+            echo "ERROR: No APK generated! Inspecting build directory structure:"
+            find . -maxdepth 5 -type d \( -name "outputs" -o -name "apk" -o -name "build" \) || true
+            exit 1
+          fi
 
       - name: Upload APK as Workflow Artifact
         uses: actions/upload-artifact@v4

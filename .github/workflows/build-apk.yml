@@ -16,13 +16,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21 & 17
+      - name: Set up JDK 17 & 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: |
-            21
             17
+            21
 
       - name: Make gradlew executable
         run: chmod +x gradlew
@@ -32,6 +32,13 @@ jobs:
 
       - name: Prepare Keystore and Environment
         run: |
+          # Copy repository CI gradle.properties if provided
+          if [ -f .github/ci-gradle.properties ]; then
+            echo "Applying repository .github/ci-gradle.properties..."
+            mkdir -p ~/.gradle
+            cp -f .github/ci-gradle.properties ~/.gradle/gradle.properties
+          fi
+
           # Create .env if missing for secrets plugin
           touch .env
           if [ -f .env.example ]; then
@@ -56,29 +63,40 @@ jobs:
 
       - name: Build Debug APK
         run: |
-          echo "=== Determining best assemble task ==="
-          if ./gradlew help --task :app:assembleDemoDebug > /dev/null 2>&1; then
-            BUILD_TASK=":app:assembleDemoDebug"
-          elif ./gradlew help --task assembleDemoDebug > /dev/null 2>&1; then
-            BUILD_TASK="assembleDemoDebug"
-          elif ./gradlew help --task :app:assembleDebug > /dev/null 2>&1; then
-            BUILD_TASK=":app:assembleDebug"
-          elif ./gradlew help --task assembleDebug > /dev/null 2>&1; then
-            BUILD_TASK="assembleDebug"
+          # Determine the appropriate assemble task based on project configuration
+          TARGET_TASK=""
+          if grep -rq "demo" app/build.gradle* 2>/dev/null; then
+            echo "Detected 'demo' product flavor in app module."
+            TARGET_TASK=":app:assembleDemoDebug"
+          elif [ -d "app" ]; then
+            echo "Detected standard app module."
+            TARGET_TASK=":app:assembleDebug"
           else
-            BUILD_TASK="assemble"
+            echo "Standard root project layout."
+            TARGET_TASK="assembleDebug"
           fi
 
-          echo "Selected build task: $BUILD_TASK"
+          echo "Selected primary target task: $TARGET_TASK"
           echo "=== Executing Gradle Build ==="
-          ./gradlew $BUILD_TASK --no-daemon --stacktrace
+          if ./gradlew $TARGET_TASK --no-daemon --stacktrace; then
+            echo "Successfully built with $TARGET_TASK"
+          elif [ "$TARGET_TASK" = ":app:assembleDemoDebug" ] && ./gradlew assembleDemoDebug --no-daemon --stacktrace; then
+            echo "Successfully built with assembleDemoDebug"
+          elif ./gradlew :app:assembleDebug --no-daemon --stacktrace; then
+            echo "Successfully built with :app:assembleDebug"
+          elif ./gradlew assembleDebug --no-daemon --stacktrace; then
+            echo "Successfully built with assembleDebug"
+          else
+            echo "Attempting fallback assemble..."
+            ./gradlew assemble --no-daemon --stacktrace
+          fi
 
       - name: Prepare APK Artifact
         run: |
           mkdir -p release_apks
 
           echo "=== Searching for generated APKs ==="
-          find . -type f -name "*.apk" || true
+          find . -type f -name "*.apk" -ls || true
 
           # Locate application APK (prefer demo-debug, then debug, excluding test APKs)
           APK_FILE=$(find . -type f -name "*demo*debug*.apk" ! -name "*androidTest*.apk" ! -name "*Test*.apk" | head -n 1)
@@ -90,16 +108,15 @@ jobs:
           fi
 
           if [ -n "$APK_FILE" ] && [ -f "$APK_FILE" ]; then
-            echo "Found APK: $APK_FILE"
-            cp "$APK_FILE" release_apks/HisabPro-debug.apk
-            echo "Copied to release_apks/HisabPro-debug.apk successfully."
+            echo "Found APK at: $APK_FILE"
+            APK_BASENAME=$(basename "$APK_FILE")
+            cp "$APK_FILE" "release_apks/$APK_BASENAME"
+            cp "$APK_FILE" "release_apks/HisabPro-debug.apk"
+            echo "Copied APK to release_apks/ successfully:"
             ls -lh release_apks/
           else
-            echo "ERROR: No APK generated! Dumping project structure for diagnostics:"
-            echo "=== Gradle projects ==="
-            ./gradlew projects || true
-            echo "=== All directory contents ==="
-            find . -maxdepth 4 -not -path '*/.*' || true
+            echo "ERROR: No APK generated! Listing outputs directory for diagnostics:"
+            find . -maxdepth 6 \( -path "*/build/outputs/*" -o -name "outputs" \) || true
             exit 1
           fi
 
@@ -107,5 +124,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: HisabPro-debug-apk
-          path: release_apks/HisabPro-debug.apk
+          path: release_apks/
           retention-days: 30

@@ -1,6 +1,6 @@
 {
   "name": "HisabPro",
-  "description": "Now in Android / HisabPro application with automated CI/CD build workflows.",
+  "description": "Android application with automated CI/CD workflow",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

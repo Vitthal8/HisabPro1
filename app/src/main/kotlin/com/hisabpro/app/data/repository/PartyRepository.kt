@@ -1,0 +1,341 @@
+package com.hisabpro.app.data.repository
+
+import android.content.Context
+import android.content.SharedPreferences
+import com.hisabpro.app.data.model.KhataEntry
+import com.hisabpro.app.data.model.KhataEntryType
+import com.hisabpro.app.data.model.Party
+import com.hisabpro.app.data.model.PartyTag
+import com.hisabpro.app.data.model.PartyType
+import com.hisabpro.app.data.model.PartyWithBalance
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.UUID
+
+class PartyRepository(context: Context) {
+
+    private val prefs: SharedPreferences =
+        context.getSharedPreferences("hisab_pro_parties_v1", Context.MODE_PRIVATE)
+
+    private val _parties = MutableStateFlow<List<Party>>(emptyList())
+    val parties: StateFlow<List<Party>> = _parties.asStateFlow()
+
+    private val _entries = MutableStateFlow<List<KhataEntry>>(emptyList())
+    val entries: StateFlow<List<KhataEntry>> = _entries.asStateFlow()
+
+    init {
+        loadData()
+    }
+
+    private fun loadData() {
+        val partiesJson = prefs.getString(KEY_PARTIES, null)
+        val entriesJson = prefs.getString(KEY_ENTRIES, null)
+
+        if (partiesJson.isNullOrBlank()) {
+            val (initialParties, initialEntries) = createInitialData()
+            savePartiesInternal(initialParties)
+            saveEntriesInternal(initialEntries)
+            _parties.value = initialParties
+            _entries.value = initialEntries
+        } else {
+            try {
+                val partiesList = mutableListOf<Party>()
+                val pArray = JSONArray(partiesJson)
+                for (i in 0 until pArray.length()) {
+                    val obj = pArray.getJSONObject(i)
+                    partiesList.add(
+                        Party(
+                            id = obj.getString("id"),
+                            name = obj.getString("name"),
+                            phone = obj.getString("phone"),
+                            address = obj.optString("address", ""),
+                            gstin = obj.optString("gstin", ""),
+                            type = PartyType.fromString(obj.optString("type", "CUSTOMER")),
+                            tag = PartyTag.fromString(obj.optString("tag", "REGULAR")),
+                            createdAt = obj.optLong("createdAt", System.currentTimeMillis())
+                        )
+                    )
+                }
+                _parties.value = partiesList
+
+                val entriesList = mutableListOf<KhataEntry>()
+                if (!entriesJson.isNullOrBlank()) {
+                    val eArray = JSONArray(entriesJson)
+                    for (i in 0 until eArray.length()) {
+                        val obj = eArray.getJSONObject(i)
+                        entriesList.add(
+                            KhataEntry(
+                                id = obj.getString("id"),
+                                partyId = obj.getString("partyId"),
+                                amount = obj.getDouble("amount"),
+                                type = KhataEntryType.fromString(obj.getString("type")),
+                                dateMillis = obj.getLong("dateMillis"),
+                                billNumber = obj.optString("billNumber", ""),
+                                note = obj.optString("note", "")
+                            )
+                        )
+                    }
+                }
+                _entries.value = entriesList
+            } catch (e: Exception) {
+                val (initialParties, initialEntries) = createInitialData()
+                savePartiesInternal(initialParties)
+                saveEntriesInternal(initialEntries)
+                _parties.value = initialParties
+                _entries.value = initialEntries
+            }
+        }
+    }
+
+    private fun savePartiesInternal(list: List<Party>) {
+        val array = JSONArray()
+        for (p in list) {
+            val obj = JSONObject().apply {
+                put("id", p.id)
+                put("name", p.name)
+                put("phone", p.phone)
+                put("address", p.address)
+                put("gstin", p.gstin)
+                put("type", p.type.name)
+                put("tag", p.tag.name)
+                put("createdAt", p.createdAt)
+            }
+            array.put(obj)
+        }
+        prefs.edit().putString(KEY_PARTIES, array.toString()).apply()
+        _parties.value = list
+    }
+
+    private fun saveEntriesInternal(list: List<KhataEntry>) {
+        val array = JSONArray()
+        for (e in list) {
+            val obj = JSONObject().apply {
+                put("id", e.id)
+                put("partyId", e.partyId)
+                put("amount", e.amount)
+                put("type", e.type.name)
+                put("dateMillis", e.dateMillis)
+                put("billNumber", e.billNumber)
+                put("note", e.note)
+            }
+            array.put(obj)
+        }
+        prefs.edit().putString(KEY_ENTRIES, array.toString()).apply()
+        _entries.value = list
+    }
+
+    fun addParty(
+        name: String,
+        phone: String,
+        address: String,
+        gstin: String,
+        type: PartyType,
+        tag: PartyTag
+    ): Party {
+        val newParty = Party(
+            id = UUID.randomUUID().toString(),
+            name = name.trim(),
+            phone = phone.trim(),
+            address = address.trim(),
+            gstin = gstin.trim().uppercase(),
+            type = type,
+            tag = tag,
+            createdAt = System.currentTimeMillis()
+        )
+        val updated = listOf(newParty) + _parties.value
+        savePartiesInternal(updated)
+        return newParty
+    }
+
+    fun updateParty(party: Party) {
+        val updated = _parties.value.map {
+            if (it.id == party.id) party else it
+        }
+        savePartiesInternal(updated)
+    }
+
+    fun deleteParty(partyId: String) {
+        val updatedParties = _parties.value.filterNot { it.id == partyId }
+        val updatedEntries = _entries.value.filterNot { it.partyId == partyId }
+        savePartiesInternal(updatedParties)
+        saveEntriesInternal(updatedEntries)
+    }
+
+    fun addKhataEntry(
+        partyId: String,
+        amount: Double,
+        type: KhataEntryType,
+        dateMillis: Long,
+        billNumber: String,
+        note: String
+    ): KhataEntry {
+        val newEntry = KhataEntry(
+            id = UUID.randomUUID().toString(),
+            partyId = partyId,
+            amount = amount,
+            type = type,
+            dateMillis = dateMillis,
+            billNumber = billNumber.trim(),
+            note = note.trim()
+        )
+        val updated = listOf(newEntry) + _entries.value
+        saveEntriesInternal(updated)
+        return newEntry
+    }
+
+    fun deleteKhataEntry(entryId: String) {
+        val updated = _entries.value.filterNot { it.id == entryId }
+        saveEntriesInternal(updated)
+    }
+
+    fun getEntriesForParty(partyId: String): List<KhataEntry> {
+        return _entries.value
+            .filter { it.partyId == partyId }
+            .sortedByDescending { it.dateMillis }
+    }
+
+    fun resetToDemo() {
+        val (initialParties, initialEntries) = createInitialData()
+        savePartiesInternal(initialParties)
+        saveEntriesInternal(initialEntries)
+    }
+
+    private fun createInitialData(): Pair<List<Party>, List<KhataEntry>> {
+        val now = System.currentTimeMillis()
+        val day = 24 * 60 * 60 * 1000L
+
+        val p1 = Party(
+            id = "p_sharma_kirana",
+            name = "Ramesh Sharma (Kirana Store)",
+            phone = "+91 98765 43210",
+            address = "Shop 12, Main Market, Mumbai",
+            gstin = "27AAAAA1234A1Z5",
+            type = PartyType.CUSTOMER,
+            tag = PartyTag.REGULAR,
+            createdAt = now - (day * 30)
+        )
+        val p2 = Party(
+            id = "p_gupta_hardware",
+            name = "Gupta Hardware & Tools",
+            phone = "+91 98123 45678",
+            address = "Plot 45, Industrial Area, Pune",
+            gstin = "27BBBBB5678B2Z6",
+            type = PartyType.SUPPLIER,
+            tag = PartyTag.REGULAR,
+            createdAt = now - (day * 45)
+        )
+        val p3 = Party(
+            id = "p_anjali_verma",
+            name = "Anjali Verma",
+            phone = "+91 97654 32109",
+            address = "B-204, Green Heights, Andheri",
+            gstin = "",
+            type = PartyType.CUSTOMER,
+            tag = PartyTag.OCCASIONAL,
+            createdAt = now - (day * 15)
+        )
+        val p4 = Party(
+            id = "p_apex_mart",
+            name = "Apex Wholesale Supplies",
+            phone = "+91 98220 11223",
+            address = "GIDC Estate, Surat",
+            gstin = "24CCCCC9999C1Z1",
+            type = PartyType.SUPPLIER,
+            tag = PartyTag.REGULAR,
+            createdAt = now - (day * 60)
+        )
+        val p5 = Party(
+            id = "p_vikram_patel",
+            name = "Vikram Patel",
+            phone = "+91 99887 76655",
+            address = "Station Road, Ahmedabad",
+            gstin = "",
+            type = PartyType.CUSTOMER,
+            tag = PartyTag.BLOCKED,
+            createdAt = now - (day * 90)
+        )
+
+        val parties = listOf(p1, p2, p3, p4, p5)
+
+        val entries = listOf(
+            // Ramesh Sharma: customer took goods for 12,500, paid 5,000 -> Net: 7,500 receivable
+            KhataEntry(
+                id = UUID.randomUUID().toString(),
+                partyId = p1.id,
+                amount = 12500.0,
+                type = KhataEntryType.YOU_GAVE,
+                dateMillis = now - (day * 4),
+                billNumber = "INV-2024-089",
+                note = "Wholesale grocery supplies on 15-day credit"
+            ),
+            KhataEntry(
+                id = UUID.randomUUID().toString(),
+                partyId = p1.id,
+                amount = 5000.0,
+                type = KhataEntryType.YOU_GOT,
+                dateMillis = now - (day * 1),
+                billNumber = "REC-4410",
+                note = "UPI partial payment received"
+            ),
+            // Gupta Hardware: supplier provided goods 24,000, we paid 14,000 -> Net: 10,000 payable
+            KhataEntry(
+                id = UUID.randomUUID().toString(),
+                partyId = p2.id,
+                amount = 24000.0,
+                type = KhataEntryType.YOU_GOT,
+                dateMillis = now - (day * 10),
+                billNumber = "BILL-8921",
+                note = "Raw materials and power tools shipment"
+            ),
+            KhataEntry(
+                id = UUID.randomUUID().toString(),
+                partyId = p2.id,
+                amount = 14000.0,
+                type = KhataEntryType.YOU_GAVE,
+                dateMillis = now - (day * 3),
+                billNumber = "NEFT-7812",
+                note = "Bank transfer payment to vendor"
+            ),
+            // Anjali Verma: customer took goods 3,200, paid 3,200 -> Settled
+            KhataEntry(
+                id = UUID.randomUUID().toString(),
+                partyId = p3.id,
+                amount = 3200.0,
+                type = KhataEntryType.YOU_GAVE,
+                dateMillis = now - (day * 6),
+                billNumber = "INV-102",
+                note = "Occasional order"
+            ),
+            KhataEntry(
+                id = UUID.randomUUID().toString(),
+                partyId = p3.id,
+                amount = 3200.0,
+                type = KhataEntryType.YOU_GOT,
+                dateMillis = now - (day * 2),
+                billNumber = "CASH-991",
+                note = "Settled full in cash"
+            ),
+            // Vikram Patel: Blocked customer, took 8,400, unpaid
+            KhataEntry(
+                id = UUID.randomUUID().toString(),
+                partyId = p5.id,
+                amount = 8400.0,
+                type = KhataEntryType.YOU_GAVE,
+                dateMillis = now - (day * 40),
+                billNumber = "INV-071",
+                note = "Overdue credit - phone unanswered"
+            )
+        )
+
+        return Pair(parties, entries)
+    }
+
+    companion object {
+        private const val KEY_PARTIES = "parties_data_list"
+        private const val KEY_ENTRIES = "khata_entries_list"
+    }
+}

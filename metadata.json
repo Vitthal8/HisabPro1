@@ -1,6 +1,6 @@
 {
   "name": "HisabPro",
-  "description": "Android application with automated CI/CD workflow",
+  "description": "GST Invoicing, Party Khata Ledger, and Cashbook Accounting for Indian Small Businesses",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

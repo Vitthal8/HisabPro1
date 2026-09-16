@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -24,6 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hisabpro.app.ui.party.PartiesListScreen
 import com.hisabpro.app.ui.party.PartyViewModel
+import com.hisabpro.app.ui.sales.InvoiceViewModel
+import com.hisabpro.app.ui.sales.SalesScreen
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.PureWhite
 
@@ -31,6 +34,7 @@ import com.hisabpro.app.ui.theme.PureWhite
 fun MainScreen(
     partyViewModel: PartyViewModel,
     hisabViewModel: HisabViewModel,
+    invoiceViewModel: InvoiceViewModel,
     modifier: Modifier = Modifier
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -46,6 +50,30 @@ fun MainScreen(
                     onClick = { selectedTab = 0 },
                     icon = {
                         Icon(
+                            imageVector = Icons.Default.ReceiptLong,
+                            contentDescription = "Sales & Invoicing"
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = "Sales",
+                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 12.sp
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        indicatorColor = Emerald700.copy(alpha = 0.15f),
+                        selectedIconColor = Emerald700,
+                        selectedTextColor = Emerald700
+                    ),
+                    modifier = Modifier.testTag("nav_tab_sales")
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = {
+                        Icon(
                             imageVector = Icons.Default.People,
                             contentDescription = "Parties and Khata"
                         )
@@ -53,7 +81,7 @@ fun MainScreen(
                     label = {
                         Text(
                             text = "Parties (Khata)",
-                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
                             fontSize = 12.sp
                         )
                     },
@@ -66,8 +94,8 @@ fun MainScreen(
                 )
 
                 NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
                     icon = {
                         Icon(
                             imageVector = Icons.Default.AccountBalanceWallet,
@@ -77,7 +105,7 @@ fun MainScreen(
                     label = {
                         Text(
                             text = "Cashbook",
-                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                            fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal,
                             fontSize = 12.sp
                         )
                     },
@@ -97,8 +125,9 @@ fun MainScreen(
                 .padding(innerPadding)
         ) {
             when (selectedTab) {
-                0 -> PartiesListScreen(viewModel = partyViewModel)
-                1 -> HisabApp(viewModel = hisabViewModel)
+                0 -> SalesScreen(viewModel = invoiceViewModel)
+                1 -> PartiesListScreen(viewModel = partyViewModel)
+                2 -> HisabApp(viewModel = hisabViewModel)
             }
         }
     }

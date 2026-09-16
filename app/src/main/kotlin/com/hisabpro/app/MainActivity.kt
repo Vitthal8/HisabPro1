@@ -14,6 +14,7 @@ class MainActivity : ComponentActivity() {
 
     private val hisabViewModel: HisabViewModel by viewModels()
     private val partyViewModel: PartyViewModel by viewModels()
+    private val invoiceViewModel: com.hisabpro.app.ui.sales.InvoiceViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -22,7 +23,8 @@ class MainActivity : ComponentActivity() {
             HisabProTheme {
                 MainScreen(
                     partyViewModel = partyViewModel,
-                    hisabViewModel = hisabViewModel
+                    hisabViewModel = hisabViewModel,
+                    invoiceViewModel = invoiceViewModel
                 )
             }
         }

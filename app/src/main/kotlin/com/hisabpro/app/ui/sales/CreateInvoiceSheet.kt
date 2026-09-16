@@ -72,6 +72,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material3.AlertDialog
+import com.hisabpro.app.data.model.Item
 import com.hisabpro.app.data.model.GstMode
 import com.hisabpro.app.data.model.Invoice
 import com.hisabpro.app.data.model.InvoiceItem
@@ -96,6 +99,7 @@ import java.util.UUID
 fun CreateInvoiceSheet(
     sheetState: SheetState,
     parties: List<Party>,
+    availableItems: List<Item> = emptyList(),
     initialInvoiceType: InvoiceType = InvoiceType.TAX_INVOICE,
     onDismiss: () -> Unit,
     onSaveInvoice: (Invoice, saveAction: SaveAction) -> Unit
@@ -103,6 +107,10 @@ fun CreateInvoiceSheet(
     val context = LocalContext.current
     var selectedType by remember { mutableStateOf(initialInvoiceType) }
     var gstMode by remember { mutableStateOf(GstMode.INTRA_STATE) }
+
+    // Item picker state
+    var showItemPickerDialog by remember { mutableStateOf(false) }
+    var itemPickerSearch by remember { mutableStateOf("") }
 
     // Quick cash mode shortcut
     var isQuickSaleMode by remember { mutableStateOf(initialInvoiceType == InvoiceType.NON_GST_BILL) }
@@ -573,12 +581,38 @@ fun CreateInvoiceSheet(
                             .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = "+ Add Item",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = Emerald800
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "+ Add Item",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Emerald800
+                            )
+
+                            if (availableItems.isNotEmpty()) {
+                                OutlinedButton(
+                                    onClick = {
+                                        itemPickerSearch = ""
+                                        showItemPickerDialog = true
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(34.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Inventory2,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = Emerald800
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Pick from Inventory", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Emerald800)
+                                }
+                            }
+                        }
 
                         OutlinedTextField(
                             value = itemDesc,
@@ -976,6 +1010,131 @@ fun CreateInvoiceSheet(
                     }
                 }
             }
+        }
+
+        if (showItemPickerDialog) {
+            AlertDialog(
+                onDismissRequest = { showItemPickerDialog = false },
+                title = {
+                    Column {
+                        Text(
+                            text = "Select from Inventory",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Tap any product to auto-fill line item",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(360.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = itemPickerSearch,
+                            onValueChange = { itemPickerSearch = it },
+                            placeholder = { Text("Search product name, SKU...") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        val filteredPickerItems = availableItems.filter {
+                            itemPickerSearch.isBlank() ||
+                                it.name.contains(itemPickerSearch, ignoreCase = true) ||
+                                it.itemCode.contains(itemPickerSearch, ignoreCase = true) ||
+                                it.category.contains(itemPickerSearch, ignoreCase = true)
+                        }
+
+                        if (filteredPickerItems.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No matching items",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                filteredPickerItems.forEach { prod ->
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                itemDesc = prod.name
+                                                itemPriceText = if (prod.salePrice > 0) prod.salePrice.toString() else ""
+                                                itemUnit = prod.unit
+                                                itemHsn = prod.hsnCode
+                                                itemGstRate = prod.gstRate
+                                                showItemPickerDialog = false
+                                            },
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(10.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = prod.name,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp
+                                                )
+                                                Text(
+                                                    text = "${prod.category} • In Stock: ${prod.currentStock.toInt()} ${prod.unit}",
+                                                    fontSize = 11.sp,
+                                                    color = if (prod.isOutOfStock) Color(0xFFC62828) else MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                Text(
+                                                    text = "₹${prod.salePrice}",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp,
+                                                    color = Emerald800
+                                                )
+                                                if (prod.gstRate > 0) {
+                                                    Text(
+                                                        text = "${prod.gstRate.toInt()}% GST",
+                                                        fontSize = 10.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showItemPickerDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
     }
 }

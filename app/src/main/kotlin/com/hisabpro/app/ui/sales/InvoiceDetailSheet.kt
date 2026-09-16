@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
@@ -59,6 +60,7 @@ import com.hisabpro.app.data.model.GstMode
 import com.hisabpro.app.data.model.Invoice
 import com.hisabpro.app.data.model.InvoiceStatus
 import com.hisabpro.app.data.model.InvoiceType
+import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.ExpenseRed
@@ -67,6 +69,8 @@ import com.hisabpro.app.ui.theme.PureWhite
 import com.hisabpro.app.ui.theme.Slate100
 import com.hisabpro.app.ui.theme.Slate200
 import com.hisabpro.app.ui.theme.Slate700
+import com.hisabpro.app.util.InvoiceUpiQrSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -84,6 +88,10 @@ fun InvoiceDetailSheet(
 ) {
     val context = LocalContext.current
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showUpiQrSheet by remember { mutableStateOf(false) }
+    val upiSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val settingsRepo = remember { SettingsRepository(context) }
+    val businessProfile = settingsRepo.profile.value
     val dateFormat = remember { SimpleDateFormat("dd MMMM yyyy, hh:mm a", Locale.ENGLISH) }
 
     ModalBottomSheet(
@@ -375,6 +383,33 @@ fun InvoiceDetailSheet(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // UPI QR Code Button (PhonePe / GPay / Paytm compatible)
+                    if (!invoice.isFullyPaid) {
+                        Button(
+                            onClick = { showUpiQrSheet = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = Emerald800),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .testTag("btn_detail_show_upi_qr"),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode2,
+                                contentDescription = null,
+                                tint = PureWhite,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Show UPI QR (PhonePe / GPay / Paytm)",
+                                color = PureWhite,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+
                     // Row 1: WhatsApp Share & PDF Share
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -479,6 +514,21 @@ fun InvoiceDetailSheet(
                 TextButton(onClick = { showDeleteConfirm = false }) {
                     Text("Cancel")
                 }
+            }
+        )
+    }
+
+    if (showUpiQrSheet) {
+        InvoiceUpiQrSheet(
+            invoiceNumber = invoice.invoiceNumber,
+            amount = if (invoice.dueAmount > 0) invoice.dueAmount else invoice.grandTotal,
+            customerName = invoice.customerName,
+            merchantName = businessProfile.shopName.ifBlank { "HisabPro Merchant" },
+            merchantUpiId = businessProfile.upiId,
+            sheetState = upiSheetState,
+            onDismiss = { showUpiQrSheet = false },
+            onPaymentConfirmed = {
+                onMarkAsPaid(invoice)
             }
         )
     }

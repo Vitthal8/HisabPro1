@@ -32,9 +32,11 @@ enum class Category(val label: String, val iconName: String) {
 
 enum class PaymentMode(val label: String) {
     CASH("Cash"),
-    BANK_TRANSFER("Bank Transfer"),
     ONLINE_UPI("UPI / Online"),
-    CARD("Card");
+    BANK_TRANSFER("Bank Transfer"),
+    CHEQUE("Cheque"),
+    CARD("Card"),
+    CREDIT("Credit / Udhar");
 
     companion object {
         fun fromString(value: String): PaymentMode {

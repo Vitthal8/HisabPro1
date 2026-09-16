@@ -1,6 +1,7 @@
 package com.hisabpro.app.ui.party
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,15 +52,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.hisabpro.app.data.model.KhataEntryType
 import com.hisabpro.app.data.model.PartyTag
 import com.hisabpro.app.data.model.PartyType
+import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.ui.HisabViewModel
+import com.hisabpro.app.ui.payments.PaymentDirection
+import com.hisabpro.app.ui.payments.RecordPaymentSheet
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.Emerald900
@@ -77,9 +83,18 @@ fun PartiesListScreen(
     viewModel: PartyViewModel,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showAddPartySheet by remember { mutableStateOf(false) }
     var showSearchBar by remember { mutableStateOf(false) }
+
+    // Payment & Receipt Sheet State
+    var showRecordPaymentSheet by remember { mutableStateOf(false) }
+    var recordPaymentDirection by remember { mutableStateOf(PaymentDirection.RECEIPT_IN) }
+    val paymentSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val settingsRepo = remember { SettingsRepository(context) }
+    val businessProfile = settingsRepo.profile.value
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
@@ -220,7 +235,15 @@ fun PartiesListScreen(
             item {
                 PartiesSummaryCard(
                     receivable = uiState.totalReceivable,
-                    payable = uiState.totalPayable
+                    payable = uiState.totalPayable,
+                    onReceive = {
+                        recordPaymentDirection = PaymentDirection.RECEIPT_IN
+                        showRecordPaymentSheet = true
+                    },
+                    onPay = {
+                        recordPaymentDirection = PaymentDirection.PAYMENT_OUT
+                        showRecordPaymentSheet = true
+                    }
                 )
             }
 
@@ -306,12 +329,45 @@ fun PartiesListScreen(
             }
         )
     }
+
+    if (showRecordPaymentSheet) {
+        RecordPaymentSheet(
+            parties = uiState.parties.map { it.party },
+            initialDirection = recordPaymentDirection,
+            merchantUpiId = businessProfile.upiId,
+            merchantName = businessProfile.shopName.ifBlank { "HisabPro Merchant" },
+            sheetState = paymentSheetState,
+            onDismiss = { showRecordPaymentSheet = false },
+            onSavePayment = { data ->
+                val entryType = if (data.direction == PaymentDirection.RECEIPT_IN) {
+                    KhataEntryType.YOU_GOT
+                } else {
+                    KhataEntryType.YOU_GAVE
+                }
+                val actionLabel = if (data.direction == PaymentDirection.RECEIPT_IN) "Received" else "Paid"
+                val noteCombined = buildString {
+                    append("$actionLabel via ${data.paymentMode.label}")
+                    if (data.notes.isNotBlank()) append(" - ${data.notes}")
+                }
+                viewModel.addKhataEntry(
+                    partyId = data.partyId,
+                    amount = data.amount,
+                    type = entryType,
+                    dateMillis = System.currentTimeMillis(),
+                    billNumber = data.referenceNo,
+                    note = noteCombined
+                )
+            }
+        )
+    }
 }
 
 @Composable
 private fun PartiesSummaryCard(
     receivable: Double,
-    payable: Double
+    payable: Double,
+    onReceive: () -> Unit = {},
+    onPay: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
@@ -337,21 +393,41 @@ private fun PartiesSummaryCard(
             ) {
                 // You'll Get (Receivable)
                 Surface(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { onReceive() },
                     shape = RoundedCornerShape(16.dp),
                     color = PureWhite.copy(alpha = 0.12f)
                 ) {
                     Column(
                         modifier = Modifier.padding(14.dp)
                     ) {
-                        Text(
-                            text = "YOU'LL GET",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = IncomeGreenContainer
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "YOU'LL GET",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                ),
+                                color = IncomeGreenContainer
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = IncomeGreen.copy(alpha = 0.85f)
+                            ) {
+                                Text(
+                                    text = "+ Receive",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                                    color = PureWhite,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = "₹${HisabViewModel.formatAmount(receivable)}",
@@ -372,21 +448,41 @@ private fun PartiesSummaryCard(
 
                 // You'll Give (Payable)
                 Surface(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { onPay() },
                     shape = RoundedCornerShape(16.dp),
                     color = PureWhite.copy(alpha = 0.12f)
                 ) {
                     Column(
                         modifier = Modifier.padding(14.dp)
                     ) {
-                        Text(
-                            text = "YOU'LL GIVE",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = ExpenseRedContainer
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "YOU'LL GIVE",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                ),
+                                color = ExpenseRedContainer
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = ExpenseRed.copy(alpha = 0.85f)
+                            ) {
+                                Text(
+                                    text = "- Pay",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                                    color = PureWhite,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = "₹${HisabViewModel.formatAmount(payable)}",

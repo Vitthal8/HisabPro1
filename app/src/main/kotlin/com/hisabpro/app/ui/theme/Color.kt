@@ -34,5 +34,6 @@ val ExpenseRedDark = Color(0xFFB42318)
 
 val WarningAmber = Color(0xFFF79009)
 val WarningAmberContainer = Color(0xFFFEF0C7)
+val Amber700 = Color(0xFFD97706)
 
 val PureWhite = Color(0xFFFFFFFF)

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -36,6 +37,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -63,6 +65,7 @@ import com.hisabpro.app.data.model.KhataEntryType
 import com.hisabpro.app.data.model.Party
 import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.data.model.PartyWithBalance
+import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.ui.HisabViewModel
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
@@ -72,6 +75,7 @@ import com.hisabpro.app.ui.theme.IncomeGreen
 import com.hisabpro.app.ui.theme.IncomeGreenContainer
 import com.hisabpro.app.ui.theme.PureWhite
 import com.hisabpro.app.ui.theme.Slate700
+import com.hisabpro.app.util.InvoiceUpiQrSheet
 import com.hisabpro.app.util.ShareHelper
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -95,8 +99,13 @@ fun PartyKhataScreen(
     var entryTypeToAdd by remember { mutableStateOf(KhataEntryType.YOU_GAVE) }
     var showDeletePartyDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var showUpiQrSheet by remember { mutableStateOf(false) }
+
+    val settingsRepo = remember { SettingsRepository(context) }
+    val businessProfile = settingsRepo.profile.value
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val upiSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -274,7 +283,8 @@ fun PartyKhataScreen(
                             party = party,
                             netBalance = partyWithBalance.netBalance
                         )
-                    }
+                    },
+                    onShowUpiQr = { showUpiQrSheet = true }
                 )
             }
 
@@ -349,12 +359,34 @@ fun PartyKhataScreen(
             }
         )
     }
+
+    if (showUpiQrSheet) {
+        InvoiceUpiQrSheet(
+            invoiceNumber = "KHATA-${party.name.take(6).uppercase().replace(" ", "")}",
+            amount = partyWithBalance.dueAmount,
+            customerName = party.name,
+            merchantName = businessProfile.shopName.ifBlank { "HisabPro Merchant" },
+            merchantUpiId = businessProfile.upiId,
+            sheetState = upiSheetState,
+            onDismiss = { showUpiQrSheet = false },
+            onPaymentConfirmed = {
+                onAddEntry(
+                    partyWithBalance.dueAmount,
+                    KhataEntryType.YOU_GOT,
+                    System.currentTimeMillis(),
+                    "UPI-${System.currentTimeMillis().toString().takeLast(6)}",
+                    "Payment settled via UPI QR"
+                )
+            }
+        )
+    }
 }
 
 @Composable
 private fun PartySummaryHeroCard(
     partyWithBalance: PartyWithBalance,
-    onShareWhatsApp: () -> Unit
+    onShareWhatsApp: () -> Unit,
+    onShowUpiQr: (() -> Unit)? = null
 ) {
     val party = partyWithBalance.party
     val statusLabel = partyWithBalance.getStatusLabel()
@@ -476,28 +508,57 @@ private fun PartySummaryHeroCard(
             if (!partyWithBalance.isSettled) {
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // WhatsApp Balance Share Reminder Button
-                Button(
-                    onClick = onShareWhatsApp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp)
-                        .testTag("send_whatsapp_reminder_btn"),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = IncomeGreen)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = null,
-                        tint = PureWhite,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Send WhatsApp Reminder",
-                        fontWeight = FontWeight.Bold,
-                        color = PureWhite
-                    )
+                    if (partyWithBalance.isReceivable && onShowUpiQr != null) {
+                        Button(
+                            onClick = onShowUpiQr,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .testTag("collect_upi_qr_btn"),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Emerald800)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode2,
+                                contentDescription = null,
+                                tint = PureWhite,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Scan & Pay UPI QR",
+                                fontWeight = FontWeight.Bold,
+                                color = PureWhite
+                            )
+                        }
+                    }
+
+                    // WhatsApp Balance Share Reminder Button
+                    OutlinedButton(
+                        onClick = onShareWhatsApp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("send_whatsapp_reminder_btn"),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = null,
+                            tint = IncomeGreen,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Share WhatsApp Reminder",
+                            fontWeight = FontWeight.Bold,
+                            color = IncomeGreen
+                        )
+                    }
                 }
             }
         }

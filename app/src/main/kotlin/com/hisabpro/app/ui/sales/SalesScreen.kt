@@ -27,10 +27,12 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -45,14 +47,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +76,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hisabpro.app.data.model.Invoice
 import com.hisabpro.app.data.model.InvoiceStatus
 import com.hisabpro.app.data.model.InvoiceType
+import com.hisabpro.app.data.repository.SettingsRepository
+import com.hisabpro.app.ui.items.ItemViewModel
+import com.hisabpro.app.ui.purchases.PurchaseViewModel
+import com.hisabpro.app.ui.purchases.PurchasesScreen
+import com.hisabpro.app.ui.settings.BusinessProfileSheet
+import androidx.compose.runtime.collectAsState
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.Emerald900
@@ -87,79 +101,172 @@ import java.util.Locale
 @Composable
 fun SalesScreen(
     viewModel: InvoiceViewModel,
+    itemViewModel: ItemViewModel? = null,
+    purchaseViewModel: PurchaseViewModel? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val parties by viewModel.parties.collectAsStateWithLifecycle(initialValue = emptyList())
+    val inventoryItems = itemViewModel?.rawItems?.collectAsState()?.value ?: emptyList()
 
+    val settingsRepo = remember { SettingsRepository(context) }
+    val businessProfile by settingsRepo.profile.collectAsStateWithLifecycle()
+
+    var selectedBillingTab by rememberSaveable { mutableIntStateOf(0) } // 0: Sales, 1: Purchases
+    var showProfileSheet by remember { mutableStateOf(false) }
     var showCreateSheet by remember { mutableStateOf(false) }
     var initialCreateType by remember { mutableStateOf(InvoiceType.TAX_INVOICE) }
     var showSearchBar by remember { mutableStateOf(false) }
 
     val createSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val profileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ReceiptLong,
-                            contentDescription = null,
-                            tint = PureWhite,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Text(
-                            text = "Sales & Invoicing",
-                            color = PureWhite,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = { showSearchBar = !showSearchBar },
-                        modifier = Modifier.testTag("btn_sales_search_toggle")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search Invoices",
-                            tint = PureWhite
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Emerald800
+            Column(modifier = Modifier.fillMaxWidth()) {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ReceiptLong,
+                                contentDescription = null,
+                                tint = PureWhite,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = if (selectedBillingTab == 0) "Sales & Invoicing" else "Inward Purchases",
+                                    color = PureWhite,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                                )
+                                if (businessProfile.shopName.isNotBlank()) {
+                                    Text(
+                                        text = businessProfile.shopName,
+                                        color = PureWhite.copy(alpha = 0.8f),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = { showProfileSheet = true },
+                            modifier = Modifier.testTag("btn_store_profile_settings")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Storefront,
+                                contentDescription = "Store Profile & Settings",
+                                tint = PureWhite
+                            )
+                        }
+                        if (selectedBillingTab == 0) {
+                            IconButton(
+                                onClick = { showSearchBar = !showSearchBar },
+                                modifier = Modifier.testTag("btn_sales_search_toggle")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Search Invoices",
+                                    tint = PureWhite
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = Emerald800
+                    )
                 )
-            )
+
+                // Segmented Tabs: Sales (Outward) vs Purchases (Inward)
+                TabRow(
+                    selectedTabIndex = selectedBillingTab,
+                    containerColor = Emerald800,
+                    contentColor = PureWhite,
+                    indicator = { tabPositions ->
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedBillingTab]),
+                            color = PureWhite
+                        )
+                    }
+                ) {
+                    Tab(
+                        selected = selectedBillingTab == 0,
+                        onClick = { selectedBillingTab = 0 },
+                        text = {
+                            Text(
+                                text = "Sales (Outward)",
+                                fontWeight = if (selectedBillingTab == 0) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 13.sp
+                            )
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.ReceiptLong,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        modifier = Modifier.testTag("tab_billing_sales")
+                    )
+                    Tab(
+                        selected = selectedBillingTab == 1,
+                        onClick = { selectedBillingTab = 1 },
+                        text = {
+                            Text(
+                                text = "Purchases (Inward)",
+                                fontWeight = if (selectedBillingTab == 1) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 13.sp
+                            )
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.LocalShipping,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        modifier = Modifier.testTag("tab_billing_purchases")
+                    )
+                }
+            }
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = {
-                    initialCreateType = InvoiceType.TAX_INVOICE
-                    showCreateSheet = true
-                },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("New Invoice", fontWeight = FontWeight.Bold) },
-                containerColor = Emerald700,
-                contentColor = PureWhite,
-                modifier = Modifier.testTag("fab_create_invoice")
-            )
+            if (selectedBillingTab == 0) {
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        initialCreateType = InvoiceType.TAX_INVOICE
+                        showCreateSheet = true
+                    },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("New Invoice", fontWeight = FontWeight.Bold) },
+                    containerColor = Emerald700,
+                    contentColor = PureWhite,
+                    modifier = Modifier.testTag("fab_create_invoice")
+                )
+            }
         }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
+        if (selectedBillingTab == 1) {
+            val pVm = purchaseViewModel ?: androidx.lifecycle.viewmodel.compose.viewModel()
+            PurchasesScreen(
+                viewModel = pVm,
+                modifier = Modifier.padding(innerPadding)
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
             // Search Bar (Animated)
             AnimatedVisibility(visible = showSearchBar) {
                 Surface(
@@ -376,6 +483,21 @@ fun SalesScreen(
             }
         }
     }
+    }
+
+    // Business Profile & Settings Sheet
+    if (showProfileSheet) {
+        BusinessProfileSheet(
+            profile = businessProfile,
+            sheetState = profileSheetState,
+            onDismiss = { showProfileSheet = false },
+            onSaveProfile = { updated ->
+                settingsRepo.updateProfile(updated)
+                showProfileSheet = false
+                Toast.makeText(context, "Business profile updated!", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
 
     // Detail Sheet
     if (uiState.selectedInvoice != null) {
@@ -406,12 +528,23 @@ fun SalesScreen(
         CreateInvoiceSheet(
             sheetState = createSheetState,
             parties = parties,
+            availableItems = inventoryItems,
             initialInvoiceType = initialCreateType,
             onDismiss = { showCreateSheet = false },
             onSaveInvoice = { newInvoice, action ->
                 val nextNum = viewModel.getNextInvoiceNumber(newInvoice.type)
                 val toSave = newInvoice.copy(invoiceNumber = nextNum)
                 val saved = viewModel.createInvoice(toSave)
+
+                // Automatically deduct stock for any items sold
+                toSave.items.forEach { lineItem ->
+                    itemViewModel?.deductStockForInvoiceItem(
+                        itemNameOrId = lineItem.description,
+                        quantity = lineItem.quantity,
+                        invoiceNumber = saved.invoiceNumber
+                    )
+                }
+
                 showCreateSheet = false
 
                 when (action) {

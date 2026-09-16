@@ -30,11 +30,11 @@ import kotlin.math.max
 
 class ReportsViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val invoiceRepo = InvoiceRepository(application.applicationContext)
-    private val transactionRepo = TransactionRepository(application.applicationContext)
-    private val purchaseRepo = PurchaseRepository(application.applicationContext)
-    private val partyRepo = PartyRepository(application.applicationContext)
-    private val itemRepo = ItemRepository(application.applicationContext)
+    private val invoiceRepo = InvoiceRepository.getInstance(application.applicationContext)
+    private val transactionRepo = TransactionRepository.getInstance(application.applicationContext)
+    private val purchaseRepo = PurchaseRepository.getInstance(application.applicationContext)
+    private val partyRepo = PartyRepository.getInstance(application.applicationContext)
+    private val itemRepo = ItemRepository.getInstance(application.applicationContext)
 
     private val _selectedPeriod = MutableStateFlow(ReportPeriod.THIS_MONTH)
     private val _selectedDaybookDate = MutableStateFlow(System.currentTimeMillis())

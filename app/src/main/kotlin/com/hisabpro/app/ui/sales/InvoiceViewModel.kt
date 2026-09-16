@@ -10,6 +10,7 @@ import com.hisabpro.app.data.model.InvoiceItem
 import com.hisabpro.app.data.model.InvoiceStatus
 import com.hisabpro.app.data.model.InvoiceType
 import com.hisabpro.app.data.repository.InvoiceRepository
+import com.hisabpro.app.data.repository.ItemRepository
 import com.hisabpro.app.data.repository.PartyRepository
 import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.util.InvoicePdfGenerator
@@ -35,8 +36,9 @@ data class SalesUiState(
 
 class InvoiceViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = InvoiceRepository(application.applicationContext)
-    private val partyRepository = PartyRepository(application.applicationContext)
+    private val repository = InvoiceRepository.getInstance(application.applicationContext)
+    private val partyRepository = PartyRepository.getInstance(application.applicationContext)
+    private val itemRepository = ItemRepository.getInstance(application.applicationContext)
 
     private val _searchQuery = MutableStateFlow("")
     private val _typeFilter = MutableStateFlow<InvoiceType?>(null)
@@ -160,6 +162,16 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun deleteInvoice(invoiceId: String) {
+        val invoice = repository.invoices.value.find { it.id == invoiceId }
+        if (invoice != null) {
+            invoice.items.forEach { lineItem ->
+                itemRepository.restoreStockForInvoiceItem(
+                    itemNameOrId = lineItem.description,
+                    quantity = lineItem.quantity,
+                    invoiceNumber = invoice.invoiceNumber
+                )
+            }
+        }
         repository.deleteInvoice(invoiceId)
         if (_selectedInvoiceId.value == invoiceId) {
             _selectedInvoiceId.value = null

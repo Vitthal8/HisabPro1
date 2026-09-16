@@ -199,6 +199,35 @@ class ItemRepository(context: Context) {
         }
     }
 
+    /**
+     * Called when an invoice is cancelled or deleted: restores stock for matched items
+     */
+    fun restoreStockForInvoiceItem(itemNameOrId: String, quantity: Double, invoiceNumber: String) {
+        val current = _items.value.toMutableList()
+        val index = current.indexOfFirst {
+            it.id == itemNameOrId || it.name.equals(itemNameOrId, ignoreCase = true)
+        }
+        if (index != -1) {
+            val item = current[index]
+            val prevStock = item.currentStock
+            val newStock = prevStock + quantity
+            current[index] = item.copy(
+                currentStock = newStock,
+                updatedAtMillis = System.currentTimeMillis()
+            )
+            saveItemsInternal(current)
+
+            recordStockHistory(
+                itemId = item.id,
+                changeQty = quantity,
+                prevStock = prevStock,
+                newStock = newStock,
+                reason = StockReason.RETURN_IN,
+                note = "Restored from Deleted Invoice #$invoiceNumber"
+            )
+        }
+    }
+
     private fun recordStockHistory(
         itemId: String,
         changeQty: Double,
@@ -354,5 +383,14 @@ class ItemRepository(context: Context) {
     companion object {
         private const val KEY_ITEMS = "key_items_list"
         private const val KEY_STOCK_HISTORY = "key_items_stock_history"
+
+        @Volatile
+        private var INSTANCE: ItemRepository? = null
+
+        fun getInstance(context: Context): ItemRepository {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: ItemRepository(context.applicationContext).also { INSTANCE = it }
+            }
+        }
     }
 }

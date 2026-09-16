@@ -9,6 +9,8 @@ import com.hisabpro.app.data.model.Item
 import com.hisabpro.app.data.model.StockHistoryEntry
 import com.hisabpro.app.data.model.StockReason
 import com.hisabpro.app.data.repository.ItemRepository
+import com.hisabpro.app.data.repository.SettingsRepository
+import com.hisabpro.app.ui.reports.ReportExporter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,9 +21,17 @@ import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
 
+enum class ItemSortOption(val label: String) {
+    NAME_ASC("Name (A to Z)"),
+    STOCK_LOW_TO_HIGH("Lowest Stock First"),
+    STOCK_VALUE_HIGH_TO_LOW("Highest Valuation"),
+    PRICE_HIGH_TO_LOW("Price (High to Low)"),
+    PRICE_LOW_TO_HIGH("Price (Low to High)")
+}
+
 class ItemViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = ItemRepository(application)
+    private val repository = ItemRepository.getInstance(application)
     val rawItems: StateFlow<List<Item>> = repository.items
 
     private val _searchQuery = MutableStateFlow("")
@@ -33,13 +43,17 @@ class ItemViewModel(application: Application) : AndroidViewModel(application) {
     private val _onlyLowStock = MutableStateFlow(false)
     val onlyLowStock: StateFlow<Boolean> = _onlyLowStock.asStateFlow()
 
+    private val _sortOption = MutableStateFlow(ItemSortOption.NAME_ASC)
+    val sortOption: StateFlow<ItemSortOption> = _sortOption.asStateFlow()
+
     val filteredItems: StateFlow<List<Item>> = combine(
         rawItems,
         _searchQuery,
         _selectedCategory,
-        _onlyLowStock
-    ) { items, query, category, lowStockOnly ->
-        items.filter { item ->
+        _onlyLowStock,
+        _sortOption
+    ) { items, query, category, lowStockOnly, sortOpt ->
+        val filtered = items.filter { item ->
             val matchesQuery = query.isBlank() ||
                 item.name.contains(query, ignoreCase = true) ||
                 item.itemCode.contains(query, ignoreCase = true) ||
@@ -50,6 +64,13 @@ class ItemViewModel(application: Application) : AndroidViewModel(application) {
             val matchesLowStock = !lowStockOnly || item.isLowStock
 
             matchesQuery && matchesCategory && matchesLowStock
+        }
+        when (sortOpt) {
+            ItemSortOption.NAME_ASC -> filtered.sortedBy { it.name.lowercase() }
+            ItemSortOption.STOCK_LOW_TO_HIGH -> filtered.sortedBy { it.currentStock }
+            ItemSortOption.STOCK_VALUE_HIGH_TO_LOW -> filtered.sortedByDescending { it.stockValueSale }
+            ItemSortOption.PRICE_HIGH_TO_LOW -> filtered.sortedByDescending { it.salePrice }
+            ItemSortOption.PRICE_LOW_TO_HIGH -> filtered.sortedBy { it.salePrice }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -94,6 +115,10 @@ class ItemViewModel(application: Application) : AndroidViewModel(application) {
         _onlyLowStock.value = enabled
     }
 
+    fun setSortOption(option: ItemSortOption) {
+        _sortOption.value = option
+    }
+
     fun addItem(item: Item) {
         viewModelScope.launch {
             repository.addItem(item)
@@ -126,34 +151,101 @@ class ItemViewModel(application: Application) : AndroidViewModel(application) {
         repository.deductStockForInvoiceItem(itemNameOrId, quantity, invoiceNumber)
     }
 
+    fun restoreStockForInvoiceItem(itemNameOrId: String, quantity: Double, invoiceNumber: String) {
+        repository.restoreStockForInvoiceItem(itemNameOrId, quantity, invoiceNumber)
+    }
+
+    fun exportStockCsv(context: Context) {
+        val businessName = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+        val uri = ReportExporter.exportInventoryStockCsv(context, rawItems.value, businessName)
+        if (uri != null) {
+            ReportExporter.shareCsvFile(context, uri, "Inventory Stock Report - $businessName")
+        }
+    }
+
+    fun shareSingleItem(context: Context, item: Item) {
+        val indiaLocale = Locale("en", "IN")
+        val currencyFormat = NumberFormat.getCurrencyInstance(indiaLocale)
+        val businessProfile = SettingsRepository.getInstance(context).profile.value
+        val shopName = businessProfile.shopName.ifBlank { "HisabPro Store" }
+
+        val sb = StringBuilder()
+        sb.append("🏷️ *${item.name}*\n")
+        sb.append("--------------------------------\n")
+        sb.append("• *Price:* ${currencyFormat.format(item.salePrice)} / ${item.unit}\n")
+        if (item.purchasePrice > 0) {
+            sb.append("• *Cost Price:* ${currencyFormat.format(item.purchasePrice)}\n")
+        }
+        sb.append("• *GST Rate:* ${item.gstRate.toInt()}%\n")
+        if (item.hsnCode.isNotBlank()) {
+            sb.append("• *HSN Code:* ${item.hsnCode}\n")
+        }
+        if (item.itemCode.isNotBlank()) {
+            sb.append("• *SKU/Barcode:* ${item.itemCode}\n")
+        }
+        sb.append("• *Category:* ${item.category}\n")
+        sb.append("• *Current Stock:* ${item.currentStock.toInt()} ${item.unit} ")
+        if (item.isOutOfStock) {
+            sb.append("(🔴 Out of Stock)\n")
+        } else if (item.isLowStock) {
+            sb.append("(⚠️ Low Stock)\n")
+        } else {
+            sb.append("(✅ Available)\n")
+        }
+        sb.append("--------------------------------\n")
+        sb.append("🏪 *$shopName*\n")
+        if (businessProfile.phone.isNotBlank()) {
+            sb.append("📞 Contact: ${businessProfile.phone}\n")
+        }
+        if (businessProfile.gstin.isNotBlank()) {
+            sb.append("🏛️ GSTIN: ${businessProfile.gstin}\n")
+        }
+
+        val sendIntent = Intent().apply {
+            action = Intent.ACTION_SEND
+            putExtra(Intent.EXTRA_TEXT, sb.toString())
+            putExtra(Intent.EXTRA_SUBJECT, "Product Details - ${item.name}")
+            type = "text/plain"
+        }
+        context.startActivity(Intent.createChooser(sendIntent, "Share Product Info"))
+    }
+
     fun shareStockSummary(context: Context) {
         val items = rawItems.value
         val indiaLocale = Locale("en", "IN")
         val currencyFormat = NumberFormat.getCurrencyInstance(indiaLocale)
+        val businessProfile = SettingsRepository.getInstance(context).profile.value
+        val shopName = businessProfile.shopName.ifBlank { "HisabPro Store" }
+
         val sb = StringBuilder()
-        sb.append("📦 *HisabPro - Inventory & Stock Status*\n")
+        sb.append("📦 *$shopName - Inventory & Stock Status*\n")
+        if (businessProfile.gstin.isNotBlank()) {
+            sb.append("GSTIN: ${businessProfile.gstin}\n")
+        }
         sb.append("Total Items: ${items.size} | Low Stock: ${items.count { it.isLowStock }}\n")
-        sb.append("Total Stock Value: ${currencyFormat.format(items.sumOf { it.stockValueSale })}\n\n")
+        sb.append("Total Retail Value: ${currencyFormat.format(items.sumOf { it.stockValueSale })}\n")
+        sb.append("Total Cost Value: ${currencyFormat.format(items.sumOf { it.stockValuePurchase })}\n\n")
 
         items.forEachIndexed { index, item ->
             val statusEmoji = when {
-                item.isOutOfStock -> "🔴 OUT OF STOCK"
-                item.isLowStock -> "⚠️ LOW STOCK"
-                else -> "✅ IN STOCK"
+                item.isOutOfStock -> "🔴 OUT"
+                item.isLowStock -> "⚠️ LOW"
+                else -> "✅ IN"
             }
             sb.append("${index + 1}. *${item.name}* ($statusEmoji)\n")
-            sb.append("   • Stock: ${item.currentStock.toInt()} ${item.unit} (Min: ${item.minStockAlert.toInt()})\n")
+            sb.append("   • Stock: ${item.currentStock.toInt()} ${item.unit} (Alert: ${item.minStockAlert.toInt()})\n")
             sb.append("   • Sale: ${currencyFormat.format(item.salePrice)} | Cost: ${currencyFormat.format(item.purchasePrice)}\n")
             if (item.hsnCode.isNotBlank()) {
                 sb.append("   • HSN: ${item.hsnCode} | GST: ${item.gstRate.toInt()}%\n")
             }
             sb.append("\n")
         }
-        sb.append("Generated by HisabPro Business Suite")
+        sb.append("Generated by $shopName via HisabPro")
 
         val sendIntent = Intent().apply {
             action = Intent.ACTION_SEND
             putExtra(Intent.EXTRA_TEXT, sb.toString())
+            putExtra(Intent.EXTRA_SUBJECT, "$shopName Inventory Report")
             type = "text/plain"
         }
         context.startActivity(Intent.createChooser(sendIntent, "Share Inventory Report"))

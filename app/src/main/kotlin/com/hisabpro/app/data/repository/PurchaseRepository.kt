@@ -325,5 +325,14 @@ class PurchaseRepository(context: Context) {
 
     companion object {
         private const val KEY_PURCHASES = "hisab_pro_purchases_key"
+
+        @Volatile
+        private var INSTANCE: PurchaseRepository? = null
+
+        fun getInstance(context: Context): PurchaseRepository {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: PurchaseRepository(context.applicationContext).also { INSTANCE = it }
+            }
+        }
     }
 }

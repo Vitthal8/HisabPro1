@@ -311,5 +311,14 @@ class InvoiceRepository(context: Context) {
 
     companion object {
         private const val KEY_INVOICES = "invoices_data_list"
+
+        @Volatile
+        private var INSTANCE: InvoiceRepository? = null
+
+        fun getInstance(context: Context): InvoiceRepository {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: InvoiceRepository(context.applicationContext).also { INSTANCE = it }
+            }
+        }
     }
 }

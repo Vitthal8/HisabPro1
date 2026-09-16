@@ -44,7 +44,7 @@ data class HisabUiState(
 
 class HisabViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = TransactionRepository(application.applicationContext)
+    private val repository = TransactionRepository.getInstance(application.applicationContext)
 
     private val _filterType = MutableStateFlow(FilterType.ALL)
     private val _selectedCategory = MutableStateFlow<Category?>(null)

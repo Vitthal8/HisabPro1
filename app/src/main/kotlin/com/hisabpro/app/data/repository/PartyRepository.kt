@@ -337,5 +337,14 @@ class PartyRepository(context: Context) {
     companion object {
         private const val KEY_PARTIES = "parties_data_list"
         private const val KEY_ENTRIES = "khata_entries_list"
+
+        @Volatile
+        private var INSTANCE: PartyRepository? = null
+
+        fun getInstance(context: Context): PartyRepository {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: PartyRepository(context.applicationContext).also { INSTANCE = it }
+            }
+        }
     }
 }

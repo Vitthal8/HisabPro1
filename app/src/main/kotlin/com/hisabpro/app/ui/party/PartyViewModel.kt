@@ -33,9 +33,9 @@ data class PartyUiState(
 
 class PartyViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = PartyRepository(application.applicationContext)
-    private val invoiceRepository = InvoiceRepository(application.applicationContext)
-    private val purchaseRepository = PurchaseRepository(application.applicationContext)
+    private val repository = PartyRepository.getInstance(application.applicationContext)
+    private val invoiceRepository = InvoiceRepository.getInstance(application.applicationContext)
+    private val purchaseRepository = PurchaseRepository.getInstance(application.applicationContext)
 
     private val _searchQuery = MutableStateFlow("")
     private val _typeFilter = MutableStateFlow<PartyType?>(null)

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
+import com.hisabpro.app.data.model.Item
 import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.ui.HisabViewModel
 import java.io.File
@@ -220,6 +221,50 @@ object ReportExporter {
                 gstr.eligibleInvoices.forEach { inv ->
                     out.write("\"${inv.invoiceNumber}\",\"${dateFormat.format(Date(inv.dateMillis))}\",\"${inv.customerName}\",\"${inv.customerGstin}\",\"${inv.type.label}\",${inv.subtotal},${inv.totalTax},${inv.grandTotal},\"${inv.paymentStatus.label}\"\n")
                 }
+            }
+
+            FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun exportInventoryStockCsv(
+        context: Context,
+        items: List<Item>,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ): Uri? {
+        return try {
+            val reportsDir = File(context.cacheDir, "reports")
+            if (!reportsDir.exists()) reportsDir.mkdirs()
+
+            val file = File(reportsDir, "Inventory_Stock_${System.currentTimeMillis()}.csv")
+            file.bufferedWriter().use { out ->
+                out.write("INVENTORY STOCK VALUATION & AUDIT REPORT\n")
+                out.write("Business Name,\"$businessName\"\n")
+                out.write("Generated At,${timeFormat.format(Date())}\n\n")
+
+                out.write("Item Name,SKU,Category,Unit,Current Stock,Min Stock Alert,Stock Status,Sale Price,Cost Price,Profit Margin (INR),Cost Valuation (INR),Retail Valuation (INR),GST Rate,HSN Code\n")
+                items.forEach { item ->
+                    val status = when {
+                        item.isOutOfStock -> "OUT OF STOCK"
+                        item.isLowStock -> "LOW STOCK"
+                        else -> "IN STOCK"
+                    }
+                    val margin = item.salePrice - item.purchasePrice
+                    val costVal = item.currentStock * item.purchasePrice
+                    val saleVal = item.currentStock * item.salePrice
+                    out.write("\"${item.name}\",\"${item.itemCode}\",\"${item.category}\",\"${item.unit}\",${item.currentStock},${item.minStockAlert},\"$status\",${item.salePrice},${item.purchasePrice},$margin,$costVal,$saleVal,${item.gstRate}%,\"${item.hsnCode}\"\n")
+                }
+                out.write("\n")
+                val totalCostVal = items.sumOf { it.currentStock * it.purchasePrice }
+                val totalRetailVal = items.sumOf { it.currentStock * it.salePrice }
+                out.write("TOTALS,,,,,Total Items: ${items.size},,,,,$totalCostVal,$totalRetailVal,,\n")
             }
 
             FileProvider.getUriForFile(

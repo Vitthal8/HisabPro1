@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.AlertDialog
@@ -73,7 +74,8 @@ fun ItemDetailSheet(
     onDismiss: () -> Unit,
     onAdjustStockClick: () -> Unit,
     onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    onShareClick: () -> Unit = {}
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -147,6 +149,9 @@ fun ItemDetailSheet(
                 }
 
                 Row {
+                    IconButton(onClick = onShareClick) {
+                        Icon(Icons.Default.Share, contentDescription = "Share Item", tint = Emerald700)
+                    }
                     IconButton(onClick = onEditClick) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit Item", tint = Emerald700)
                     }
@@ -255,18 +260,35 @@ fun ItemDetailSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Action: Adjust Stock Button
-            Button(
-                onClick = onAdjustStockClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("adjust_stock_action_button"),
-                colors = ButtonDefaults.buttonColors(containerColor = Emerald700),
-                shape = RoundedCornerShape(10.dp)
+            // Actions: Adjust Stock & Share
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(imageVector = Icons.Default.SwapVert, contentDescription = null, tint = PureWhite)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Adjust Stock (+ / -)", color = PureWhite, fontWeight = FontWeight.Bold)
+                Button(
+                    onClick = onAdjustStockClick,
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .testTag("adjust_stock_action_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = Emerald700),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.SwapVert, contentDescription = null, tint = PureWhite)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Adjust Stock", color = PureWhite, fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = onShareClick,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("share_item_button"),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Share, contentDescription = null, tint = Emerald700)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Share Info", color = Emerald700, fontWeight = FontWeight.Bold)
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

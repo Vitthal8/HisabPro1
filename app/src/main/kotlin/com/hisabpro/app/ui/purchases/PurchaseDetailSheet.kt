@@ -433,7 +433,7 @@ fun PurchaseDetailSheet(
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Delete Purchase Bill?") },
-            text = { Text("Are you sure you want to delete purchase bill ${bill.purchaseNumber}? This will remove it from purchase registers.") },
+            text = { Text("Are you sure you want to delete purchase bill ${bill.purchaseNumber}? This will remove it from purchase registers and reverse the inward stock added to inventory.") },
             confirmButton = {
                 Button(
                     onClick = {

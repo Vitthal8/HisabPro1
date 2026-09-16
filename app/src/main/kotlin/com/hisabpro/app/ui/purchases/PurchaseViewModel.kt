@@ -44,9 +44,9 @@ data class PurchaseUiState(
 
 class PurchaseViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val purchaseRepo = PurchaseRepository(application.applicationContext)
-    private val partyRepo = PartyRepository(application.applicationContext)
-    private val itemRepo = ItemRepository(application.applicationContext)
+    private val purchaseRepo = PurchaseRepository.getInstance(application.applicationContext)
+    private val partyRepo = PartyRepository.getInstance(application.applicationContext)
+    private val itemRepo = ItemRepository.getInstance(application.applicationContext)
 
     val suppliers: StateFlow<List<Party>> = partyRepo.parties
     val inventoryItems: StateFlow<List<Item>> = itemRepo.items
@@ -200,6 +200,24 @@ class PurchaseViewModel(application: Application) : AndroidViewModel(application
 
     fun deletePurchase(billId: String) {
         viewModelScope.launch {
+            val bill = purchaseRepo.purchases.value.find { it.id == billId }
+            if (bill != null) {
+                // Revert stock additions
+                bill.items.forEach { pItem ->
+                    val matchedItem = pItem.itemId?.let { id ->
+                        itemRepo.items.value.find { it.id == id }
+                    } ?: itemRepo.items.value.find { it.name.equals(pItem.description, ignoreCase = true) }
+
+                    if (matchedItem != null) {
+                        itemRepo.adjustStock(
+                            itemId = matchedItem.id,
+                            changeQty = -pItem.quantity,
+                            reason = StockReason.MANUAL_ADJUSTMENT,
+                            note = "Reverted from Deleted Purchase Bill ${bill.purchaseNumber}"
+                        )
+                    }
+                }
+            }
             purchaseRepo.deletePurchase(billId)
             if (_selectedPurchase.value?.id == billId) {
                 _selectedPurchase.value = null

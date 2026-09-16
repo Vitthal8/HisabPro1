@@ -514,7 +514,7 @@ fun InvoiceDetailSheet(
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("Delete Invoice?") },
-            text = { Text("Are you sure you want to delete invoice ${invoice.invoiceNumber}? This action cannot be undone.") },
+            text = { Text("Are you sure you want to delete invoice ${invoice.invoiceNumber}? Deducted items will be restored back to your stock inventory.") },
             confirmButton = {
                 Button(
                     onClick = {

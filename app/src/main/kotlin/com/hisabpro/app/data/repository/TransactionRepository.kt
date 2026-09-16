@@ -187,5 +187,14 @@ class TransactionRepository(context: Context) {
 
     companion object {
         private const val KEY_TRANSACTIONS = "transactions_data_v1"
+
+        @Volatile
+        private var INSTANCE: TransactionRepository? = null
+
+        fun getInstance(context: Context): TransactionRepository {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: TransactionRepository(context.applicationContext).also { INSTANCE = it }
+            }
+        }
     }
 }

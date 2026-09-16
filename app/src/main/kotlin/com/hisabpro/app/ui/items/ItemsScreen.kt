@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -30,6 +31,8 @@ import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -81,6 +84,7 @@ fun ItemsScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val onlyLowStock by viewModel.onlyLowStock.collectAsState()
+    val sortOption by viewModel.sortOption.collectAsState()
 
     val totalItems by viewModel.totalItemsCount.collectAsState()
     val lowStockCount by viewModel.lowStockCount.collectAsState()
@@ -95,6 +99,7 @@ fun ItemsScreen(
 
     var showDetailSheet by remember { mutableStateOf(false) }
     var selectedItemDetail by remember { mutableStateOf<Item?>(null) }
+    var showSortMenu by remember { mutableStateOf(false) }
 
     val addEditSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val adjustSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -122,6 +127,50 @@ fun ItemsScreen(
                     }
                 },
                 actions = {
+                    Box {
+                        IconButton(
+                            onClick = { showSortMenu = true },
+                            modifier = Modifier.testTag("sort_items_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SwapVert,
+                                contentDescription = "Sort Items",
+                                tint = PureWhite
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false }
+                        ) {
+                            ItemSortOption.values().forEach { option ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = option.label,
+                                            fontWeight = if (sortOption == option) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (sortOption == option) Emerald700 else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.setSortOption(option)
+                                        showSortMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    IconButton(
+                        onClick = { viewModel.exportStockCsv(context) },
+                        modifier = Modifier.testTag("export_stock_csv_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileDownload,
+                            contentDescription = "Export Inventory CSV",
+                            tint = PureWhite
+                        )
+                    }
+
                     IconButton(
                         onClick = { viewModel.shareStockSummary(context) },
                         modifier = Modifier.testTag("share_stock_summary_button")
@@ -444,6 +493,9 @@ fun ItemsScreen(
                 viewModel.deleteItem(currentItem.id)
                 showDetailSheet = false
                 selectedItemDetail = null
+            },
+            onShareClick = {
+                viewModel.shareSingleItem(context, currentItem)
             }
         )
     }

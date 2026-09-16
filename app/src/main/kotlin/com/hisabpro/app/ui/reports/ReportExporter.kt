@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
+import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.ui.HisabViewModel
 import java.io.File
 import java.text.SimpleDateFormat
@@ -19,7 +20,8 @@ object ReportExporter {
         context: Context,
         gstr: Gstr1Summary,
         period: ReportPeriod,
-        businessName: String = "HisabPro Store"
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" },
+        gstin: String = SettingsRepository.getInstance(context).profile.value.gstin
     ) {
         val totalTaxableStr = HisabViewModel.formatAmount(gstr.totalTaxableSupplies)
         val totalTaxStr = HisabViewModel.formatAmount(gstr.totalTax)
@@ -31,6 +33,7 @@ object ReportExporter {
         val sb = StringBuilder()
         sb.append("📋 *GSTR-1 TAX FILING SUMMARY*\n")
         sb.append("🏢 Business: $businessName\n")
+        if (gstin.isNotBlank()) sb.append("🆔 GSTIN: $gstin\n")
         sb.append("📅 Period: ${period.label}\n")
         sb.append("🕒 Generated: ${timeFormat.format(Date())}\n\n")
 
@@ -61,7 +64,7 @@ object ReportExporter {
         context: Context,
         pl: ProfitLossSummary,
         period: ReportPeriod,
-        businessName: String = "HisabPro Store"
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
     ) {
         val salesStr = HisabViewModel.formatAmount(pl.salesRevenue)
         val cogsStr = HisabViewModel.formatAmount(pl.costOfGoodsSold)
@@ -100,7 +103,7 @@ object ReportExporter {
     fun shareDaybookReport(
         context: Context,
         daybook: DaybookSummary,
-        businessName: String = "HisabPro Store"
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
     ) {
         val dateStr = dateFormat.format(Date(daybook.dateMillis))
         val salesStr = HisabViewModel.formatAmount(daybook.daySalesTotal)
@@ -136,7 +139,7 @@ object ReportExporter {
     fun sharePartyAgingReport(
         context: Context,
         aging: PartyAgingSummary,
-        businessName: String = "HisabPro Store"
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
     ) {
         val receivableStr = HisabViewModel.formatAmount(aging.totalReceivable)
         val payableStr = HisabViewModel.formatAmount(aging.totalPayable)
@@ -173,7 +176,9 @@ object ReportExporter {
     fun exportGstr1Csv(
         context: Context,
         gstr: Gstr1Summary,
-        period: ReportPeriod
+        period: ReportPeriod,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" },
+        gstin: String = SettingsRepository.getInstance(context).profile.value.gstin
     ): Uri? {
         return try {
             val reportsDir = File(context.cacheDir, "reports")
@@ -182,6 +187,8 @@ object ReportExporter {
             val file = File(reportsDir, "GSTR1_${period.name}_${System.currentTimeMillis()}.csv")
             file.bufferedWriter().use { out ->
                 out.write("GSTR-1 SALES SUMMARY REPORT\n")
+                out.write("Business Name,\"$businessName\"\n")
+                if (gstin.isNotBlank()) out.write("GSTIN,\"$gstin\"\n")
                 out.write("Period,${period.label}\n")
                 out.write("Generated At,${timeFormat.format(Date())}\n\n")
 

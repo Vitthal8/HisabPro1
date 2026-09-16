@@ -9,7 +9,9 @@ import com.hisabpro.app.data.model.Party
 import com.hisabpro.app.data.model.PartyTag
 import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.data.model.PartyWithBalance
+import com.hisabpro.app.data.repository.InvoiceRepository
 import com.hisabpro.app.data.repository.PartyRepository
+import com.hisabpro.app.data.repository.PurchaseRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +34,8 @@ data class PartyUiState(
 class PartyViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = PartyRepository(application.applicationContext)
+    private val invoiceRepository = InvoiceRepository(application.applicationContext)
+    private val purchaseRepository = PurchaseRepository(application.applicationContext)
 
     private val _searchQuery = MutableStateFlow("")
     private val _typeFilter = MutableStateFlow<PartyType?>(null)
@@ -188,6 +192,20 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateParty(party: Party) {
         repository.updateParty(party)
+        invoiceRepository.updateCustomerDetails(
+            customerId = party.id,
+            name = party.name,
+            phone = party.phone,
+            address = party.address,
+            gstin = party.gstin
+        )
+        purchaseRepository.updateSupplierDetails(
+            supplierId = party.id,
+            name = party.name,
+            phone = party.phone,
+            address = party.address,
+            gstin = party.gstin
+        )
     }
 
     fun deleteParty(partyId: String) {

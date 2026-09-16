@@ -93,8 +93,8 @@ fun PartiesListScreen(
     var recordPaymentDirection by remember { mutableStateOf(PaymentDirection.RECEIPT_IN) }
     val paymentSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val settingsRepo = remember { SettingsRepository(context) }
-    val businessProfile = settingsRepo.profile.value
+    val settingsRepo = remember { SettingsRepository.getInstance(context) }
+    val businessProfile by settingsRepo.profile.collectAsStateWithLifecycle()
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
@@ -120,6 +120,9 @@ fun PartiesListScreen(
             },
             onDeleteParty = { partyId ->
                 viewModel.deleteParty(partyId)
+            },
+            onUpdateParty = { updatedParty ->
+                viewModel.updateParty(updatedParty)
             }
         )
         return

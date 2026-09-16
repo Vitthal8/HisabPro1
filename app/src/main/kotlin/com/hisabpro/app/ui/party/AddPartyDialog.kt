@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.hisabpro.app.data.model.Party
 import com.hisabpro.app.data.model.PartyTag
 import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.ui.theme.Emerald700
@@ -55,6 +56,7 @@ import com.hisabpro.app.ui.theme.Slate700
 fun AddPartyDialog(
     sheetState: SheetState,
     onDismiss: () -> Unit,
+    partyToEdit: Party? = null,
     onSave: (
         name: String,
         phone: String,
@@ -64,12 +66,12 @@ fun AddPartyDialog(
         tag: PartyTag
     ) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("") }
-    var gstin by remember { mutableStateOf("") }
-    var partyType by remember { mutableStateOf(PartyType.CUSTOMER) }
-    var partyTag by remember { mutableStateOf(PartyTag.REGULAR) }
+    var name by remember(partyToEdit) { mutableStateOf(partyToEdit?.name ?: "") }
+    var phone by remember(partyToEdit) { mutableStateOf(partyToEdit?.phone ?: "") }
+    var address by remember(partyToEdit) { mutableStateOf(partyToEdit?.address ?: "") }
+    var gstin by remember(partyToEdit) { mutableStateOf(partyToEdit?.gstin ?: "") }
+    var partyType by remember(partyToEdit) { mutableStateOf(partyToEdit?.type ?: PartyType.CUSTOMER) }
+    var partyTag by remember(partyToEdit) { mutableStateOf(partyToEdit?.tag ?: PartyTag.REGULAR) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     ModalBottomSheet(
@@ -92,7 +94,7 @@ fun AddPartyDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Add Party / Contact",
+                    text = if (partyToEdit != null) "Edit Party / Contact" else "Add Party / Contact",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold
                     ),
@@ -309,7 +311,7 @@ fun AddPartyDialog(
                 )
             ) {
                 Text(
-                    text = "Save Party",
+                    text = if (partyToEdit != null) "Update Party Details" else "Save Party",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = PureWhite
                 )

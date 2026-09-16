@@ -11,6 +11,7 @@ import com.hisabpro.app.data.model.InvoiceStatus
 import com.hisabpro.app.data.model.InvoiceType
 import com.hisabpro.app.data.repository.InvoiceRepository
 import com.hisabpro.app.data.repository.PartyRepository
+import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.util.InvoicePdfGenerator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -116,8 +117,8 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
         _selectedInvoiceId.value = invoice?.id
     }
 
-    fun getNextInvoiceNumber(type: InvoiceType): String {
-        return repository.generateNextInvoiceNumber(type)
+    fun getNextInvoiceNumber(type: InvoiceType, prefixOverride: String? = null): String {
+        return repository.generateNextInvoiceNumber(type, prefixOverride)
     }
 
     fun createInvoice(invoice: Invoice): Invoice {
@@ -134,6 +135,11 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
             )
         }
         return saved
+    }
+
+    fun updateInvoice(invoice: Invoice) {
+        repository.updateInvoice(invoice)
+        _selectedInvoiceId.value = invoice.id
     }
 
     fun duplicateInvoice(invoiceId: String): Invoice? {
@@ -161,10 +167,12 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun sharePdf(context: Context, invoice: Invoice, targetWhatsApp: Boolean = false) {
-        InvoicePdfGenerator.sharePdf(context, invoice, targetWhatsApp)
+        val profile = SettingsRepository.getInstance(context).profile.value
+        InvoicePdfGenerator.sharePdf(context, invoice, targetWhatsApp, profile)
     }
 
     fun shareWhatsAppSummary(context: Context, invoice: Invoice) {
-        InvoicePdfGenerator.sharePdf(context, invoice, targetWhatsApp = true)
+        val profile = SettingsRepository.getInstance(context).profile.value
+        InvoicePdfGenerator.sharePdf(context, invoice, targetWhatsApp = true, profile)
     }
 }

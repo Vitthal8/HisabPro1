@@ -23,9 +23,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Share
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -90,21 +92,24 @@ fun PartyKhataScreen(
     onAddEntry: (amount: Double, type: KhataEntryType, dateMillis: Long, billNumber: String, note: String) -> Unit,
     onDeleteEntry: (String) -> Unit,
     onDeleteParty: (String) -> Unit,
+    onUpdateParty: (Party) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val party = partyWithBalance.party
     val context = LocalContext.current
 
     var showAddEntrySheet by remember { mutableStateOf(false) }
+    var showEditPartySheet by remember { mutableStateOf(false) }
     var entryTypeToAdd by remember { mutableStateOf(KhataEntryType.YOU_GAVE) }
     var showDeletePartyDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showUpiQrSheet by remember { mutableStateOf(false) }
 
-    val settingsRepo = remember { SettingsRepository(context) }
-    val businessProfile = settingsRepo.profile.value
+    val settingsRepo = remember { SettingsRepository.getInstance(context) }
+    val businessProfile by settingsRepo.profile.collectAsStateWithLifecycle()
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val editPartySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val upiSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Scaffold(
@@ -162,7 +167,8 @@ fun PartyKhataScreen(
                             ShareHelper.shareBalanceStatement(
                                 context = context,
                                 party = party,
-                                netBalance = partyWithBalance.netBalance
+                                netBalance = partyWithBalance.netBalance,
+                                businessName = businessProfile.shopName.ifBlank { "HisabPro Store" }
                             )
                         },
                         modifier = Modifier.testTag("share_khata_button")
@@ -183,6 +189,20 @@ fun PartyKhataScreen(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
+                        DropdownMenuItem(
+                            text = { Text("Edit Party Details") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = null,
+                                    tint = Emerald700
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                showEditPartySheet = true
+                            }
+                        )
                         DropdownMenuItem(
                             text = { Text("Delete Party", color = ExpenseRed) },
                             leadingIcon = {
@@ -377,6 +397,26 @@ fun PartyKhataScreen(
                     "UPI-${System.currentTimeMillis().toString().takeLast(6)}",
                     "Payment settled via UPI QR"
                 )
+            }
+        )
+    }
+
+    if (showEditPartySheet) {
+        AddPartyDialog(
+            sheetState = editPartySheetState,
+            onDismiss = { showEditPartySheet = false },
+            partyToEdit = party,
+            onSave = { name, phone, address, gstin, type, tag ->
+                val updatedParty = party.copy(
+                    name = name,
+                    phone = phone,
+                    address = address,
+                    gstin = gstin,
+                    type = type,
+                    tag = tag
+                )
+                onUpdateParty(updatedParty)
+                showEditPartySheet = false
             }
         )
     }

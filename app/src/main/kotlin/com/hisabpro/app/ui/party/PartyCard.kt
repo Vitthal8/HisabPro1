@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import com.hisabpro.app.data.model.PartyTag
 import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.data.model.PartyWithBalance
+import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.ui.HisabViewModel
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.ExpenseRed
@@ -199,7 +200,8 @@ fun PartyCard(
                             ShareHelper.shareBalanceStatement(
                                 context = context,
                                 party = party,
-                                netBalance = partyWithBalance.netBalance
+                                netBalance = partyWithBalance.netBalance,
+                                businessName = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
                             )
                         },
                         modifier = Modifier

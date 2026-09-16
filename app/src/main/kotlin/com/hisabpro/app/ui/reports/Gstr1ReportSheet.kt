@@ -33,6 +33,10 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.hisabpro.app.data.repository.SettingsRepository
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +62,8 @@ fun Gstr1ReportSheet(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val settingsRepo = remember { SettingsRepository.getInstance(context) }
+    val businessProfile by settingsRepo.profile.collectAsStateWithLifecycle()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -103,7 +109,7 @@ fun Gstr1ReportSheet(
                                 color = Emerald900
                             )
                             Text(
-                                text = "Period: ${period.label} • CA Filing Ready",
+                                text = "${businessProfile.shopName.ifBlank { "HisabPro Store" }} • ${period.label}",
                                 fontSize = 12.sp,
                                 color = Color(0xFF667085)
                             )
@@ -127,7 +133,13 @@ fun Gstr1ReportSheet(
             ) {
                 Button(
                     onClick = {
-                        ReportExporter.shareGstr1Report(context, gstr, period)
+                        ReportExporter.shareGstr1Report(
+                            context = context,
+                            gstr = gstr,
+                            period = period,
+                            businessName = businessProfile.shopName.ifBlank { "HisabPro Store" },
+                            gstin = businessProfile.gstin
+                        )
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -147,7 +159,13 @@ fun Gstr1ReportSheet(
 
                 OutlinedButton(
                     onClick = {
-                        val uri = ReportExporter.exportGstr1Csv(context, gstr, period)
+                        val uri = ReportExporter.exportGstr1Csv(
+                            context = context,
+                            gstr = gstr,
+                            period = period,
+                            businessName = businessProfile.shopName.ifBlank { "HisabPro Store" },
+                            gstin = businessProfile.gstin
+                        )
                         if (uri != null) {
                             ReportExporter.shareCsvFile(context, uri, "GSTR-1 Report CSV")
                         }

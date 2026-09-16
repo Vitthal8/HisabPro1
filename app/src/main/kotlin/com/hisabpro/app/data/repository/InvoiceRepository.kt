@@ -125,14 +125,37 @@ class InvoiceRepository(context: Context) {
         _invoices.value = list.sortedByDescending { it.dateMillis }
     }
 
-    fun generateNextInvoiceNumber(type: InvoiceType): String {
+    fun generateNextInvoiceNumber(type: InvoiceType, prefixOverride: String? = null): String {
         val year = Calendar.getInstance().get(Calendar.YEAR) % 100
         val nextYear = year + 1
         val fy = "$year-$nextYear"
 
         val countForType = _invoices.value.count { it.type == type } + 1
         val padded = String.format("%03d", countForType)
-        return "${type.prefix}-$fy-$padded"
+        val prefix = if (!prefixOverride.isNullOrBlank()) prefixOverride.trim() else type.prefix
+        return "$prefix-$fy-$padded"
+    }
+
+    fun updateCustomerDetails(
+        customerId: String,
+        name: String,
+        phone: String,
+        address: String,
+        gstin: String
+    ) {
+        val updated = _invoices.value.map { inv ->
+            if (inv.customerId == customerId) {
+                inv.copy(
+                    customerName = name.ifBlank { inv.customerName },
+                    customerPhone = phone,
+                    customerAddress = address,
+                    customerGstin = gstin
+                )
+            } else {
+                inv
+            }
+        }
+        saveInternal(updated)
     }
 
     fun addInvoice(invoice: Invoice): Invoice {

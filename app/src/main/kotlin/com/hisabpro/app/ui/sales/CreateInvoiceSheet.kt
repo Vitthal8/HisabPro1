@@ -101,27 +101,37 @@ fun CreateInvoiceSheet(
     parties: List<Party>,
     availableItems: List<Item> = emptyList(),
     initialInvoiceType: InvoiceType = InvoiceType.TAX_INVOICE,
+    invoiceToEdit: Invoice? = null,
     onDismiss: () -> Unit,
     onSaveInvoice: (Invoice, saveAction: SaveAction) -> Unit
 ) {
     val context = LocalContext.current
-    var selectedType by remember { mutableStateOf(initialInvoiceType) }
-    var gstMode by remember { mutableStateOf(GstMode.INTRA_STATE) }
+    var selectedType by remember { mutableStateOf(invoiceToEdit?.type ?: initialInvoiceType) }
+    var gstMode by remember { mutableStateOf(invoiceToEdit?.gstMode ?: GstMode.INTRA_STATE) }
 
     // Item picker state
     var showItemPickerDialog by remember { mutableStateOf(false) }
     var itemPickerSearch by remember { mutableStateOf("") }
 
     // Quick cash mode shortcut
-    var isQuickSaleMode by remember { mutableStateOf(initialInvoiceType == InvoiceType.NON_GST_BILL) }
+    var isQuickSaleMode by remember {
+        mutableStateOf(
+            if (invoiceToEdit != null) invoiceToEdit.type == InvoiceType.NON_GST_BILL
+            else initialInvoiceType == InvoiceType.NON_GST_BILL
+        )
+    }
 
     // Customer
-    var selectedParty by remember { mutableStateOf<Party?>(null) }
+    var selectedParty by remember { mutableStateOf<Party?>(parties.find { it.id == invoiceToEdit?.customerId }) }
     var showPartyDropdown by remember { mutableStateOf(false) }
-    var customerName by remember { mutableStateOf(if (isQuickSaleMode) "Cash Customer" else "") }
-    var customerPhone by remember { mutableStateOf("") }
-    var customerAddress by remember { mutableStateOf("") }
-    var customerGstin by remember { mutableStateOf("") }
+    var customerName by remember {
+        mutableStateOf(
+            invoiceToEdit?.customerName ?: if (isQuickSaleMode) "Cash Customer" else ""
+        )
+    }
+    var customerPhone by remember { mutableStateOf(invoiceToEdit?.customerPhone ?: "") }
+    var customerAddress by remember { mutableStateOf(invoiceToEdit?.customerAddress ?: "") }
+    var customerGstin by remember { mutableStateOf(invoiceToEdit?.customerGstin ?: "") }
 
     // Line items
     val items = remember { mutableStateListOf<InvoiceItem>() }
@@ -136,19 +146,30 @@ fun CreateInvoiceSheet(
     var showUnitDropdown by remember { mutableStateOf(false) }
 
     // Financial
-    var discountText by remember { mutableStateOf("0") }
-    var paymentStatus by remember { mutableStateOf(InvoiceStatus.PAID) }
-    var paidAmountText by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
+    var discountText by remember {
+        mutableStateOf(
+            invoiceToEdit?.discountAmount?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "0"
+        )
+    }
+    var paymentStatus by remember { mutableStateOf(invoiceToEdit?.paymentStatus ?: InvoiceStatus.PAID) }
+    var paidAmountText by remember {
+        mutableStateOf(
+            invoiceToEdit?.paidAmount?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: ""
+        )
+    }
+    var notes by remember { mutableStateOf(invoiceToEdit?.notes ?: "") }
 
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val commonUnits = listOf("Pcs", "Nos", "Kg", "Box", "Mtr", "Ltr", "Pkt", "Set")
     val gstSlabs = listOf(0.0, 5.0, 12.0, 18.0, 28.0)
 
-    // Prepopulate 1 sample item for quick sale ease
-    LaunchedEffect(Unit) {
-        if (items.isEmpty()) {
+    // Prepopulate items
+    LaunchedEffect(invoiceToEdit) {
+        if (invoiceToEdit != null) {
+            items.clear()
+            items.addAll(invoiceToEdit.items)
+        } else if (items.isEmpty()) {
             items.add(
                 InvoiceItem(
                     id = UUID.randomUUID().toString(),
@@ -223,13 +244,19 @@ fun CreateInvoiceSheet(
                         }
                         Column {
                             Text(
-                                text = if (isQuickSaleMode) "Quick Counter Sale" else "New Invoice / Bill",
+                                text = when {
+                                    invoiceToEdit != null -> "Edit ${invoiceToEdit.invoiceNumber}"
+                                    isQuickSaleMode -> "Quick Counter Sale"
+                                    else -> "New Invoice / Bill"
+                                },
                                 color = PureWhite,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = if (isQuickSaleMode) "Instant cash bill in 5 seconds" else "Complete GST/Non-GST tax invoice",
+                                text = if (invoiceToEdit != null) "Modify items, totals, or customer details"
+                                else if (isQuickSaleMode) "Instant cash bill in 5 seconds"
+                                else "Complete GST/Non-GST tax invoice",
                                 color = PureWhite.copy(alpha = 0.8f),
                                 fontSize = 12.sp
                             )
@@ -932,8 +959,8 @@ fun CreateInvoiceSheet(
                     }
 
                     return Invoice(
-                        id = UUID.randomUUID().toString(),
-                        invoiceNumber = "", // Will be assigned by repository
+                        id = invoiceToEdit?.id ?: UUID.randomUUID().toString(),
+                        invoiceNumber = invoiceToEdit?.invoiceNumber ?: "", // Will be assigned by repository if blank
                         type = selectedType,
                         gstMode = gstMode,
                         customerId = selectedParty?.id,
@@ -941,13 +968,13 @@ fun CreateInvoiceSheet(
                         customerPhone = customerPhone.trim(),
                         customerAddress = customerAddress.trim(),
                         customerGstin = customerGstin.trim(),
-                        dateMillis = System.currentTimeMillis(),
+                        dateMillis = invoiceToEdit?.dateMillis ?: System.currentTimeMillis(),
                         items = items.toList(),
                         discountAmount = discount,
                         notes = notes.trim(),
                         paymentStatus = paymentStatus,
                         paidAmount = autoPaid,
-                        createdAt = System.currentTimeMillis()
+                        createdAt = invoiceToEdit?.createdAt ?: System.currentTimeMillis()
                     )
                 }
 
@@ -969,7 +996,10 @@ fun CreateInvoiceSheet(
                     ) {
                         Icon(imageVector = Icons.Default.Check, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Save Invoice", fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (invoiceToEdit != null) "Update Invoice" else "Save Invoice",
+                            fontWeight = FontWeight.Bold
+                        )
                     }
 
                     Row(

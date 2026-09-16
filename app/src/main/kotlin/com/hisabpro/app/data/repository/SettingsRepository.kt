@@ -10,14 +10,35 @@ import org.json.JSONObject
 
 class SettingsRepository(context: Context) {
 
+    private val appContext = context.applicationContext
     private val prefs: SharedPreferences =
-        context.getSharedPreferences("hisab_pro_settings_v1", Context.MODE_PRIVATE)
+        appContext.getSharedPreferences("hisab_pro_settings_v1", Context.MODE_PRIVATE)
 
-    private val _profile = MutableStateFlow(BusinessProfile())
-    val profile: StateFlow<BusinessProfile> = _profile.asStateFlow()
+    companion object {
+        private const val KEY_PROFILE = "business_profile_key"
+        private val _sharedProfile = MutableStateFlow(BusinessProfile())
+        val sharedProfile: StateFlow<BusinessProfile> = _sharedProfile.asStateFlow()
+        private var isInitialized = false
+
+        @Volatile
+        private var INSTANCE: SettingsRepository? = null
+
+        fun getInstance(context: Context): SettingsRepository {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: SettingsRepository(context.applicationContext).also { INSTANCE = it }
+            }
+        }
+    }
+
+    val profile: StateFlow<BusinessProfile> = _sharedProfile.asStateFlow()
 
     init {
-        loadProfile()
+        synchronized(SettingsRepository::class.java) {
+            if (!isInitialized) {
+                loadProfile()
+                isInitialized = true
+            }
+        }
     }
 
     private fun loadProfile() {
@@ -52,10 +73,10 @@ class SettingsRepository(context: Context) {
                     isThermalPrinterMode = obj.optBoolean("isThermalPrinterMode", false),
                     showUpiQrOnInvoice = obj.optBoolean("showUpiQrOnInvoice", true)
                 )
-                _profile.value = loaded
+                _sharedProfile.value = loaded
             } catch (e: Exception) {
                 e.printStackTrace()
-                _profile.value = BusinessProfile()
+                _sharedProfile.value = BusinessProfile()
             }
         }
     }
@@ -83,14 +104,10 @@ class SettingsRepository(context: Context) {
             put("showUpiQrOnInvoice", profile.showUpiQrOnInvoice)
         }
         prefs.edit().putString(KEY_PROFILE, obj.toString()).apply()
-        _profile.value = profile
+        _sharedProfile.value = profile
     }
 
     fun updateProfile(profile: BusinessProfile) {
         saveProfile(profile)
-    }
-
-    companion object {
-        private const val KEY_PROFILE = "business_profile_key"
     }
 }

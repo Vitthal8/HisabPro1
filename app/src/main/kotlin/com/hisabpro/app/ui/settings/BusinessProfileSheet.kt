@@ -102,6 +102,28 @@ fun BusinessProfileSheet(
     var isThermalPrinterMode by remember { mutableStateOf(profile.isThermalPrinterMode) }
     var showUpiQrOnInvoice by remember { mutableStateOf(profile.showUpiQrOnInvoice) }
 
+    androidx.compose.runtime.LaunchedEffect(profile) {
+        shopName = profile.shopName
+        ownerName = profile.ownerName
+        phone = profile.phone
+        email = profile.email
+        gstin = profile.gstin
+        address = profile.address
+        city = profile.city
+        state = profile.state
+        stateCode = profile.stateCode
+        pincode = profile.pincode
+        upiId = profile.upiId
+        bankName = profile.bankName
+        accountNumber = profile.accountNumber
+        ifscCode = profile.ifscCode
+        invoicePrefix = profile.invoicePrefix
+        purchasePrefix = profile.purchasePrefix
+        termsAndConditions = profile.termsAndConditions
+        isThermalPrinterMode = profile.isThermalPrinterMode
+        showUpiQrOnInvoice = profile.showUpiQrOnInvoice
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,

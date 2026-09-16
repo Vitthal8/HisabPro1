@@ -22,10 +22,12 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Share
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -84,14 +86,15 @@ fun InvoiceDetailSheet(
     onSharePdf: (Invoice, Boolean) -> Unit,
     onDuplicate: (Invoice) -> Unit,
     onMarkAsPaid: (Invoice) -> Unit,
-    onDelete: (Invoice) -> Unit
+    onDelete: (Invoice) -> Unit,
+    onEditInvoice: (Invoice) -> Unit = {}
 ) {
     val context = LocalContext.current
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showUpiQrSheet by remember { mutableStateOf(false) }
     val upiSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val settingsRepo = remember { SettingsRepository(context) }
-    val businessProfile = settingsRepo.profile.value
+    val settingsRepo = remember { SettingsRepository.getInstance(context) }
+    val businessProfile by settingsRepo.profile.collectAsStateWithLifecycle()
     val dateFormat = remember { SimpleDateFormat("dd MMMM yyyy, hh:mm a", Locale.ENGLISH) }
 
     ModalBottomSheet(
@@ -444,11 +447,24 @@ fun InvoiceDetailSheet(
                         }
                     }
 
-                    // Row 2: Duplicate / Repeat & Mark Paid
+                    // Row 2: Edit, Duplicate & Mark Paid
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        OutlinedButton(
+                            onClick = { onEditInvoice(invoice) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .testTag("btn_detail_edit_invoice"),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Edit Bill", fontSize = 12.sp)
+                        }
+
                         OutlinedButton(
                             onClick = { onDuplicate(invoice) },
                             modifier = Modifier
@@ -458,8 +474,8 @@ fun InvoiceDetailSheet(
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Duplicate", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Duplicate", fontSize = 12.sp)
                         }
 
                         if (!invoice.isFullyPaid) {
@@ -472,8 +488,8 @@ fun InvoiceDetailSheet(
                                 shape = RoundedCornerShape(10.dp)
                             ) {
                                 Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = IncomeGreen, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Mark Paid", fontSize = 13.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Mark Paid", fontSize = 12.sp)
                             }
                         }
                     }

@@ -110,12 +110,13 @@ fun SalesScreen(
     val parties by viewModel.parties.collectAsStateWithLifecycle(initialValue = emptyList())
     val inventoryItems = itemViewModel?.rawItems?.collectAsState()?.value ?: emptyList()
 
-    val settingsRepo = remember { SettingsRepository(context) }
+    val settingsRepo = remember { SettingsRepository.getInstance(context) }
     val businessProfile by settingsRepo.profile.collectAsStateWithLifecycle()
 
     var selectedBillingTab by rememberSaveable { mutableIntStateOf(0) } // 0: Sales, 1: Purchases
     var showProfileSheet by remember { mutableStateOf(false) }
     var showCreateSheet by remember { mutableStateOf(false) }
+    var invoiceToEdit by remember { mutableStateOf<Invoice?>(null) }
     var initialCreateType by remember { mutableStateOf(InvoiceType.TAX_INVOICE) }
     var showSearchBar by remember { mutableStateOf(false) }
 
@@ -519,45 +520,59 @@ fun SalesScreen(
             onDelete = { inv ->
                 viewModel.deleteInvoice(inv.id)
                 Toast.makeText(context, "Invoice deleted", Toast.LENGTH_SHORT).show()
+            },
+            onEditInvoice = { inv ->
+                viewModel.selectInvoice(null)
+                invoiceToEdit = inv
+                showCreateSheet = true
             }
         )
     }
 
-    // Create Sheet
+    // Create / Edit Sheet
     if (showCreateSheet) {
         CreateInvoiceSheet(
             sheetState = createSheetState,
             parties = parties,
             availableItems = inventoryItems,
             initialInvoiceType = initialCreateType,
-            onDismiss = { showCreateSheet = false },
-            onSaveInvoice = { newInvoice, action ->
-                val nextNum = viewModel.getNextInvoiceNumber(newInvoice.type)
-                val toSave = newInvoice.copy(invoiceNumber = nextNum)
-                val saved = viewModel.createInvoice(toSave)
-
-                // Automatically deduct stock for any items sold
-                toSave.items.forEach { lineItem ->
-                    itemViewModel?.deductStockForInvoiceItem(
-                        itemNameOrId = lineItem.description,
-                        quantity = lineItem.quantity,
-                        invoiceNumber = saved.invoiceNumber
-                    )
-                }
-
+            invoiceToEdit = invoiceToEdit,
+            onDismiss = {
                 showCreateSheet = false
+                invoiceToEdit = null
+            },
+            onSaveInvoice = { invoice, action ->
+                if (invoiceToEdit != null) {
+                    viewModel.updateInvoice(invoice)
+                    Toast.makeText(context, "Invoice ${invoice.invoiceNumber} updated!", Toast.LENGTH_SHORT).show()
+                } else {
+                    val nextNum = viewModel.getNextInvoiceNumber(invoice.type)
+                    val toSave = invoice.copy(invoiceNumber = nextNum)
+                    val saved = viewModel.createInvoice(toSave)
 
-                when (action) {
-                    SaveAction.SAVE_ONLY -> {
-                        Toast.makeText(context, "Invoice ${saved.invoiceNumber} saved!", Toast.LENGTH_SHORT).show()
+                    // Automatically deduct stock for any items sold
+                    toSave.items.forEach { lineItem ->
+                        itemViewModel?.deductStockForInvoiceItem(
+                            itemNameOrId = lineItem.description,
+                            quantity = lineItem.quantity,
+                            invoiceNumber = saved.invoiceNumber
+                        )
                     }
-                    SaveAction.SAVE_AND_WHATSAPP -> {
-                        viewModel.shareWhatsAppSummary(context, saved)
-                    }
-                    SaveAction.SAVE_AND_PDF -> {
-                        viewModel.sharePdf(context, saved, false)
+
+                    when (action) {
+                        SaveAction.SAVE_ONLY -> {
+                            Toast.makeText(context, "Invoice ${saved.invoiceNumber} saved!", Toast.LENGTH_SHORT).show()
+                        }
+                        SaveAction.SAVE_AND_WHATSAPP -> {
+                            viewModel.shareWhatsAppSummary(context, saved)
+                        }
+                        SaveAction.SAVE_AND_PDF -> {
+                            viewModel.sharePdf(context, saved, false)
+                        }
                     }
                 }
+                showCreateSheet = false
+                invoiceToEdit = null
             }
         )
     }

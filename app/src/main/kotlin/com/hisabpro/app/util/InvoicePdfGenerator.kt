@@ -11,9 +11,11 @@ import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import com.hisabpro.app.data.model.BusinessProfile
 import com.hisabpro.app.data.model.GstMode
 import com.hisabpro.app.data.model.Invoice
 import com.hisabpro.app.data.model.InvoiceType
+import com.hisabpro.app.data.repository.SettingsRepository
 import java.io.File
 import java.io.FileOutputStream
 import java.text.NumberFormat
@@ -26,10 +28,12 @@ object InvoicePdfGenerator {
     private val currencyFormat = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
     private val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.ENGLISH)
 
-    fun generatePdf(context: Context, invoice: Invoice): File {
+    fun generatePdf(context: Context, invoice: Invoice, profileOverride: BusinessProfile? = null): File {
         val invoicesDir = File(context.cacheDir, "invoices").apply { mkdirs() }
         val safeNumber = invoice.invoiceNumber.replace("[^a-zA-Z0-9_-]".toRegex(), "_")
         val file = File(invoicesDir, "${safeNumber}.pdf")
+
+        val profile = profileOverride ?: SettingsRepository.getInstance(context).profile.value
 
         val document = PdfDocument()
         val pageWidth = 595 // A4 standard width in points
@@ -38,7 +42,7 @@ object InvoicePdfGenerator {
         val page = document.startPage(pageInfo)
         val canvas: Canvas = page.canvas
 
-        drawInvoice(canvas, invoice, pageWidth, pageHeight)
+        drawInvoice(canvas, invoice, pageWidth, pageHeight, profile)
 
         document.finishPage(page)
 
@@ -50,7 +54,7 @@ object InvoicePdfGenerator {
         return file
     }
 
-    private fun drawInvoice(canvas: Canvas, invoice: Invoice, width: Int, height: Int) {
+    private fun drawInvoice(canvas: Canvas, invoice: Invoice, width: Int, height: Int, profile: BusinessProfile) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val margin = 36f // 0.5 inch margin
 
@@ -67,8 +71,9 @@ object InvoicePdfGenerator {
         // Business Name & Title
         paint.color = Color.parseColor("#111827")
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        paint.textSize = 18f
-        canvas.drawText("HISAB PRO ENTERPRISES", margin, y, paint)
+        paint.textSize = 17f
+        val shopDisplayName = profile.shopName.ifBlank { "HISAB PRO ENTERPRISES" }
+        canvas.drawText(shopDisplayName.uppercase(), margin, y, paint)
 
         // Title on Right
         val titleText = when (invoice.type) {
@@ -85,15 +90,26 @@ object InvoicePdfGenerator {
         paint.textSize = 9f
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         paint.color = Color.parseColor("#4B5563")
-        canvas.drawText("GSTIN: 27ABCDE1234F1Z5 | PAN: ABCDE1234F", margin, y, paint)
+        val gstinLine = if (profile.gstin.isNotBlank()) "GSTIN: ${profile.gstin.uppercase()}" else "TAX STATUS: COMPOSITION / REGULAR"
+        val stateLine = if (profile.state.isNotBlank()) " | STATE: ${profile.state}${if (profile.stateCode.isNotBlank()) " (${profile.stateCode})" else ""}" else ""
+        canvas.drawText("$gstinLine$stateLine", margin, y, paint)
 
         val origText = "ORIGINAL FOR RECIPIENT"
         val origWidth = paint.measureText(origText)
         canvas.drawText(origText, width - margin - origWidth, y, paint)
 
         y += 13f
-        canvas.drawText("Commercial Center, MG Road, Mumbai, MH - 400001", margin, y, paint)
-        canvas.drawText("Phone: +91 98200 12345 | support@hisabpro.in", margin, y + 12f, paint)
+        val fullAddress = listOf(profile.address, profile.city, "${profile.state} ${profile.pincode}".trim())
+            .filter { it.isNotBlank() }
+            .joinToString(", ")
+            .ifBlank { "Commercial Center, Main Road" }
+        canvas.drawText(fullAddress.take(65), margin, y, paint)
+
+        val contactLine = listOfNotNull(
+            if (profile.phone.isNotBlank()) "Phone: ${profile.phone}" else null,
+            if (profile.email.isNotBlank()) profile.email else null
+        ).joinToString(" | ").ifBlank { "Contact: Support & Billing Desk" }
+        canvas.drawText(contactLine.take(65), margin, y + 12f, paint)
 
         y += 24f
 
@@ -264,12 +280,56 @@ object InvoicePdfGenerator {
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         paint.color = Color.parseColor("#4B5563")
         paint.textSize = 8f
-        canvas.drawText("Bank: HDFC Bank | A/C: 50200012345678", notesLeft + 10f, y + 30f, paint)
-        canvas.drawText("IFSC: HDFC0001234 | UPI: hisabpro@hdfcbank", notesLeft + 10f, y + 43f, paint)
+        val bankLine = if (profile.bankName.isNotBlank() && profile.accountNumber.isNotBlank()) {
+            "Bank: ${profile.bankName} | A/C: ${profile.accountNumber}"
+        } else "Payment: Cash / UPI / Bank Transfer"
+        canvas.drawText(bankLine.take(45), notesLeft + 10f, y + 30f, paint)
 
-        val customNote = if (invoice.notes.isNotBlank()) invoice.notes else "1. Goods once sold will not be taken back."
-        canvas.drawText("Note: $customNote".take(55), notesLeft + 10f, y + 58f, paint)
-        canvas.drawText("2. Subject to Mumbai Jurisdiction only.", notesLeft + 10f, y + 71f, paint)
+        val ifscUpiLine = listOfNotNull(
+            if (profile.ifscCode.isNotBlank()) "IFSC: ${profile.ifscCode}" else null,
+            if (profile.upiId.isNotBlank()) "UPI: ${profile.upiId}" else null
+        ).joinToString(" | ")
+        if (ifscUpiLine.isNotBlank()) {
+            canvas.drawText(ifscUpiLine.take(45), notesLeft + 10f, y + 43f, paint)
+        }
+
+        val customNote = if (invoice.notes.isNotBlank()) {
+            "Note: ${invoice.notes}"
+        } else if (profile.termsAndConditions.isNotBlank()) {
+            "Terms: ${profile.termsAndConditions.lines().firstOrNull() ?: ""}"
+        } else "1. Goods once sold will not be taken back."
+        canvas.drawText(customNote.take(50), notesLeft + 10f, y + 56f, paint)
+
+        // Draw UPI QR Code on PDF if enabled
+        if (profile.showUpiQrOnInvoice && profile.upiId.isNotBlank() && invoice.dueAmount > 0) {
+            try {
+                val upiUri = UpiPaymentHelper.buildUpiUri(
+                    upiId = profile.upiId,
+                    payeeName = profile.shopName.ifBlank { profile.ownerName.ifBlank { "Merchant" } },
+                    amount = invoice.dueAmount,
+                    invoiceNumber = invoice.invoiceNumber,
+                    notes = "Bill ${invoice.invoiceNumber}"
+                )
+                val qrBitmap = UpiPaymentHelper.generateQrBitmap(upiUri, 120)
+                if (qrBitmap != null) {
+                    val qrSize = 42f
+                    val qrX = notesLeft + notesWidth - qrSize - 8f
+                    val qrY = y + 10f
+                    val destRect = RectF(qrX, qrY, qrX + qrSize, qrY + qrSize)
+                    canvas.drawBitmap(qrBitmap, null, destRect, null)
+                    paint.textSize = 6f
+                    paint.color = Color.parseColor("#1B5E20")
+                    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    val scanText = "SCAN TO PAY"
+                    val stW = paint.measureText(scanText)
+                    canvas.drawText(scanText, qrX + (qrSize - stW) / 2f, qrY + qrSize + 8f, paint)
+                }
+            } catch (e: Exception) {
+                // Ignore QR draw error
+            }
+        } else {
+            canvas.drawText("2. Subject to local state jurisdiction.", notesLeft + 10f, y + 69f, paint)
+        }
 
         // Right Summary Calculation
         var sumY = y + 10f
@@ -330,15 +390,15 @@ object InvoicePdfGenerator {
         paint.textSize = 8.5f
         paint.color = Color.parseColor("#374151")
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        val sigText = "For HISAB PRO ENTERPRISES"
+        val sigText = "For ${profile.shopName.ifBlank { "HisabPro Enterprises" }}"
         val sigW = paint.measureText(sigText)
         canvas.drawText(sigText, width - margin - sigW, sigY + 14f, paint)
 
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         paint.color = Color.parseColor("#6B7280")
-        val authText = "Authorized Signatory"
-        val authW = paint.measureText(authText)
-        canvas.drawText(authText, width - margin - authW, sigY + 26f, paint)
+        val authLabel = if (profile.ownerName.isNotBlank()) "(${profile.ownerName}) Authorized Signatory" else "Authorized Signatory"
+        val authW = paint.measureText(authLabel)
+        canvas.drawText(authLabel, width - margin - authW, sigY + 26f, paint)
 
         // Bottom Footer
         paint.textSize = 8f
@@ -350,9 +410,15 @@ object InvoicePdfGenerator {
         return if (this % 1.0 == 0.0) this.toInt().toString() else String.format(Locale.ENGLISH, "%.1f", this)
     }
 
-    fun sharePdf(context: Context, invoice: Invoice, targetWhatsApp: Boolean = false) {
+    fun sharePdf(
+        context: Context,
+        invoice: Invoice,
+        targetWhatsApp: Boolean = false,
+        profileOverride: BusinessProfile? = null
+    ) {
+        val profile = profileOverride ?: SettingsRepository.getInstance(context).profile.value
         try {
-            val file = generatePdf(context, invoice)
+            val file = generatePdf(context, invoice, profile)
             val uri: Uri = FileProvider.getUriForFile(
                 context,
                 "com.hisabpro.app.fileprovider",
@@ -362,8 +428,8 @@ object InvoicePdfGenerator {
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "application/pdf"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "Invoice ${invoice.invoiceNumber} from HisabPro")
-                putExtra(Intent.EXTRA_TEXT, generateInvoiceWhatsAppText(invoice))
+                putExtra(Intent.EXTRA_SUBJECT, "Invoice ${invoice.invoiceNumber} from ${profile.shopName.ifBlank { "HisabPro" }}")
+                putExtra(Intent.EXTRA_TEXT, generateInvoiceWhatsAppText(invoice, profile))
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 if (targetWhatsApp) {
                     setPackage("com.whatsapp")
@@ -377,7 +443,7 @@ object InvoicePdfGenerator {
             // Fallback if WhatsApp package is missing or chooser fails
             val fallbackIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, generateInvoiceWhatsAppText(invoice))
+                putExtra(Intent.EXTRA_TEXT, generateInvoiceWhatsAppText(invoice, profile))
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             try {
@@ -388,7 +454,7 @@ object InvoicePdfGenerator {
         }
     }
 
-    fun generateInvoiceWhatsAppText(invoice: Invoice): String {
+    fun generateInvoiceWhatsAppText(invoice: Invoice, profileOverride: BusinessProfile? = null): String {
         val totalFormatted = String.format(Locale.ENGLISH, "%.2f", invoice.grandTotal)
         val dueFormatted = String.format(Locale.ENGLISH, "%.2f", invoice.dueAmount)
 
@@ -396,8 +462,14 @@ object InvoicePdfGenerator {
             "• ${it.description} x ${it.quantity} ${it.unit} = ₹${String.format(Locale.ENGLISH, "%.2f", it.getTotal(invoice.gstMode))}"
         }
 
+        val shopName = profileOverride?.shopName?.ifBlank { "HisabPro Enterprises" } ?: "HisabPro Enterprises"
+        val upiInfo = if (!profileOverride?.upiId.isNullOrBlank() && invoice.dueAmount > 0) {
+            "\n*Pay via UPI:* ${profileOverride?.upiId}"
+        } else ""
+
         return """
 📄 *${invoice.type.label.uppercase()}*
+*From:* $shopName
 *Invoice No:* ${invoice.invoiceNumber}
 *Date:* ${dateFormat.format(Date(invoice.dateMillis))}
 *Customer:* ${invoice.customerName}
@@ -407,10 +479,10 @@ $itemsSummary
 
 *Grand Total:* ₹$totalFormatted
 *Paid:* ₹${String.format(Locale.ENGLISH, "%.2f", invoice.paidAmount)}
-*Balance Due:* ₹$dueFormatted
+*Balance Due:* ₹$dueFormatted$upiInfo
 
 Thank you for your business!
-_HisabPro Enterprises_
+_$shopName _
         """.trimIndent()
     }
 }

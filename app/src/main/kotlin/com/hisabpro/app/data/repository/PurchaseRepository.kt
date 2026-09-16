@@ -132,14 +132,35 @@ class PurchaseRepository(context: Context) {
         _purchases.value = list.sortedByDescending { it.dateMillis }
     }
 
-    fun generateNextPurchaseNumber(): String {
+    fun generateNextPurchaseNumber(prefixOverride: String? = null): String {
         val year = Calendar.getInstance().get(Calendar.YEAR) % 100
         val nextYear = year + 1
         val fy = "$year-$nextYear"
 
         val count = _purchases.value.size + 1
         val padded = String.format("%03d", count)
-        return "PUR-$fy-$padded"
+        val prefix = if (!prefixOverride.isNullOrBlank()) prefixOverride.trim() else "PUR"
+        return "$prefix-$fy-$padded"
+    }
+
+    fun updateSupplierDetails(
+        supplierId: String,
+        name: String,
+        phone: String,
+        address: String = "",
+        gstin: String = ""
+    ) {
+        val updated = _purchases.value.map { bill ->
+            if (bill.supplierId == supplierId) {
+                bill.copy(
+                    supplierName = name.ifBlank { bill.supplierName },
+                    supplierPhone = phone,
+                    supplierAddress = if (address.isNotBlank()) address else bill.supplierAddress,
+                    supplierGstin = gstin
+                )
+            } else bill
+        }
+        saveInternal(updated)
     }
 
     fun addPurchase(bill: PurchaseBill): PurchaseBill {

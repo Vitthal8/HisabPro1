@@ -63,32 +63,17 @@ jobs:
 
       - name: Build Debug APK
         run: |
-          # Determine the appropriate assemble task based on project configuration
-          TARGET_TASK=""
-          if grep -rq "demo" app/build.gradle* 2>/dev/null; then
-            echo "Detected 'demo' product flavor in app module."
-            TARGET_TASK=":app:assembleDemoDebug"
-          elif [ -d "app" ]; then
-            echo "Detected standard app module."
-            TARGET_TASK=":app:assembleDebug"
-          else
-            echo "Standard root project layout."
-            TARGET_TASK="assembleDebug"
-          fi
-
-          echo "Selected primary target task: $TARGET_TASK"
-          echo "=== Executing Gradle Build ==="
-          if ./gradlew $TARGET_TASK --no-daemon --stacktrace; then
-            echo "Successfully built with $TARGET_TASK"
-          elif [ "$TARGET_TASK" = ":app:assembleDemoDebug" ] && ./gradlew assembleDemoDebug --no-daemon --stacktrace; then
-            echo "Successfully built with assembleDemoDebug"
+          echo "=== Building Main Application Module (:app) ==="
+          # Specifically compile the main application (:app), excluding :app-nia-catalog
+          if ./gradlew :app:assembleDemoDebug --no-daemon --stacktrace; then
+            echo "Successfully built :app:assembleDemoDebug"
           elif ./gradlew :app:assembleDebug --no-daemon --stacktrace; then
-            echo "Successfully built with :app:assembleDebug"
-          elif ./gradlew assembleDebug --no-daemon --stacktrace; then
-            echo "Successfully built with assembleDebug"
+            echo "Successfully built :app:assembleDebug"
+          elif ./gradlew assembleDemoDebug -x :app-nia-catalog:assembleDemoDebug -x :app-nia-catalog:assembleDebug --no-daemon --stacktrace; then
+            echo "Successfully built assembleDemoDebug (excluding catalog)"
           else
-            echo "Attempting fallback assemble..."
-            ./gradlew assemble --no-daemon --stacktrace
+            echo "Attempting fallback assembleDebug..."
+            ./gradlew assembleDebug --no-daemon --stacktrace
           fi
 
       - name: Prepare APK Artifact
@@ -98,24 +83,41 @@ jobs:
           echo "=== Searching for generated APKs ==="
           find . -type f -name "*.apk" -ls || true
 
-          # Locate application APK (prefer demo-debug, then debug, excluding test APKs)
-          APK_FILE=$(find . -type f -name "*demo*debug*.apk" ! -name "*androidTest*.apk" ! -name "*Test*.apk" | head -n 1)
+          # Target the primary application module (:app) and strictly exclude catalog and test APKs
+          APK_FILE=""
+          if [ -d "app/build/outputs/apk" ]; then
+            # 1. Main app demo-debug
+            APK_FILE=$(find app/build/outputs/apk -type f -name "*demo*debug*.apk" ! -name "*androidTest*.apk" ! -name "*Test*.apk" ! -name "*catalog*" | head -n 1)
+            # 2. Main app any debug
+            if [ -z "$APK_FILE" ]; then
+              APK_FILE=$(find app/build/outputs/apk -type f -name "*debug*.apk" ! -name "*androidTest*.apk" ! -name "*Test*.apk" ! -name "*catalog*" | head -n 1)
+            fi
+            # 3. Main app any APK
+            if [ -z "$APK_FILE" ]; then
+              APK_FILE=$(find app/build/outputs/apk -type f -name "*.apk" ! -name "*androidTest*.apk" ! -name "*Test*.apk" ! -name "*catalog*" | head -n 1)
+            fi
+          fi
+
+          # Fallback: search repository while strictly excluding app-nia-catalog and test APKs
           if [ -z "$APK_FILE" ]; then
-            APK_FILE=$(find . -type f -name "*debug*.apk" ! -name "*androidTest*.apk" ! -name "*Test*.apk" | head -n 1)
+            APK_FILE=$(find . -type f -name "*demo*debug*.apk" ! -path "*/app-nia-catalog/*" ! -name "*catalog*" ! -name "*androidTest*.apk" ! -name "*Test*.apk" | head -n 1)
           fi
           if [ -z "$APK_FILE" ]; then
-            APK_FILE=$(find . -type f -name "*.apk" ! -name "*androidTest*.apk" ! -name "*Test*.apk" | head -n 1)
+            APK_FILE=$(find . -type f -name "*debug*.apk" ! -path "*/app-nia-catalog/*" ! -name "*catalog*" ! -name "*androidTest*.apk" ! -name "*Test*.apk" | head -n 1)
+          fi
+          if [ -z "$APK_FILE" ]; then
+            APK_FILE=$(find . -type f -name "*.apk" ! -path "*/app-nia-catalog/*" ! -name "*catalog*" ! -name "*androidTest*.apk" ! -name "*Test*.apk" | head -n 1)
           fi
 
           if [ -n "$APK_FILE" ] && [ -f "$APK_FILE" ]; then
-            echo "Found APK at: $APK_FILE"
+            echo "Found Main App APK at: $APK_FILE"
             APK_BASENAME=$(basename "$APK_FILE")
             cp "$APK_FILE" "release_apks/$APK_BASENAME"
             cp "$APK_FILE" "release_apks/HisabPro-debug.apk"
-            echo "Copied APK to release_apks/ successfully:"
+            echo "Copied main application APK to release_apks/ successfully:"
             ls -lh release_apks/
           else
-            echo "ERROR: No APK generated! Listing outputs directory for diagnostics:"
+            echo "ERROR: No main app APK generated! Listing outputs directory for diagnostics:"
             find . -maxdepth 6 \( -path "*/build/outputs/*" -o -name "outputs" \) || true
             exit 1
           fi

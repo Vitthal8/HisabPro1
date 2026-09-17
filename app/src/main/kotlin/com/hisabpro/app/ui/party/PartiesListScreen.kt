@@ -22,12 +22,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -123,6 +127,16 @@ fun PartiesListScreen(
             },
             onUpdateParty = { updatedParty ->
                 viewModel.updateParty(updatedParty)
+            },
+            onRecordPayment = { direction, amount, mode, ref, notes ->
+                viewModel.recordPartyPayment(
+                    partyId = uiState.selectedParty!!.party.id,
+                    amount = amount,
+                    direction = direction,
+                    paymentMode = mode,
+                    referenceNo = ref,
+                    notes = notes
+                )
             }
         )
         return
@@ -172,6 +186,51 @@ fun PartiesListScreen(
                             contentDescription = "Search parties"
                         )
                     }
+
+                    var showSortMenu by remember { mutableStateOf(false) }
+
+                    // Sort button
+                    IconButton(
+                        onClick = { showSortMenu = true },
+                        modifier = Modifier.testTag("btn_sort_parties")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Sort,
+                            contentDescription = "Sort parties"
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showSortMenu,
+                        onDismissRequest = { showSortMenu = false }
+                    ) {
+                        PartySortOption.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = option.label,
+                                        fontWeight = if (uiState.sortOption == option) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (uiState.sortOption == option) Emerald700 else MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                onClick = {
+                                    viewModel.setSortOption(option)
+                                    showSortMenu = false
+                                }
+                            )
+                        }
+                    }
+
+                    // Export CSV
+                    IconButton(
+                        onClick = { viewModel.exportAllPartiesCsv(context) },
+                        modifier = Modifier.testTag("btn_export_parties_csv")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileDownload,
+                            contentDescription = "Export Khata summary CSV"
+                        )
+                    }
+
                     IconButton(
                         onClick = { viewModel.resetToDemo() },
                         modifier = Modifier.testTag("reset_parties_demo")
@@ -342,23 +401,13 @@ fun PartiesListScreen(
             sheetState = paymentSheetState,
             onDismiss = { showRecordPaymentSheet = false },
             onSavePayment = { data ->
-                val entryType = if (data.direction == PaymentDirection.RECEIPT_IN) {
-                    KhataEntryType.YOU_GOT
-                } else {
-                    KhataEntryType.YOU_GAVE
-                }
-                val actionLabel = if (data.direction == PaymentDirection.RECEIPT_IN) "Received" else "Paid"
-                val noteCombined = buildString {
-                    append("$actionLabel via ${data.paymentMode.label}")
-                    if (data.notes.isNotBlank()) append(" - ${data.notes}")
-                }
-                viewModel.addKhataEntry(
+                viewModel.recordPartyPayment(
                     partyId = data.partyId,
                     amount = data.amount,
-                    type = entryType,
-                    dateMillis = System.currentTimeMillis(),
-                    billNumber = data.referenceNo,
-                    note = noteCombined
+                    direction = data.direction,
+                    paymentMode = data.paymentMode,
+                    referenceNo = data.referenceNo,
+                    notes = data.notes
                 )
             }
         )

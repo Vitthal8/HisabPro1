@@ -1,23 +1,40 @@
 package com.hisabpro.app.ui.party
 
 import android.app.Application
+import android.content.Context
+import android.content.Intent
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hisabpro.app.data.model.Category
 import com.hisabpro.app.data.model.KhataEntry
 import com.hisabpro.app.data.model.KhataEntryType
 import com.hisabpro.app.data.model.Party
 import com.hisabpro.app.data.model.PartyTag
 import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.data.model.PartyWithBalance
+import com.hisabpro.app.data.model.PaymentMode
+import com.hisabpro.app.data.model.TransactionType
 import com.hisabpro.app.data.repository.InvoiceRepository
 import com.hisabpro.app.data.repository.PartyRepository
 import com.hisabpro.app.data.repository.PurchaseRepository
+import com.hisabpro.app.data.repository.TransactionRepository
+import com.hisabpro.app.ui.payments.PaymentDirection
+import com.hisabpro.app.util.PartyStatementPdfGenerator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import java.io.File
+
+enum class PartySortOption(val label: String) {
+    MOST_DUE("Highest Balance First"),
+    RECENT("Recent Activity"),
+    NAME_ASC("Name (A to Z)"),
+    SETTLED("Zero Balance / Settled")
+}
 
 data class PartyUiState(
     val parties: List<PartyWithBalance> = emptyList(),
@@ -27,6 +44,7 @@ data class PartyUiState(
     val searchQuery: String = "",
     val typeFilter: PartyType? = null,
     val tagFilter: PartyTag? = null,
+    val sortOption: PartySortOption = PartySortOption.MOST_DUE,
     val selectedParty: PartyWithBalance? = null,
     val selectedPartyEntries: List<KhataEntry> = emptyList()
 )
@@ -36,16 +54,19 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = PartyRepository.getInstance(application.applicationContext)
     private val invoiceRepository = InvoiceRepository.getInstance(application.applicationContext)
     private val purchaseRepository = PurchaseRepository.getInstance(application.applicationContext)
+    private val transactionRepository = TransactionRepository.getInstance(application.applicationContext)
 
     private val _searchQuery = MutableStateFlow("")
     private val _typeFilter = MutableStateFlow<PartyType?>(null)
     private val _tagFilter = MutableStateFlow<PartyTag?>(null)
+    private val _sortOption = MutableStateFlow(PartySortOption.MOST_DUE)
     private val _selectedPartyId = MutableStateFlow<String?>(null)
 
     private data class FilterParams(
         val query: String,
         val typeFilter: PartyType?,
         val tagFilter: PartyTag?,
+        val sortOption: PartySortOption,
         val selectedPartyId: String?
     )
 
@@ -53,9 +74,10 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
         _searchQuery,
         _typeFilter,
         _tagFilter,
+        _sortOption,
         _selectedPartyId
-    ) { query, typeFilter, tagFilter, selectedPartyId ->
-        FilterParams(query, typeFilter, tagFilter, selectedPartyId)
+    ) { query, typeFilter, tagFilter, sortOption, selectedPartyId ->
+        FilterParams(query, typeFilter, tagFilter, sortOption, selectedPartyId)
     }
 
     val uiState: StateFlow<PartyUiState> = combine(
@@ -66,6 +88,7 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
         val query = filter.query
         val typeFilter = filter.typeFilter
         val tagFilter = filter.tagFilter
+        val sortOption = filter.sortOption
         val selectedPartyId = filter.selectedPartyId
         // Calculate balance for each party
         val partiesWithBalance = parties.map { party ->
@@ -128,6 +151,14 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
             matchesType && matchesTag && matchesQuery
         }
 
+        // Sorting
+        val sorted = when (sortOption) {
+            PartySortOption.MOST_DUE -> filtered.sortedByDescending { it.dueAmount }
+            PartySortOption.RECENT -> filtered.sortedByDescending { it.lastEntryDateMillis ?: 0L }
+            PartySortOption.NAME_ASC -> filtered.sortedBy { it.party.name.lowercase() }
+            PartySortOption.SETTLED -> filtered.sortedBy { it.dueAmount }
+        }
+
         val activeSelected = selectedPartyId?.let { id ->
             partiesWithBalance.find { it.party.id == id }
         }
@@ -140,12 +171,13 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
 
         PartyUiState(
             parties = partiesWithBalance,
-            filteredParties = filtered,
+            filteredParties = sorted,
             totalReceivable = receivable,
             totalPayable = payable,
             searchQuery = query,
             typeFilter = typeFilter,
             tagFilter = tagFilter,
+            sortOption = sortOption,
             selectedParty = activeSelected,
             selectedPartyEntries = selectedEntries
         )
@@ -165,6 +197,10 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setTagFilter(tag: PartyTag?) {
         _tagFilter.value = tag
+    }
+
+    fun setSortOption(sort: PartySortOption) {
+        _sortOption.value = sort
     }
 
     fun selectParty(partyId: String?) {
@@ -231,6 +267,114 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
             billNumber = billNumber,
             note = note
         )
+    }
+
+    fun recordPartyPayment(
+        partyId: String,
+        amount: Double,
+        direction: PaymentDirection,
+        paymentMode: PaymentMode,
+        referenceNo: String,
+        notes: String
+    ) {
+        val entryType = if (direction == PaymentDirection.RECEIPT_IN) {
+            KhataEntryType.YOU_GOT
+        } else {
+            KhataEntryType.YOU_GAVE
+        }
+        val partyName = repository.parties.value.find { it.id == partyId }?.name ?: "Party"
+        val actionLabel = if (direction == PaymentDirection.RECEIPT_IN) "Payment Received" else "Payment Made"
+        val noteCombined = buildString {
+            append("$actionLabel via ${paymentMode.label}")
+            if (referenceNo.isNotBlank()) append(" (Ref: $referenceNo)")
+            if (notes.isNotBlank()) append(" - $notes")
+        }
+
+        // 1. Add to Party Khata Ledger
+        repository.addKhataEntry(
+            partyId = partyId,
+            amount = amount,
+            type = entryType,
+            dateMillis = System.currentTimeMillis(),
+            billNumber = referenceNo,
+            note = noteCombined
+        )
+
+        // 2. Add to Cashbook / Daybook (TransactionRepository)
+        val transType = if (direction == PaymentDirection.RECEIPT_IN) TransactionType.INCOME else TransactionType.EXPENSE
+        transactionRepository.addTransaction(
+            title = "$actionLabel - $partyName",
+            amount = amount,
+            type = transType,
+            category = Category.BUSINESS,
+            dateMillis = System.currentTimeMillis(),
+            paymentMode = paymentMode,
+            note = noteCombined
+        )
+    }
+
+    fun shareStatementPdf(
+        context: Context,
+        partyWithBalance: PartyWithBalance,
+        entries: List<KhataEntry>,
+        targetWhatsApp: Boolean = false
+    ) {
+        PartyStatementPdfGenerator.sharePdf(
+            context = context,
+            partyWithBalance = partyWithBalance,
+            entries = entries,
+            targetWhatsApp = targetWhatsApp
+        )
+    }
+
+    fun exportLedgerCsv(
+        context: Context,
+        partyWithBalance: PartyWithBalance,
+        entries: List<KhataEntry>
+    ) {
+        PartyStatementPdfGenerator.exportCsv(
+            context = context,
+            partyWithBalance = partyWithBalance,
+            entries = entries
+        )
+    }
+
+    fun exportAllPartiesCsv(context: Context) {
+        try {
+            val exportDir = File(context.cacheDir, "csv_exports").apply { mkdirs() }
+            val file = File(exportDir, "Parties_Khata_Summary_${System.currentTimeMillis()}.csv")
+            val currentParties = uiState.value.parties
+
+            file.bufferedWriter().use { writer ->
+                writer.write("Party Name,Phone,Type,Tag,GSTIN,Total Given (Debit),Total Received (Credit),Net Balance,Status\n")
+                for (item in currentParties) {
+                    val p = item.party
+                    val name = "\"${p.name.replace("\"", "\"\"")}\""
+                    val phone = "\"${p.phone.replace("\"", "\"\"")}\""
+                    val type = p.type.label
+                    val tag = p.tag.label
+                    val gstin = "\"${p.gstin.replace("\"", "\"\"")}\""
+                    val gave = item.totalGave
+                    val got = item.totalGot
+                    val net = item.dueAmount
+                    val status = item.getStatusLabel()
+                    writer.write("$name,$phone,$type,$tag,$gstin,$gave,$got,$net,$status\n")
+                }
+            }
+
+            val uri = FileProvider.getUriForFile(
+                context,
+                "com.hisabpro.app.fileprovider",
+                file
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/csv"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "Customer & Supplier Khata Summary")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "Export Parties Khata CSV"))
+        } catch (_: Exception) {}
     }
 
     fun deleteKhataEntry(entryId: String) {

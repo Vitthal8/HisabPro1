@@ -24,7 +24,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Share
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -67,8 +70,11 @@ import com.hisabpro.app.data.model.KhataEntryType
 import com.hisabpro.app.data.model.Party
 import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.data.model.PartyWithBalance
+import com.hisabpro.app.data.model.PaymentMode
 import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.ui.HisabViewModel
+import com.hisabpro.app.ui.payments.PaymentDirection
+import com.hisabpro.app.ui.payments.RecordPaymentSheet
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.ExpenseRed
@@ -78,6 +84,7 @@ import com.hisabpro.app.ui.theme.IncomeGreenContainer
 import com.hisabpro.app.ui.theme.PureWhite
 import com.hisabpro.app.ui.theme.Slate700
 import com.hisabpro.app.util.InvoiceUpiQrSheet
+import com.hisabpro.app.util.PartyStatementPdfGenerator
 import com.hisabpro.app.util.ShareHelper
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -93,6 +100,7 @@ fun PartyKhataScreen(
     onDeleteEntry: (String) -> Unit,
     onDeleteParty: (String) -> Unit,
     onUpdateParty: (Party) -> Unit = {},
+    onRecordPayment: ((PaymentDirection, Double, PaymentMode, String, String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val party = partyWithBalance.party
@@ -100,6 +108,7 @@ fun PartyKhataScreen(
 
     var showAddEntrySheet by remember { mutableStateOf(false) }
     var showEditPartySheet by remember { mutableStateOf(false) }
+    var showRecordPaymentSheet by remember { mutableStateOf(false) }
     var entryTypeToAdd by remember { mutableStateOf(KhataEntryType.YOU_GAVE) }
     var showDeletePartyDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
@@ -111,6 +120,7 @@ fun PartyKhataScreen(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val editPartySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val upiSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val paymentSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -161,6 +171,26 @@ fun PartyKhataScreen(
                         )
                     }
 
+                    // Share Statement PDF
+                    IconButton(
+                        onClick = {
+                            PartyStatementPdfGenerator.sharePdf(
+                                context = context,
+                                partyWithBalance = partyWithBalance,
+                                entries = entries,
+                                targetWhatsApp = false,
+                                profileOverride = businessProfile
+                            )
+                        },
+                        modifier = Modifier.testTag("btn_share_party_pdf")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PictureAsPdf,
+                            contentDescription = "Share PDF Statement",
+                            tint = Emerald700
+                        )
+                    }
+
                     // Share on WhatsApp
                     IconButton(
                         onClick = {
@@ -189,6 +219,64 @@ fun PartyKhataScreen(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
+                        DropdownMenuItem(
+                            text = { Text("Share PDF Statement") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.PictureAsPdf,
+                                    contentDescription = null,
+                                    tint = Emerald700
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                PartyStatementPdfGenerator.sharePdf(
+                                    context = context,
+                                    partyWithBalance = partyWithBalance,
+                                    entries = entries,
+                                    targetWhatsApp = false,
+                                    profileOverride = businessProfile
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("WhatsApp PDF Statement") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Share,
+                                    contentDescription = null,
+                                    tint = IncomeGreen
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                PartyStatementPdfGenerator.sharePdf(
+                                    context = context,
+                                    partyWithBalance = partyWithBalance,
+                                    entries = entries,
+                                    targetWhatsApp = true,
+                                    profileOverride = businessProfile
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Export Ledger (CSV)") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.FileDownload,
+                                    contentDescription = null,
+                                    tint = Color(0xFF1D4ED8)
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                PartyStatementPdfGenerator.exportCsv(
+                                    context = context,
+                                    partyWithBalance = partyWithBalance,
+                                    entries = entries
+                                )
+                            }
+                        )
                         DropdownMenuItem(
                             text = { Text("Edit Party Details") },
                             leadingIcon = {
@@ -304,7 +392,8 @@ fun PartyKhataScreen(
                             netBalance = partyWithBalance.netBalance
                         )
                     },
-                    onShowUpiQr = { showUpiQrSheet = true }
+                    onShowUpiQr = { showUpiQrSheet = true },
+                    onSettlePayment = { showRecordPaymentSheet = true }
                 )
             }
 
@@ -420,13 +509,34 @@ fun PartyKhataScreen(
             }
         )
     }
+
+    if (showRecordPaymentSheet) {
+        val initialDir = if (party.type == PartyType.CUSTOMER) PaymentDirection.RECEIPT_IN else PaymentDirection.PAYMENT_OUT
+        RecordPaymentSheet(
+            parties = listOf(party),
+            initialDirection = initialDir,
+            sheetState = paymentSheetState,
+            onDismiss = { showRecordPaymentSheet = false },
+            onSavePayment = { data ->
+                onRecordPayment?.invoke(
+                    data.direction,
+                    data.amount,
+                    data.paymentMode,
+                    data.referenceNo,
+                    data.notes
+                )
+                showRecordPaymentSheet = false
+            }
+        )
+    }
 }
 
 @Composable
 private fun PartySummaryHeroCard(
     partyWithBalance: PartyWithBalance,
     onShareWhatsApp: () -> Unit,
-    onShowUpiQr: (() -> Unit)? = null
+    onShowUpiQr: (() -> Unit)? = null,
+    onSettlePayment: (() -> Unit)? = null
 ) {
     val party = partyWithBalance.party
     val statusLabel = partyWithBalance.getStatusLabel()
@@ -552,6 +662,35 @@ private fun PartySummaryHeroCard(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    if (onSettlePayment != null) {
+                        Button(
+                            onClick = onSettlePayment,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .testTag("btn_settle_party_payment"),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Emerald800)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Payments,
+                                contentDescription = null,
+                                tint = PureWhite,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (partyWithBalance.isReceivable) {
+                                    "Record Payment In (₹${HisabViewModel.formatAmount(partyWithBalance.dueAmount)})"
+                                } else {
+                                    "Record Payment Out (₹${HisabViewModel.formatAmount(partyWithBalance.dueAmount)})"
+                                },
+                                fontWeight = FontWeight.Bold,
+                                color = PureWhite
+                            )
+                        }
+                    }
+
                     if (partyWithBalance.isReceivable && onShowUpiQr != null) {
                         Button(
                             onClick = onShowUpiQr,
@@ -560,7 +699,9 @@ private fun PartySummaryHeroCard(
                                 .height(44.dp)
                                 .testTag("collect_upi_qr_btn"),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Emerald800)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
                         ) {
                             Icon(
                                 imageVector = Icons.Default.QrCode2,

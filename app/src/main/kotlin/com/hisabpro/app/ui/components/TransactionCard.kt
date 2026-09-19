@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -55,6 +56,7 @@ import java.util.Locale
 fun TransactionCard(
     transaction: Transaction,
     onDelete: (String) -> Unit,
+    onEdit: ((Transaction) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -160,11 +162,28 @@ fun TransactionCard(
                 }
             }
 
+            if (onEdit != null) {
+                IconButton(
+                    onClick = { onEdit(transaction) },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .padding(start = 2.dp)
+                        .testTag("edit_tx_btn_${transaction.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit transaction",
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+            }
+
             IconButton(
                 onClick = { showDeleteConfirm = true },
                 modifier = Modifier
                     .size(36.dp)
-                    .padding(start = 4.dp)
+                    .padding(start = 2.dp)
                     .testTag("delete_tx_btn_${transaction.id}")
             ) {
                 Icon(

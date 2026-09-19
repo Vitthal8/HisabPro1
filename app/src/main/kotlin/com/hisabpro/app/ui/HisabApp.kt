@@ -21,16 +21,24 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -55,6 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -62,6 +71,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hisabpro.app.data.model.Category
+import com.hisabpro.app.data.model.PaymentMode
+import com.hisabpro.app.data.model.Transaction
 import com.hisabpro.app.ui.components.AddTransactionDialog
 import com.hisabpro.app.ui.components.AnalyticsView
 import com.hisabpro.app.ui.components.TransactionCard
@@ -71,8 +82,6 @@ import com.hisabpro.app.ui.theme.Emerald900
 import com.hisabpro.app.ui.theme.ExpenseRed
 import com.hisabpro.app.ui.theme.IncomeGreen
 import com.hisabpro.app.ui.theme.PureWhite
-import com.hisabpro.app.ui.theme.Slate700
-import com.hisabpro.app.ui.theme.Slate800
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,10 +90,13 @@ fun HisabApp(
     viewModel: HisabViewModel,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showAddSheet by remember { mutableStateOf(false) }
+    var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
     var showAnalytics by remember { mutableStateOf(false) }
     var showSearchBar by remember { mutableStateOf(false) }
+    var showExportMenu by remember { mutableStateOf(false) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
@@ -113,7 +125,7 @@ fun HisabApp(
                             }
                         }
                         Text(
-                            text = "HisabPro",
+                            text = "Cashbook",
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = (-0.5).sp
@@ -142,6 +154,53 @@ fun HisabApp(
                             tint = if (showAnalytics) Emerald700 else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Box {
+                        IconButton(
+                            onClick = { showExportMenu = true },
+                            modifier = Modifier.testTag("export_cashbook_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Export Cashbook",
+                                tint = Emerald700
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showExportMenu,
+                            onDismissRequest = { showExportMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Export PDF Cashbook") },
+                                onClick = {
+                                    showExportMenu = false
+                                    viewModel.shareCashbookPdf(context)
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.PictureAsPdf,
+                                        contentDescription = null,
+                                        tint = ExpenseRed
+                                    )
+                                },
+                                modifier = Modifier.testTag("menu_export_pdf")
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export CSV Spreadsheet") },
+                                onClick = {
+                                    showExportMenu = false
+                                    viewModel.exportCashbookCsv(context)
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.TableChart,
+                                        contentDescription = null,
+                                        tint = Emerald700
+                                    )
+                                },
+                                modifier = Modifier.testTag("menu_export_csv")
+                            )
+                        }
+                    }
                     IconButton(
                         onClick = { viewModel.resetToDemo() },
                         modifier = Modifier.testTag("reset_demo_btn")
@@ -160,6 +219,7 @@ fun HisabApp(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = {
+                    editingTransaction = null
                     scope.launch {
                         showAddSheet = true
                     }
@@ -204,12 +264,14 @@ fun HisabApp(
                 }
             }
 
-            // Hero Balance Card
+            // Hero Balance Card with Cash & Bank Split
             item {
                 HeroBalanceCard(
                     balance = uiState.totalBalance,
                     income = uiState.totalIncome,
-                    expense = uiState.totalExpense
+                    expense = uiState.totalExpense,
+                    cashBalance = uiState.totalCashBalance,
+                    bankBalance = uiState.totalBankBalance
                 )
             }
 
@@ -220,11 +282,15 @@ fun HisabApp(
                 }
             }
 
-            // Filter Chips (Type & Category)
+            // Filter Chips (Date Range, Transaction Type, Payment Mode, Category)
             item {
                 FilterSection(
                     selectedFilterType = uiState.filterType,
                     onFilterTypeSelected = { viewModel.setFilterType(it) },
+                    selectedDateFilter = uiState.dateFilterType,
+                    onDateFilterSelected = { viewModel.setDateFilterType(it) },
+                    selectedPaymentMode = uiState.selectedPaymentMode,
+                    onPaymentModeSelected = { viewModel.setSelectedPaymentMode(it) },
                     selectedCategory = uiState.selectedCategory,
                     onCategorySelected = { viewModel.setSelectedCategory(it) }
                 )
@@ -244,7 +310,12 @@ fun HisabApp(
                         ),
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    if (uiState.filterType != FilterType.ALL || uiState.selectedCategory != null) {
+                    val isAnyFilterActive = uiState.filterType != FilterType.ALL ||
+                            uiState.dateFilterType != DateFilterType.ALL_TIME ||
+                            uiState.selectedCategory != null ||
+                            uiState.selectedPaymentMode != null
+
+                    if (isAnyFilterActive) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant
@@ -266,6 +337,8 @@ fun HisabApp(
                     EmptyTransactionsPlaceholder(
                         isFiltered = uiState.searchQuery.isNotEmpty() ||
                                 uiState.filterType != FilterType.ALL ||
+                                uiState.dateFilterType != DateFilterType.ALL_TIME ||
+                                uiState.selectedPaymentMode != null ||
                                 uiState.selectedCategory != null
                     )
                 }
@@ -276,7 +349,13 @@ fun HisabApp(
                 ) { transaction ->
                     TransactionCard(
                         transaction = transaction,
-                        onDelete = { viewModel.deleteTransaction(it) }
+                        onDelete = { viewModel.deleteTransaction(it) },
+                        onEdit = { tx ->
+                            editingTransaction = tx
+                            scope.launch {
+                                showAddSheet = true
+                            }
+                        }
                     )
                 }
             }
@@ -286,17 +365,37 @@ fun HisabApp(
     if (showAddSheet) {
         AddTransactionDialog(
             sheetState = sheetState,
-            onDismiss = { showAddSheet = false },
+            initialTransaction = editingTransaction,
+            onDismiss = {
+                showAddSheet = false
+                editingTransaction = null
+            },
             onSave = { title, amount, type, category, dateMillis, paymentMode, note ->
-                viewModel.addTransaction(
-                    title = title,
-                    amount = amount,
-                    type = type,
-                    category = category,
-                    dateMillis = dateMillis,
-                    paymentMode = paymentMode,
-                    note = note
-                )
+                val currentEditing = editingTransaction
+                if (currentEditing != null) {
+                    viewModel.updateTransaction(
+                        currentEditing.copy(
+                            title = title,
+                            amount = amount,
+                            type = type,
+                            category = category,
+                            dateMillis = dateMillis,
+                            paymentMode = paymentMode,
+                            note = note
+                        )
+                    )
+                } else {
+                    viewModel.addTransaction(
+                        title = title,
+                        amount = amount,
+                        type = type,
+                        category = category,
+                        dateMillis = dateMillis,
+                        paymentMode = paymentMode,
+                        note = note
+                    )
+                }
+                editingTransaction = null
             }
         )
     }
@@ -306,7 +405,9 @@ fun HisabApp(
 private fun HeroBalanceCard(
     balance: Double,
     income: Double,
-    expense: Double
+    expense: Double,
+    cashBalance: Double,
+    bankBalance: Double
 ) {
     Card(
         modifier = Modifier
@@ -328,7 +429,7 @@ private fun HeroBalanceCard(
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Net Balance",
+                    text = "Total Cashbook Balance",
                     style = MaterialTheme.typography.labelMedium.copy(
                         letterSpacing = 1.sp,
                         fontWeight = FontWeight.Medium
@@ -350,7 +451,83 @@ private fun HeroBalanceCard(
                     color = PureWhite
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Cash in Hand vs Bank Balance Breakdown
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Cash in Hand
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        color = PureWhite.copy(alpha = 0.12f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Payments,
+                                contentDescription = null,
+                                tint = PureWhite.copy(alpha = 0.9f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "Cash in Hand",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = PureWhite.copy(alpha = 0.75f)
+                                )
+                                Text(
+                                    text = "₹${HisabViewModel.formatAmount(cashBalance)}",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = PureWhite
+                                )
+                            }
+                        }
+                    }
+
+                    // Bank / Online Balance
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        color = PureWhite.copy(alpha = 0.12f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountBalance,
+                                contentDescription = null,
+                                tint = PureWhite.copy(alpha = 0.9f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "Bank / UPI",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = PureWhite.copy(alpha = 0.75f)
+                                )
+                                Text(
+                                    text = "₹${HisabViewModel.formatAmount(bankBalance)}",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = PureWhite
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Inflow and Outflow stats
                 Row(
@@ -450,6 +627,10 @@ private fun HeroBalanceCard(
 private fun FilterSection(
     selectedFilterType: FilterType,
     onFilterTypeSelected: (FilterType) -> Unit,
+    selectedDateFilter: DateFilterType,
+    onDateFilterSelected: (DateFilterType) -> Unit,
+    selectedPaymentMode: PaymentMode?,
+    onPaymentModeSelected: (PaymentMode) -> Unit,
     selectedCategory: Category?,
     onCategorySelected: (Category) -> Unit
 ) {
@@ -457,7 +638,25 @@ private fun FilterSection(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Type Filters
+        // Date Range Quick Filters
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            DateFilterType.entries.forEach { dateFilter ->
+                val isSelected = selectedDateFilter == dateFilter
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onDateFilterSelected(dateFilter) },
+                    label = { Text(dateFilter.label) },
+                    modifier = Modifier.testTag("date_filter_${dateFilter.name.lowercase()}")
+                )
+            }
+        }
+
+        // Type Filters (All, Income, Expense)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -480,6 +679,28 @@ private fun FilterSection(
                 label = { Text("Expense") },
                 modifier = Modifier.testTag("filter_chip_expense")
             )
+        }
+
+        // Payment Mode Filter Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            PaymentMode.entries.forEach { mode ->
+                val isSelected = selectedPaymentMode == mode
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onPaymentModeSelected(mode) },
+                    label = { Text(mode.label) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ),
+                    modifier = Modifier.testTag("filter_mode_${mode.name.lowercase()}")
+                )
+            }
         }
 
         // Category Filter row

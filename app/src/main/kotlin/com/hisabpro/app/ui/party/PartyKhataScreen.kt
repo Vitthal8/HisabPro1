@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Share
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -86,6 +87,7 @@ import com.hisabpro.app.ui.theme.Slate700
 import com.hisabpro.app.util.InvoiceUpiQrSheet
 import com.hisabpro.app.util.PartyStatementPdfGenerator
 import com.hisabpro.app.util.ShareHelper
+import com.hisabpro.app.util.ThermalSlipGenerator
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -260,6 +262,25 @@ fun PartyKhataScreen(
                             }
                         )
                         DropdownMenuItem(
+                            text = { Text("Thermal / POS Slip (58mm)") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Print,
+                                    contentDescription = null,
+                                    tint = Emerald700
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                ThermalSlipGenerator.sharePartyKhataThermalSlip(
+                                    context = context,
+                                    partyWithBalance = partyWithBalance,
+                                    entries = entries,
+                                    profileOverride = businessProfile
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Export Ledger (CSV)") },
                             leadingIcon = {
                                 Icon(
@@ -393,7 +414,15 @@ fun PartyKhataScreen(
                         )
                     },
                     onShowUpiQr = { showUpiQrSheet = true },
-                    onSettlePayment = { showRecordPaymentSheet = true }
+                    onSettlePayment = { showRecordPaymentSheet = true },
+                    onThermalSlip = {
+                        ThermalSlipGenerator.sharePartyKhataThermalSlip(
+                            context = context,
+                            partyWithBalance = partyWithBalance,
+                            entries = entries,
+                            profileOverride = businessProfile
+                        )
+                    }
                 )
             }
 
@@ -536,7 +565,8 @@ private fun PartySummaryHeroCard(
     partyWithBalance: PartyWithBalance,
     onShareWhatsApp: () -> Unit,
     onShowUpiQr: (() -> Unit)? = null,
-    onSettlePayment: (() -> Unit)? = null
+    onSettlePayment: (() -> Unit)? = null,
+    onThermalSlip: (() -> Unit)? = null
 ) {
     val party = partyWithBalance.party
     val statusLabel = partyWithBalance.getStatusLabel()
@@ -718,27 +748,58 @@ private fun PartySummaryHeroCard(
                         }
                     }
 
-                    // WhatsApp Balance Share Reminder Button
-                    OutlinedButton(
-                        onClick = onShareWhatsApp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .testTag("send_whatsapp_reminder_btn"),
-                        shape = RoundedCornerShape(12.dp)
+                    // Action Buttons Row: WhatsApp Reminder & Thermal Slip
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = null,
-                            tint = IncomeGreen,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Share WhatsApp Reminder",
-                            fontWeight = FontWeight.Bold,
-                            color = IncomeGreen
-                        )
+                        OutlinedButton(
+                            onClick = onShareWhatsApp,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .testTag("send_whatsapp_reminder_btn"),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = null,
+                                tint = IncomeGreen,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "WhatsApp",
+                                fontWeight = FontWeight.Bold,
+                                color = IncomeGreen,
+                                fontSize = 13.sp
+                            )
+                        }
+
+                        if (onThermalSlip != null) {
+                            OutlinedButton(
+                                onClick = onThermalSlip,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .testTag("btn_khata_thermal_slip"),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Print,
+                                    contentDescription = null,
+                                    tint = Emerald700,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "POS Slip",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Emerald700,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
                     }
                 }
             }

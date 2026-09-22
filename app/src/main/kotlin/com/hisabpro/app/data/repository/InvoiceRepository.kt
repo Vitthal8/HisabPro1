@@ -126,14 +126,9 @@ class InvoiceRepository(context: Context) {
     }
 
     fun generateNextInvoiceNumber(type: InvoiceType, prefixOverride: String? = null): String {
-        val year = Calendar.getInstance().get(Calendar.YEAR) % 100
-        val nextYear = year + 1
-        val fy = "$year-$nextYear"
-
         val countForType = _invoices.value.count { it.type == type } + 1
-        val padded = String.format("%03d", countForType)
         val prefix = if (!prefixOverride.isNullOrBlank()) prefixOverride.trim() else type.prefix
-        return "$prefix-$fy-$padded"
+        return com.hisabpro.app.util.IndianAccountingFormat.formatInvoiceNumberWithFY(prefix, countForType)
     }
 
     fun updateCustomerDetails(

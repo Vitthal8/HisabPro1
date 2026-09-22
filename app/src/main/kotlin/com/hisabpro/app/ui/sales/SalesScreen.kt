@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -474,6 +475,9 @@ fun SalesScreen(
                             onClick = { viewModel.selectInvoice(invoice) },
                             onShareWhatsApp = { viewModel.shareWhatsAppSummary(context, invoice) },
                             onSharePdf = { viewModel.sharePdf(context, invoice, false) },
+                            onShareThermal = {
+                                com.hisabpro.app.util.ThermalSlipGenerator.shareThermalSlip(context, invoice, businessProfile)
+                            },
                             onDuplicate = {
                                 val dup = viewModel.duplicateInvoice(invoice.id)
                                 Toast.makeText(context, "Duplicated as ${dup?.invoiceNumber}", Toast.LENGTH_SHORT).show()
@@ -651,6 +655,7 @@ fun InvoiceCard(
     onClick: () -> Unit,
     onShareWhatsApp: () -> Unit,
     onSharePdf: () -> Unit,
+    onShareThermal: () -> Unit = {},
     onDuplicate: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -823,6 +828,21 @@ fun InvoiceCard(
                         ) {
                             Icon(imageVector = Icons.Default.PictureAsPdf, contentDescription = "PDF", tint = Emerald800, modifier = Modifier.size(13.dp))
                             Text("PDF", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Emerald800)
+                        }
+                    }
+
+                    Surface(
+                        color = Color(0xFF0F766E).copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.clickable(onClick = onShareThermal)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Print, contentDescription = "Thermal Slip", tint = Color(0xFF0F766E), modifier = Modifier.size(13.dp))
+                            Text("POS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F766E))
                         }
                     }
                 }

@@ -1,6 +1,7 @@
 package com.hisabpro.app.ui.reports
 
 import com.hisabpro.app.data.model.Invoice
+import com.hisabpro.app.data.model.PurchaseBill
 import com.hisabpro.app.data.model.Transaction
 
 enum class ReportPeriod(val label: String) {
@@ -130,6 +131,17 @@ data class StockValuationSummary(
     val outOfStockCount: Int = 0
 )
 
+data class PurchasesRegisterSummary(
+    val totalBillsCount: Int = 0,
+    val totalPurchasesValue: Double = 0.0,
+    val totalTaxableAmount: Double = 0.0,
+    val totalTaxAmount: Double = 0.0,
+    val itcAvailableTax: Double = 0.0,
+    val totalPaidAmount: Double = 0.0,
+    val totalDueAmount: Double = 0.0,
+    val purchases: List<PurchaseBill> = emptyList()
+)
+
 data class ReportsUiState(
     val selectedPeriod: ReportPeriod = ReportPeriod.THIS_MONTH,
     val customStartDate: Long? = null,
@@ -140,5 +152,6 @@ data class ReportsUiState(
     val daybook: DaybookSummary = DaybookSummary(),
     val partyAging: PartyAgingSummary = PartyAgingSummary(),
     val stockValuation: StockValuationSummary = StockValuationSummary(),
+    val purchasesRegister: PurchasesRegisterSummary = PurchasesRegisterSummary(),
     val selectedDaybookDateMillis: Long = System.currentTimeMillis()
 )

@@ -11,6 +11,7 @@ import com.hisabpro.app.data.model.StockReason
 import com.hisabpro.app.data.repository.ItemRepository
 import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.ui.reports.ReportExporter
+import com.hisabpro.app.util.ThermalSlipGenerator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -143,6 +144,12 @@ class ItemViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun quickAdjustStock(itemId: String, delta: Double) {
+        val reason = if (delta > 0) StockReason.PURCHASE_IN else StockReason.SALE_OUT
+        val note = if (delta > 0) "Quick Count In (+${delta.toInt()})" else "Quick Count Out (${delta.toInt()})"
+        adjustStock(itemId, delta, reason, note)
+    }
+
     fun getStockHistory(itemId: String): List<StockHistoryEntry> {
         return repository.getHistoryForItem(itemId)
     }
@@ -160,6 +167,15 @@ class ItemViewModel(application: Application) : AndroidViewModel(application) {
         val uri = ReportExporter.exportInventoryStockCsv(context, rawItems.value, businessName)
         if (uri != null) {
             ReportExporter.shareCsvFile(context, uri, "Inventory Stock Report - $businessName")
+        }
+    }
+
+    fun exportItemStockMovementCsv(context: Context, item: Item) {
+        val businessName = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+        val history = getStockHistory(item.id)
+        val uri = ReportExporter.exportItemStockMovementCsv(context, item, history, businessName)
+        if (uri != null) {
+            ReportExporter.shareCsvFile(context, uri, "Stock Movement - ${item.name}")
         }
     }
 
@@ -249,5 +265,16 @@ class ItemViewModel(application: Application) : AndroidViewModel(application) {
             type = "text/plain"
         }
         context.startActivity(Intent.createChooser(sendIntent, "Share Inventory Report"))
+    }
+
+    fun shareStockInventoryThermalSlip(context: Context) {
+        val items = filteredItems.value
+        val category = selectedCategory.value
+        val lowStockOnly = onlyLowStock.value
+        ThermalSlipGenerator.shareInventoryStockThermalSlip(context, items, category, lowStockOnly)
+    }
+
+    fun shareSingleItemThermalLabel(context: Context, item: Item) {
+        ThermalSlipGenerator.shareSingleItemThermalLabel(context, item)
     }
 }

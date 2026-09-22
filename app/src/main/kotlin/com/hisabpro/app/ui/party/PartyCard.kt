@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -55,6 +57,7 @@ import java.util.Locale
 fun PartyCard(
     partyWithBalance: PartyWithBalance,
     onClick: () -> Unit,
+    onQuickPayment: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val party = partyWithBalance.party
@@ -195,31 +198,65 @@ fun PartyCard(
 
                 if (!partyWithBalance.isSettled) {
                     Spacer(modifier = Modifier.height(4.dp))
-                    IconButton(
-                        onClick = {
-                            ShareHelper.shareBalanceStatement(
-                                context = context,
-                                party = party,
-                                netBalance = partyWithBalance.netBalance,
-                                businessName = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
-                            )
-                        },
-                        modifier = Modifier
-                            .size(32.dp)
-                            .testTag("whatsapp_share_${party.id}")
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = IncomeGreenContainer,
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Share,
-                                    contentDescription = "Share balance on WhatsApp",
-                                    tint = IncomeGreen,
-                                    modifier = Modifier.size(16.dp)
+                        if (onQuickPayment != null) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (partyWithBalance.isReceivable) Emerald700.copy(alpha = 0.12f) else ExpenseRed.copy(alpha = 0.12f),
+                                modifier = Modifier
+                                    .clickable { onQuickPayment() }
+                                    .testTag("quick_payment_${party.id}")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Payments,
+                                        contentDescription = "Quick Settle",
+                                        tint = if (partyWithBalance.isReceivable) Emerald700 else ExpenseRed,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        text = if (partyWithBalance.isReceivable) "In" else "Out",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (partyWithBalance.isReceivable) Emerald700 else ExpenseRed
+                                    )
+                                }
+                            }
+                        }
+
+                        IconButton(
+                            onClick = {
+                                ShareHelper.shareBalanceStatement(
+                                    context = context,
+                                    party = party,
+                                    netBalance = partyWithBalance.netBalance,
+                                    businessName = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
                                 )
+                            },
+                            modifier = Modifier
+                                .size(28.dp)
+                                .testTag("whatsapp_share_${party.id}")
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = IncomeGreenContainer,
+                                modifier = Modifier.size(26.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = "Share balance on WhatsApp",
+                                        tint = IncomeGreen,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
                             }
                         }
                     }

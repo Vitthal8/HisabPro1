@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -32,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -59,6 +61,7 @@ import java.util.Locale
 fun Gstr3bReportSheet(
     summary: Gstr3bSummary,
     periodLabel: String,
+    period: ReportPeriod = ReportPeriod.THIS_MONTH,
     sheetState: SheetState,
     onDismiss: () -> Unit
 ) {
@@ -295,21 +298,49 @@ fun Gstr3bReportSheet(
                 }
             }
 
-            // Share with CA Button
-            Button(
-                onClick = {
-                    shareGstr3bToWhatsApp(context, summary, periodLabel)
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .testTag("btn_share_gstr3b_ca"),
-                shape = RoundedCornerShape(12.dp)
+            // Share & Export Actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(imageVector = Icons.Default.Share, contentDescription = null, tint = PureWhite, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Share GSTR-3B Summary with CA", color = PureWhite, fontWeight = FontWeight.Bold)
+                Button(
+                    onClick = {
+                        shareGstr3bToWhatsApp(context, summary, periodLabel)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .testTag("btn_share_gstr3b_ca"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Share, contentDescription = null, tint = PureWhite, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Share with CA", color = PureWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        val csvUri = ReportExporter.exportGstr3bCsv(context, summary, period)
+                        if (csvUri != null) {
+                            ReportExporter.shareCsvFile(context, csvUri, "GSTR-3B Return - $periodLabel")
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .testTag("btn_export_gstr3b_csv"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FileDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Emerald800
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Export CSV", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Emerald800)
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))

@@ -54,7 +54,11 @@ class SettingsRepository(context: Context) {
                     ownerName = obj.optString("ownerName", "Vittal Mali"),
                     phone = obj.optString("phone", "+91 98765 43210"),
                     email = obj.optString("email", "hisabpro@business.in"),
-                    gstin = obj.optString("gstin", "27AAAPH1234C1Z5"),
+                    isGstRegistered = obj.optBoolean("isGstRegistered", false),
+                    gstin = obj.optString("gstin", ""),
+                    pan = obj.optString("pan", ""),
+                    isCompositionScheme = obj.optBoolean("isCompositionScheme", false),
+                    compositionType = obj.optString("compositionType", "TRADER"),
                     address = obj.optString("address", "Shop No. 12, Market Yard Main Road"),
                     city = obj.optString("city", "Pune"),
                     state = obj.optString("state", "Maharashtra"),
@@ -71,7 +75,9 @@ class SettingsRepository(context: Context) {
                         "1. Goods once sold cannot be returned without original invoice.\n2. Payment terms: Due within 15 days of invoice date."
                     ),
                     isThermalPrinterMode = obj.optBoolean("isThermalPrinterMode", false),
-                    showUpiQrOnInvoice = obj.optBoolean("showUpiQrOnInvoice", true)
+                    showUpiQrOnInvoice = obj.optBoolean("showUpiQrOnInvoice", true),
+                    appLanguage = obj.optString("appLanguage", "en"),
+                    hasCompletedOnboarding = obj.optBoolean("hasCompletedOnboarding", true)
                 )
                 _sharedProfile.value = loaded
             } catch (e: Exception) {
@@ -87,7 +93,11 @@ class SettingsRepository(context: Context) {
             put("ownerName", profile.ownerName)
             put("phone", profile.phone)
             put("email", profile.email)
+            put("isGstRegistered", profile.isGstRegistered)
             put("gstin", profile.gstin)
+            put("pan", profile.pan)
+            put("isCompositionScheme", profile.isCompositionScheme)
+            put("compositionType", profile.compositionType)
             put("address", profile.address)
             put("city", profile.city)
             put("state", profile.state)
@@ -102,6 +112,8 @@ class SettingsRepository(context: Context) {
             put("termsAndConditions", profile.termsAndConditions)
             put("isThermalPrinterMode", profile.isThermalPrinterMode)
             put("showUpiQrOnInvoice", profile.showUpiQrOnInvoice)
+            put("appLanguage", profile.appLanguage)
+            put("hasCompletedOnboarding", profile.hasCompletedOnboarding)
         }
         prefs.edit().putString(KEY_PROFILE, obj.toString()).apply()
         _sharedProfile.value = profile

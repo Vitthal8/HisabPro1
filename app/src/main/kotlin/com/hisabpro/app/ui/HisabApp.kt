@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Clear
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -82,12 +84,14 @@ import com.hisabpro.app.ui.theme.Emerald900
 import com.hisabpro.app.ui.theme.ExpenseRed
 import com.hisabpro.app.ui.theme.IncomeGreen
 import com.hisabpro.app.ui.theme.PureWhite
+import com.hisabpro.app.util.ThermalSlipGenerator
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HisabApp(
     viewModel: HisabViewModel,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -105,6 +109,17 @@ fun HisabApp(
         modifier = modifier.fillMaxSize(),
         topBar = {
             CenterAlignedTopAppBar(
+                navigationIcon = {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                },
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -198,6 +213,24 @@ fun HisabApp(
                                     )
                                 },
                                 modifier = Modifier.testTag("menu_export_csv")
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Daily Cash Closing (58mm POS)") },
+                                onClick = {
+                                    showExportMenu = false
+                                    ThermalSlipGenerator.shareDailyCashbookThermalSlip(
+                                        context = context,
+                                        transactions = uiState.filteredTransactions
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Print,
+                                        contentDescription = null,
+                                        tint = Emerald700
+                                    )
+                                },
+                                modifier = Modifier.testTag("menu_export_thermal_closing")
                             )
                         }
                     }

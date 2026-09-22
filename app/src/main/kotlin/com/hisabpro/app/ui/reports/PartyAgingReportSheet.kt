@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Share
@@ -119,25 +120,53 @@ fun PartyAgingReportSheet(
                 }
             }
 
-            // Share Action
-            Button(
-                onClick = {
-                    ReportExporter.sharePartyAgingReport(context, aging)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp)
-                    .testTag("btn_share_aging"),
-                colors = ButtonDefaults.buttonColors(containerColor = Emerald800),
-                shape = RoundedCornerShape(10.dp)
+            // Share & Export Actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Share,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Share Aging Summary", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Button(
+                    onClick = {
+                        ReportExporter.sharePartyAgingReport(context, aging)
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .testTag("btn_share_aging"),
+                    colors = ButtonDefaults.buttonColors(containerColor = Emerald800),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Share", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        val csvUri = ReportExporter.exportPartyAgingCsv(context, aging)
+                        if (csvUri != null) {
+                            ReportExporter.shareCsvFile(context, csvUri, "Party Aging & Outstanding Dues")
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .testTag("btn_export_aging_csv"),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FileDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Emerald800
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Export CSV", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Emerald800)
+                }
             }
 
             // High Level Dues Overview

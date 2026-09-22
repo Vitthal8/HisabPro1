@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material3.AlertDialog
@@ -73,7 +74,8 @@ fun PurchaseDetailSheet(
     sheetState: SheetState,
     onDismiss: () -> Unit,
     onMarkAsPaid: (PurchaseBill) -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    onExportCsv: (PurchaseBill) -> Unit = {}
 ) {
     val context = LocalContext.current
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.ENGLISH) }
@@ -394,22 +396,35 @@ fun PurchaseDetailSheet(
                         Text("Share Voucher", color = PureWhite, fontWeight = FontWeight.Bold)
                     }
 
-                    if (!bill.isFullyPaid) {
-                        Button(
-                            onClick = {
-                                onMarkAsPaid(bill)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Emerald700),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(46.dp)
-                                .testTag("btn_mark_purchase_paid"),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = PureWhite, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Mark Paid", color = PureWhite, fontWeight = FontWeight.Bold)
-                        }
+                    OutlinedButton(
+                        onClick = { onExportCsv(bill) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp)
+                            .testTag("btn_export_purchase_csv"),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, tint = Emerald700, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Export CSV", color = Emerald700, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (!bill.isFullyPaid) {
+                    Button(
+                        onClick = {
+                            onMarkAsPaid(bill)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Emerald700),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
+                            .testTag("btn_mark_purchase_paid"),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = PureWhite, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Mark Paid", color = PureWhite, fontWeight = FontWeight.Bold)
                     }
                 }
 

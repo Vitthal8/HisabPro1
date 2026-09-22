@@ -1,6 +1,7 @@
 package com.hisabpro.app.ui.purchases
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hisabpro.app.data.model.InvoiceStatus
@@ -14,6 +15,8 @@ import com.hisabpro.app.data.model.StockReason
 import com.hisabpro.app.data.repository.ItemRepository
 import com.hisabpro.app.data.repository.PartyRepository
 import com.hisabpro.app.data.repository.PurchaseRepository
+import com.hisabpro.app.data.repository.SettingsRepository
+import com.hisabpro.app.ui.reports.ReportExporter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -222,6 +225,22 @@ class PurchaseViewModel(application: Application) : AndroidViewModel(application
             if (_selectedPurchase.value?.id == billId) {
                 _selectedPurchase.value = null
             }
+        }
+    }
+
+    fun exportPurchasesCsv(context: Context) {
+        val businessName = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+        val uri = ReportExporter.exportPurchasesRegisterCsv(context, uiState.value.filteredPurchases, businessName)
+        if (uri != null) {
+            ReportExporter.shareCsvFile(context, uri, "Purchases Register - $businessName")
+        }
+    }
+
+    fun exportSingleBillCsv(context: Context, bill: PurchaseBill) {
+        val businessName = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+        val uri = ReportExporter.exportSinglePurchaseBillCsv(context, bill, businessName)
+        if (uri != null) {
+            ReportExporter.shareCsvFile(context, uri, "Purchase Bill - ${bill.purchaseNumber}")
         }
     }
 }

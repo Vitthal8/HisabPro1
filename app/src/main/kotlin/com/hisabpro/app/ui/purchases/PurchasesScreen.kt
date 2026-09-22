@@ -25,9 +25,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -55,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -92,6 +95,7 @@ fun PurchasesScreen(
     val createSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -178,12 +182,24 @@ fun PurchasesScreen(
                                     fontSize = 15.sp
                                 )
                             }
-                            IconButton(onClick = { showSearchBar = !showSearchBar }) {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = "Search Purchases",
-                                    tint = Emerald700
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = { viewModel.exportPurchasesCsv(context) },
+                                    modifier = Modifier.testTag("btn_export_purchases_register")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FileDownload,
+                                        contentDescription = "Export Purchases Register",
+                                        tint = Emerald700
+                                    )
+                                }
+                                IconButton(onClick = { showSearchBar = !showSearchBar }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = "Search Purchases",
+                                        tint = Emerald700
+                                    )
+                                }
                             }
                         }
 
@@ -337,7 +353,25 @@ fun PurchasesScreen(
                     items(uiState.filteredPurchases, key = { it.id }) { bill ->
                         PurchaseBillCard(
                             bill = bill,
-                            onClick = { viewModel.selectPurchase(bill) }
+                            onClick = { viewModel.selectPurchase(bill) },
+                            onShare = {
+                                val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.ENGLISH)
+                                val text = buildString {
+                                    appendLine("📦 *PURCHASE INWARD VOUCHER*")
+                                    appendLine("Bill No: ${bill.purchaseNumber}")
+                                    if (bill.vendorBillNumber.isNotBlank()) appendLine("Vendor Ref: ${bill.vendorBillNumber}")
+                                    appendLine("Supplier: ${bill.supplierName}")
+                                    appendLine("Date: ${dateFormat.format(Date(bill.dateMillis))}")
+                                    appendLine("Grand Total: ₹${String.format(Locale.ENGLISH, "%.2f", bill.grandTotal)}")
+                                    appendLine("Status: ${bill.paymentStatus.label}")
+                                    appendLine("\nShared via HisabPro")
+                                }
+                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_TEXT, text)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(intent, "Share Purchase Summary"))
+                            }
                         )
                     }
                 }
@@ -376,6 +410,9 @@ fun PurchasesScreen(
             },
             onDelete = { billId ->
                 viewModel.deletePurchase(billId)
+            },
+            onExportCsv = { billToExport ->
+                viewModel.exportSingleBillCsv(context, billToExport)
             }
         )
     }
@@ -384,7 +421,8 @@ fun PurchasesScreen(
 @Composable
 fun PurchaseBillCard(
     bill: PurchaseBill,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onShare: (() -> Unit)? = null
 ) {
     val dateFormat = remember { SimpleDateFormat("dd MMM", Locale.ENGLISH) }
 
@@ -491,18 +529,39 @@ fun PurchaseBillCard(
                     modifier = Modifier.weight(1f)
                 )
 
-                if (bill.itcEligible && bill.totalTax > 0) {
-                    Surface(
-                        color = Color(0xFFEFF6FF),
-                        shape = RoundedCornerShape(6.dp)
-                    ) {
-                        Text(
-                            text = "ITC: ₹${String.format(Locale.ENGLISH, "%.0f", bill.totalTax)}",
-                            fontSize = 10.sp,
-                            color = Color(0xFF1D4ED8),
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (bill.itcEligible && bill.totalTax > 0) {
+                        Surface(
+                            color = Color(0xFFEFF6FF),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "ITC: ₹${String.format(Locale.ENGLISH, "%.0f", bill.totalTax)}",
+                                fontSize = 10.sp,
+                                color = Color(0xFF1D4ED8),
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    if (onShare != null) {
+                        IconButton(
+                            onClick = onShare,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .testTag("btn_quick_share_${bill.purchaseNumber}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Share Bill Summary",
+                                tint = Emerald700,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
                     }
                 }
             }

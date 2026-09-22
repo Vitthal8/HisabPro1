@@ -150,6 +150,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
         val daybook = calculateDaybook(invoices, transactions, daybookDate)
         val partyAging = calculatePartyAging(partiesWithBalances)
         val stockValuation = calculateStockValuation(items)
+        val purchasesRegister = calculatePurchasesRegister(periodPurchases)
 
         return ReportsUiState(
             selectedPeriod = period,
@@ -159,7 +160,29 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
             daybook = daybook,
             partyAging = partyAging,
             stockValuation = stockValuation,
+            purchasesRegister = purchasesRegister,
             selectedDaybookDateMillis = daybookDate
+        )
+    }
+
+    private fun calculatePurchasesRegister(purchases: List<PurchaseBill>): PurchasesRegisterSummary {
+        val totalCount = purchases.size
+        val totalPurchasesValue = purchases.sumOf { it.grandTotal }
+        val totalTaxableAmount = purchases.sumOf { it.subtotal }
+        val totalTaxAmount = purchases.sumOf { it.totalTax }
+        val itcAvailableTax = purchases.filter { it.itcEligible }.sumOf { it.totalTax }
+        val totalPaidAmount = purchases.sumOf { it.paidAmount }
+        val totalDueAmount = purchases.sumOf { it.dueAmount }
+
+        return PurchasesRegisterSummary(
+            totalBillsCount = totalCount,
+            totalPurchasesValue = totalPurchasesValue,
+            totalTaxableAmount = totalTaxableAmount,
+            totalTaxAmount = totalTaxAmount,
+            itcAvailableTax = itcAvailableTax,
+            totalPaidAmount = totalPaidAmount,
+            totalDueAmount = totalDueAmount,
+            purchases = purchases
         )
     }
 

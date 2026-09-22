@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -29,6 +30,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -178,25 +180,53 @@ fun DaybookReportSheet(
                 }
             }
 
-            // Share Action
-            Button(
-                onClick = {
-                    ReportExporter.shareDaybookReport(context, daybook)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp)
-                    .testTag("btn_share_daybook"),
-                colors = ButtonDefaults.buttonColors(containerColor = Emerald800),
-                shape = RoundedCornerShape(10.dp)
+            // Share & Export Actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Share,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Share Daybook Summary", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Button(
+                    onClick = {
+                        ReportExporter.shareDaybookReport(context, daybook)
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .testTag("btn_share_daybook"),
+                    colors = ButtonDefaults.buttonColors(containerColor = Emerald800),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Share", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        val csvUri = ReportExporter.exportDaybookCsv(context, daybook)
+                        if (csvUri != null) {
+                            ReportExporter.shareCsvFile(context, csvUri, "Daybook Register - $dateDisplay")
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .testTag("btn_export_daybook_csv"),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FileDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Emerald800
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Export CSV", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Emerald800)
+                }
             }
 
             // Daily Snapshot Cards

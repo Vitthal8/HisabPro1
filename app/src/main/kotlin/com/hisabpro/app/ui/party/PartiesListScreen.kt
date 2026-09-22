@@ -95,6 +95,7 @@ fun PartiesListScreen(
     // Payment & Receipt Sheet State
     var showRecordPaymentSheet by remember { mutableStateOf(false) }
     var recordPaymentDirection by remember { mutableStateOf(PaymentDirection.RECEIPT_IN) }
+    var quickPaymentPartyId by remember { mutableStateOf<String?>(null) }
     val paymentSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val settingsRepo = remember { SettingsRepository.getInstance(context) }
@@ -368,6 +369,11 @@ fun PartiesListScreen(
                         partyWithBalance = partyWithBalance,
                         onClick = {
                             viewModel.selectParty(partyWithBalance.party.id)
+                        },
+                        onQuickPayment = {
+                            quickPaymentPartyId = partyWithBalance.party.id
+                            recordPaymentDirection = if (partyWithBalance.isReceivable) PaymentDirection.RECEIPT_IN else PaymentDirection.PAYMENT_OUT
+                            showRecordPaymentSheet = true
                         }
                     )
                 }
@@ -396,10 +402,14 @@ fun PartiesListScreen(
         RecordPaymentSheet(
             parties = uiState.parties.map { it.party },
             initialDirection = recordPaymentDirection,
+            initialPartyId = quickPaymentPartyId,
             merchantUpiId = businessProfile.upiId,
             merchantName = businessProfile.shopName.ifBlank { "HisabPro Merchant" },
             sheetState = paymentSheetState,
-            onDismiss = { showRecordPaymentSheet = false },
+            onDismiss = {
+                showRecordPaymentSheet = false
+                quickPaymentPartyId = null
+            },
             onSavePayment = { data ->
                 viewModel.recordPartyPayment(
                     partyId = data.partyId,
@@ -409,6 +419,7 @@ fun PartiesListScreen(
                     referenceNo = data.referenceNo,
                     notes = data.notes
                 )
+                quickPaymentPartyId = null
             }
         )
     }

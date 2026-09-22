@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
 import com.hisabpro.app.data.model.Item
+import com.hisabpro.app.data.model.PurchaseBill
+import com.hisabpro.app.data.model.StockHistoryEntry
 import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.ui.HisabViewModel
 import java.io.File
@@ -174,6 +176,50 @@ object ReportExporter {
         shareTextMessage(context, message, "Party Aging Dues - $businessName")
     }
 
+    fun sharePurchasesRegisterReport(
+        context: Context,
+        purchasesRegister: PurchasesRegisterSummary,
+        period: ReportPeriod,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ) {
+        val totalValStr = HisabViewModel.formatAmount(purchasesRegister.totalPurchasesValue)
+        val taxableStr = HisabViewModel.formatAmount(purchasesRegister.totalTaxableAmount)
+        val taxStr = HisabViewModel.formatAmount(purchasesRegister.totalTaxAmount)
+        val itcStr = HisabViewModel.formatAmount(purchasesRegister.itcAvailableTax)
+        val paidStr = HisabViewModel.formatAmount(purchasesRegister.totalPaidAmount)
+        val dueStr = HisabViewModel.formatAmount(purchasesRegister.totalDueAmount)
+
+        val sb = StringBuilder()
+        sb.append("📦 *INWARD PURCHASES REGISTER & ITC REPORT*\n")
+        sb.append("🏢 Business: $businessName\n")
+        sb.append("📅 Period: ${period.label}\n")
+        sb.append("🕒 Generated: ${timeFormat.format(Date())}\n\n")
+
+        sb.append("📊 *PURCHASES SUMMARY*\n")
+        sb.append("• Total Bills Inward: ${purchasesRegister.totalBillsCount}\n")
+        sb.append("• Total Taxable Value: ₹$taxableStr\n")
+        sb.append("• Total Tax Amount: ₹$taxStr\n")
+        sb.append("• *Input Tax Credit (ITC) Eligible: ₹$itcStr*\n")
+        sb.append("• *Total Purchase Value: ₹$totalValStr*\n\n")
+
+        sb.append("💳 *PAYMENTS & PAYABLES*\n")
+        sb.append("• Total Amount Paid: ₹$paidStr\n")
+        sb.append("• Outstanding Supplier Dues: ₹$dueStr\n\n")
+
+        if (purchasesRegister.purchases.isNotEmpty()) {
+            sb.append("📑 *RECENT INWARD BILLS*\n")
+            purchasesRegister.purchases.take(6).forEach { bill ->
+                sb.append("• #${bill.purchaseNumber} - ${bill.supplierName}: ₹${HisabViewModel.formatAmount(bill.grandTotal)} (${bill.paymentStatus.label})\n")
+            }
+            sb.append("\n")
+        }
+
+        sb.append("Generated via HisabPro Business Suite")
+
+        val message = sb.toString()
+        shareTextMessage(context, message, "Purchases Register - $businessName")
+    }
+
     fun exportGstr1Csv(
         context: Context,
         gstr: Gstr1Summary,
@@ -272,6 +318,293 @@ object ReportExporter {
                 "${context.packageName}.fileprovider",
                 file
             )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun exportItemStockMovementCsv(
+        context: Context,
+        item: Item,
+        history: List<StockHistoryEntry>,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ): Uri? {
+        return try {
+            val reportsDir = File(context.cacheDir, "reports")
+            if (!reportsDir.exists()) reportsDir.mkdirs()
+
+            val sanitizedName = item.name.replace(Regex("[^a-zA-Z0-9_]"), "_")
+            val file = File(reportsDir, "Stock_Movement_${sanitizedName}_${System.currentTimeMillis()}.csv")
+            file.bufferedWriter().use { out ->
+                out.write("PRODUCT STOCK MOVEMENT AUDIT TRAIL\n")
+                out.write("Business Name,\"$businessName\"\n")
+                out.write("Product Name,\"${item.name}\"\n")
+                if (item.itemCode.isNotBlank()) out.write("SKU,\"${item.itemCode}\"\n")
+                if (item.hsnCode.isNotBlank()) out.write("HSN Code,\"${item.hsnCode}\"\n")
+                out.write("Category,\"${item.category}\"\n")
+                out.write("Current Stock,${item.currentStock} ${item.unit}\n")
+                out.write("Sale Price,${item.salePrice}\n")
+                out.write("Cost Price,${item.purchasePrice}\n")
+                out.write("Generated At,${timeFormat.format(Date())}\n\n")
+
+                out.write("Date & Time,Movement Reason,Change Qty,Unit,Balance After,Note / Reference\n")
+                history.forEach { entry ->
+                    val changeStr = if (entry.changeQty > 0) "+${entry.changeQty}" else "${entry.changeQty}"
+                    out.write("\"${timeFormat.format(Date(entry.timestampMillis))}\",\"${entry.reason.label}\",$changeStr,\"${item.unit}\",${entry.newStock},\"${entry.note.replace("\"", "\"\"")}\"\n")
+                }
+            }
+
+            FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun exportProfitLossCsv(
+        context: Context,
+        pl: ProfitLossSummary,
+        period: ReportPeriod,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ): Uri? {
+        return try {
+            val reportsDir = File(context.cacheDir, "reports")
+            if (!reportsDir.exists()) reportsDir.mkdirs()
+
+            val file = File(reportsDir, "ProfitLoss_${period.name}_${System.currentTimeMillis()}.csv")
+            file.bufferedWriter().use { out ->
+                out.write("PROFIT & LOSS (P&L) STATEMENT\n")
+                out.write("Business Name,\"$businessName\"\n")
+                out.write("Period,${period.label}\n")
+                out.write("Generated At,${timeFormat.format(Date())}\n\n")
+
+                out.write("REVENUE & EXPENSES BREAKDOWN\n")
+                out.write("Particulars,Amount (INR)\n")
+                out.write("Gross Sales Revenue,${pl.salesRevenue}\n")
+                out.write("Cost of Goods Sold (COGS),${pl.costOfGoodsSold}\n")
+                out.write("Gross Profit,${pl.grossProfit}\n")
+                out.write("Gross Margin (%),${String.format(Locale.ENGLISH, "%.2f", pl.grossMarginPercent)}\n\n")
+
+                out.write("OPERATING EXPENSES\n")
+                out.write("Category,Amount (INR)\n")
+                pl.expenseByCategory.forEach { (cat, amt) ->
+                    out.write("\"$cat\",$amt\n")
+                }
+                out.write("Total Operating Expenses,${pl.totalExpenses}\n\n")
+
+                out.write("NET RESULTS\n")
+                out.write("Net Profit / (Loss),${pl.netProfit}\n")
+                out.write("Net Margin (%),${String.format(Locale.ENGLISH, "%.2f", pl.netMarginPercent)}\n")
+                out.write("Cash Inflow,${pl.cashInflow}\n")
+                out.write("Cash Outflow,${pl.cashOutflow}\n")
+                out.write("Net Cash Movement,${pl.netCashflow}\n")
+            }
+
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun exportDaybookCsv(
+        context: Context,
+        daybook: DaybookSummary,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ): Uri? {
+        return try {
+            val reportsDir = File(context.cacheDir, "reports")
+            if (!reportsDir.exists()) reportsDir.mkdirs()
+
+            val dateStr = SimpleDateFormat("yyyyMMdd", Locale.ENGLISH).format(Date(daybook.dateMillis))
+            val file = File(reportsDir, "Daybook_${dateStr}_${System.currentTimeMillis()}.csv")
+            file.bufferedWriter().use { out ->
+                out.write("DAILY DAYBOOK REGISTER\n")
+                out.write("Business Name,\"$businessName\"\n")
+                out.write("Date,${dateFormat.format(Date(daybook.dateMillis))}\n")
+                out.write("Generated At,${timeFormat.format(Date())}\n\n")
+
+                out.write("SUMMARY\n")
+                out.write("Metric,Amount (INR)\n")
+                out.write("Invoiced Sales,${daybook.daySalesTotal}\n")
+                out.write("Total Cash In,${daybook.dayCashIn}\n")
+                out.write("Total Cash Out,${daybook.dayCashOut}\n")
+                out.write("Net Daily Movement,${daybook.netDayMovement}\n\n")
+
+                out.write("DAY INVOICES ISSUED\n")
+                out.write("Invoice No,Customer,Subtotal,Tax,Grand Total,Status\n")
+                daybook.dayInvoices.forEach { inv ->
+                    out.write("\"${inv.invoiceNumber}\",\"${inv.customerName}\",${inv.subtotal},${inv.totalTax},${inv.grandTotal},\"${inv.paymentStatus.label}\"\n")
+                }
+                out.write("\n")
+
+                out.write("DAY CASHBOOK TRANSACTIONS\n")
+                out.write("Type,Title,Category,Payment Mode,Amount\n")
+                daybook.dayTransactions.forEach { tx ->
+                    out.write("\"${tx.type.name}\",\"${tx.title}\",\"${tx.category.label}\",\"${tx.paymentMode.label}\",${tx.amount}\n")
+                }
+            }
+
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun exportPartyAgingCsv(
+        context: Context,
+        aging: PartyAgingSummary,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ): Uri? {
+        return try {
+            val reportsDir = File(context.cacheDir, "reports")
+            if (!reportsDir.exists()) reportsDir.mkdirs()
+
+            val file = File(reportsDir, "PartyAging_${System.currentTimeMillis()}.csv")
+            file.bufferedWriter().use { out ->
+                out.write("PARTY OUTSTANDING & AGING REPORT\n")
+                out.write("Business Name,\"$businessName\"\n")
+                out.write("Generated At,${timeFormat.format(Date())}\n\n")
+
+                out.write("OUTSTANDING TOTALS\n")
+                out.write("Total Receivables (Customers),${aging.totalReceivable}\n")
+                out.write("Total Payables (Suppliers),${aging.totalPayable}\n")
+                out.write("0-15 Days (Current),${aging.bucket0to15}\n")
+                out.write("16-30 Days (Due Soon),${aging.bucket16to30}\n")
+                out.write("31-60 Days (Overdue),${aging.bucket31to60}\n")
+                out.write("60+ Days (Critical),${aging.bucket60Plus}\n\n")
+
+                out.write("DEBTOR DETAILS\n")
+                out.write("Party Name,Phone,Balance Due (INR),Days Overdue,Aging Bucket\n")
+                aging.debtorList.forEach { d ->
+                    out.write("\"${d.partyName}\",\"${d.phone}\",${d.balanceDue},${d.daysOverdue},\"${d.bucket.label}\"\n")
+                }
+            }
+
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun exportGstr3bCsv(
+        context: Context,
+        gstr3b: Gstr3bSummary,
+        period: ReportPeriod,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" },
+        gstin: String = SettingsRepository.getInstance(context).profile.value.gstin
+    ): Uri? {
+        return try {
+            val reportsDir = File(context.cacheDir, "reports")
+            if (!reportsDir.exists()) reportsDir.mkdirs()
+
+            val file = File(reportsDir, "GSTR3B_${period.name}_${System.currentTimeMillis()}.csv")
+            file.bufferedWriter().use { out ->
+                out.write("GSTR-3B MONTHLY TAX OFFSET & ITC RETURN\n")
+                out.write("Business Name,\"$businessName\"\n")
+                if (gstin.isNotBlank()) out.write("GSTIN,\"$gstin\"\n")
+                out.write("Period,${period.label}\n")
+                out.write("Generated At,${timeFormat.format(Date())}\n\n")
+
+                out.write("3.1 OUTWARD TAXABLE SUPPLIES (SALES OUTPUT TAX)\n")
+                out.write("Taxable Turnover,CGST,SGST,IGST,Total Output Tax\n")
+                out.write("${gstr3b.outwardTaxable},${gstr3b.outwardCgst},${gstr3b.outwardSgst},${gstr3b.outwardIgst},${gstr3b.totalOutputTax}\n\n")
+
+                out.write("4. ELIGIBLE INPUT TAX CREDIT (PURCHASES ITC)\n")
+                out.write("Inward Purchases,CGST ITC,SGST ITC,IGST ITC,Total ITC Available\n")
+                out.write("${gstr3b.inwardTaxable},${gstr3b.itcCgst},${gstr3b.itcSgst},${gstr3b.itcIgst},${gstr3b.totalInputTaxCredit}\n\n")
+
+                out.write("5. NET TAX PAYABLE IN CASH (OUTPUT TAX MINUS ITC)\n")
+                out.write("Net CGST,Net SGST,Net IGST,Total Net Tax Payable\n")
+                out.write("${gstr3b.netCgstPayable},${gstr3b.netSgstPayable},${gstr3b.netIgstPayable},${gstr3b.totalNetGstPayable}\n")
+            }
+
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun exportPurchasesRegisterCsv(
+        context: Context,
+        purchases: List<PurchaseBill>,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ): Uri? {
+        return try {
+            val reportsDir = File(context.cacheDir, "reports")
+            if (!reportsDir.exists()) reportsDir.mkdirs()
+
+            val file = File(reportsDir, "Purchases_Register_${System.currentTimeMillis()}.csv")
+            file.bufferedWriter().use { out ->
+                out.write("PURCHASES & INWARD REGISTER REPORT\n")
+                out.write("Business Name,\"$businessName\"\n")
+                out.write("Generated At,${timeFormat.format(Date())}\n")
+                out.write("Total Bills,${purchases.size}\n")
+                out.write("Total Purchases Value,${purchases.sumOf { it.grandTotal }}\n")
+                out.write("Total Tax / ITC Available,${purchases.filter { it.itcEligible }.sumOf { it.totalTax }}\n")
+                out.write("Total Outstanding Payables,${purchases.sumOf { it.dueAmount }}\n\n")
+
+                out.write("Purchase No,Date,Supplier Name,Supplier GSTIN,Vendor Bill No,Subtotal,Tax (ITC),Grand Total,Paid Amount,Balance Due,Status,ITC Eligible,Notes\n")
+                purchases.forEach { bill ->
+                    out.write("\"${bill.purchaseNumber}\",\"${dateFormat.format(Date(bill.dateMillis))}\",\"${bill.supplierName.replace("\"", "\"\"")}\",\"${bill.supplierGstin}\",\"${bill.vendorBillNumber}\",${bill.subtotal},${bill.totalTax},${bill.grandTotal},${bill.paidAmount},${bill.dueAmount},\"${bill.paymentStatus.label}\",\"${if (bill.itcEligible) "YES" else "NO"}\",\"${bill.notes.replace("\"", "\"\"")}\"\n")
+                }
+            }
+
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun exportSinglePurchaseBillCsv(
+        context: Context,
+        bill: PurchaseBill,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ): Uri? {
+        return try {
+            val reportsDir = File(context.cacheDir, "reports")
+            if (!reportsDir.exists()) reportsDir.mkdirs()
+
+            val sanitizedBillNo = bill.purchaseNumber.replace(Regex("[^a-zA-Z0-9_]"), "_")
+            val file = File(reportsDir, "Purchase_${sanitizedBillNo}_${System.currentTimeMillis()}.csv")
+            file.bufferedWriter().use { out ->
+                out.write("PURCHASE BILL / INWARD VOUCHER\n")
+                out.write("Business Name,\"$businessName\"\n")
+                out.write("Purchase Bill No,\"${bill.purchaseNumber}\"\n")
+                if (bill.vendorBillNumber.isNotBlank()) out.write("Vendor Bill Ref,\"${bill.vendorBillNumber}\"\n")
+                out.write("Supplier Name,\"${bill.supplierName}\"\n")
+                if (bill.supplierGstin.isNotBlank()) out.write("Supplier GSTIN,\"${bill.supplierGstin}\"\n")
+                out.write("Date,${dateFormat.format(Date(bill.dateMillis))}\n")
+                out.write("Status,\"${bill.paymentStatus.label}\"\n")
+                out.write("ITC Eligible,\"${if (bill.itcEligible) "YES" else "NO"}\"\n")
+                out.write("Generated At,${timeFormat.format(Date())}\n\n")
+
+                out.write("S.No,Item Description,HSN Code,Quantity,Unit,Unit Price,Taxable Amount,GST Rate (%),GST Tax (INR),Total (INR)\n")
+                bill.items.forEachIndexed { index, item ->
+                    val tax = item.getTaxAmount(bill.gstMode)
+                    val total = item.getTotal(bill.gstMode)
+                    out.write("${index + 1},\"${item.description.replace("\"", "\"\"")}\",\"${item.hsnCode}\",${item.quantity},\"${item.unit}\",${item.unitPrice},${item.taxableAmount},${item.gstRate},$tax,$total\n")
+                }
+                out.write("\nSUMMARY\n")
+                out.write("Subtotal,${bill.subtotal}\n")
+                out.write("Total Tax (ITC),${bill.totalTax}\n")
+                out.write("Grand Total,${bill.grandTotal}\n")
+                out.write("Paid Amount,${bill.paidAmount}\n")
+                out.write("Balance Due,${bill.dueAmount}\n")
+                out.write("Payment Mode,\"${bill.paymentMode}\"\n")
+                if (bill.notes.isNotBlank()) out.write("Notes,\"${bill.notes.replace("\"", "\"\"")}\"\n")
+            }
+
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         } catch (e: Exception) {
             e.printStackTrace()
             null

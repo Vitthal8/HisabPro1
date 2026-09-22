@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.Button
@@ -27,6 +28,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -119,25 +121,53 @@ fun ProfitLossReportSheet(
                 }
             }
 
-            // Share Action
-            Button(
-                onClick = {
-                    ReportExporter.shareProfitLossReport(context, profitLoss, period)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp)
-                    .testTag("btn_share_pl"),
-                colors = ButtonDefaults.buttonColors(containerColor = Emerald800),
-                shape = RoundedCornerShape(10.dp)
+            // Share & Export Actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Share,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Share P&L Statement", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Button(
+                    onClick = {
+                        ReportExporter.shareProfitLossReport(context, profitLoss, period)
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .testTag("btn_share_pl"),
+                    colors = ButtonDefaults.buttonColors(containerColor = Emerald800),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Share", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        val csvUri = ReportExporter.exportProfitLossCsv(context, profitLoss, period)
+                        if (csvUri != null) {
+                            ReportExporter.shareCsvFile(context, csvUri, "P&L Statement - ${period.label}")
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .testTag("btn_export_pl_csv"),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FileDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Emerald800
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Export CSV", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Emerald800)
+                }
             }
 
             // Net Profit Banner Card

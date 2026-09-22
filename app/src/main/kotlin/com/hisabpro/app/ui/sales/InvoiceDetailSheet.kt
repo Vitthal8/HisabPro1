@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Share
@@ -445,6 +446,27 @@ fun InvoiceDetailSheet(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Share PDF", color = PureWhite, fontWeight = FontWeight.Bold)
                         }
+                    }
+
+                    // Thermal POS Receipt Slip Button
+                    OutlinedButton(
+                        onClick = {
+                            com.hisabpro.app.util.ThermalSlipGenerator.shareThermalSlip(context, invoice, businessProfile)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("btn_detail_thermal_slip"),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Print, contentDescription = null, tint = Emerald800, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (businessProfile.isThermalPrinterMode) "🖨️ Thermal POS Slip (Bluetooth Mode)" else "Thermal / POS 58mm Slip",
+                            color = Emerald800,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp
+                        )
                     }
 
                     // Row 2: Edit, Duplicate & Mark Paid

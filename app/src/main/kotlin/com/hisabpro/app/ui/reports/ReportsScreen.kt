@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -78,6 +79,7 @@ fun ReportsScreen(
     var showDaybookSheet by remember { mutableStateOf(false) }
     var showAgingSheet by remember { mutableStateOf(false) }
     var showStockSheet by remember { mutableStateOf(false) }
+    var showPurchasesRegisterSheet by remember { mutableStateOf(false) }
 
     val gstrSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val gstr3bSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -85,6 +87,7 @@ fun ReportsScreen(
     val daybookSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val agingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val stockSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val purchasesRegisterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Column(
         modifier = modifier
@@ -391,6 +394,19 @@ fun ReportsScreen(
                 onClick = { showStockSheet = true }
             )
 
+            // 6. Inward Purchases Register & ITC Card
+            ReportNavigationCard(
+                icon = Icons.Default.ShoppingBag,
+                iconColor = Color(0xFF0D9488),
+                title = "Purchases Register & ITC",
+                subtitle = "Inward supplier bills, input tax credit & payables",
+                metricHighlight = "₹${HisabViewModel.formatAmount(uiState.purchasesRegister.totalPurchasesValue)} Value",
+                badge = "${uiState.purchasesRegister.totalBillsCount} Inward",
+                badgeColor = Color(0xFF0D9488),
+                testTag = "card_report_purchases_register",
+                onClick = { showPurchasesRegisterSheet = true }
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Fast Share All-in-One CA Report
@@ -435,6 +451,7 @@ fun ReportsScreen(
         Gstr3bReportSheet(
             summary = uiState.gstr3b,
             periodLabel = uiState.selectedPeriod.label,
+            period = uiState.selectedPeriod,
             sheetState = gstr3bSheetState,
             onDismiss = { showGstr3bSheet = false }
         )
@@ -471,6 +488,15 @@ fun ReportsScreen(
             sheetState = stockSheetState,
             stock = uiState.stockValuation,
             onDismiss = { showStockSheet = false }
+        )
+    }
+
+    if (showPurchasesRegisterSheet) {
+        PurchasesRegisterReportSheet(
+            sheetState = purchasesRegisterSheetState,
+            register = uiState.purchasesRegister,
+            period = uiState.selectedPeriod,
+            onDismiss = { showPurchasesRegisterSheet = false }
         )
     }
 }

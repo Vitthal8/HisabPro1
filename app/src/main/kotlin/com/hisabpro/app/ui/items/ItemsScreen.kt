@@ -22,9 +22,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SwapVert
@@ -76,6 +79,7 @@ import java.util.Locale
 @Composable
 fun ItemsScreen(
     viewModel: ItemViewModel,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -111,6 +115,17 @@ fun ItemsScreen(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                tint = PureWhite
+                            )
+                        }
+                    }
+                },
                 title = {
                     Column {
                         Text(
@@ -158,6 +173,17 @@ fun ItemsScreen(
                                 )
                             }
                         }
+                    }
+
+                    IconButton(
+                        onClick = { viewModel.shareStockInventoryThermalSlip(context) },
+                        modifier = Modifier.testTag("print_thermal_stock_slip_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Print,
+                            contentDescription = "Print / Share Thermal Stock Audit Slip",
+                            tint = PureWhite
+                        )
                     }
 
                     IconButton(
@@ -419,9 +445,18 @@ fun ItemsScreen(
                                 selectedItemDetail = item
                                 showDetailSheet = true
                             },
+                            onQuickStockIn = {
+                                viewModel.quickAdjustStock(item.id, 1.0)
+                            },
+                            onQuickStockOut = {
+                                viewModel.quickAdjustStock(item.id, -1.0)
+                            },
                             onAdjustClick = {
                                 itemToAdjust = item
                                 showAdjustSheet = true
+                            },
+                            onShareClick = {
+                                viewModel.shareSingleItem(context, item)
                             }
                         )
                     }
@@ -496,6 +531,12 @@ fun ItemsScreen(
             },
             onShareClick = {
                 viewModel.shareSingleItem(context, currentItem)
+            },
+            onThermalLabelClick = {
+                viewModel.shareSingleItemThermalLabel(context, currentItem)
+            },
+            onExportHistoryCsv = {
+                viewModel.exportItemStockMovementCsv(context, currentItem)
             }
         )
     }
@@ -506,7 +547,10 @@ private fun ItemCard(
     item: Item,
     currencyFormat: NumberFormat,
     onItemClick: () -> Unit,
-    onAdjustClick: () -> Unit
+    onQuickStockIn: () -> Unit,
+    onQuickStockOut: () -> Unit,
+    onAdjustClick: () -> Unit,
+    onShareClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -634,20 +678,74 @@ private fun ItemCard(
                     }
                 }
 
-                OutlinedButton(
-                    onClick = onAdjustClick,
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    modifier = Modifier.testTag("adjust_stock_btn_${item.id}")
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.SwapVert,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = Emerald700
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Adjust", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Emerald700)
+                    // Quick Stock Stepper
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(2.dp)
+                    ) {
+                        IconButton(
+                            onClick = onQuickStockOut,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .testTag("quick_stock_minus_${item.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Remove,
+                                contentDescription = "Decrease Stock by 1",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = onQuickStockIn,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .testTag("quick_stock_plus_${item.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Increase Stock by 1",
+                                tint = Emerald700,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = onShareClick,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .testTag("share_item_btn_${item.id}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share item details",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = onAdjustClick,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.testTag("adjust_stock_btn_${item.id}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SwapVert,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp),
+                            tint = Emerald700
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Adjust", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Emerald700)
+                    }
                 }
             }
         }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -40,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -103,6 +105,7 @@ fun AddEditItemSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        modifier = Modifier.imePadding(),
         dragHandle = null,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
@@ -166,6 +169,10 @@ fun AddEditItemSheet(
                 placeholder = { Text("e.g. Daawat Basmati Rice 5kg") },
                 isError = nameError,
                 supportingText = if (nameError) { { Text("Item name is required") } } else null,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("item_name_input"),
@@ -185,6 +192,10 @@ fun AddEditItemSheet(
                     onValueChange = { itemCode = it },
                     label = { Text("Item Code / Barcode") },
                     placeholder = { Text("e.g. SKU-101") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
                     modifier = Modifier
                         .weight(1f)
                         .testTag("item_code_input"),
@@ -196,6 +207,10 @@ fun AddEditItemSheet(
                     onValueChange = { hsnCode = it },
                     label = { Text("HSN / SAC Code") },
                     placeholder = { Text("e.g. 1006") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
                     modifier = Modifier
                         .weight(1f)
                         .testTag("item_hsn_input"),
@@ -297,6 +312,10 @@ fun AddEditItemSheet(
                     onValueChange = { salePriceText = it },
                     label = { Text("Sale Price (₹) *") },
                     placeholder = { Text("0.00") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
                     modifier = Modifier
                         .weight(1f)
                         .testTag("item_sale_price_input"),
@@ -309,6 +328,10 @@ fun AddEditItemSheet(
                     onValueChange = { purchasePriceText = it },
                     label = { Text("Purchase / Cost (₹)") },
                     placeholder = { Text("0.00") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
                     modifier = Modifier
                         .weight(1f)
                         .testTag("item_purchase_price_input"),
@@ -410,6 +433,10 @@ fun AddEditItemSheet(
                     label = { Text(if (itemToEdit == null) "Opening Stock Qty" else "Current Stock Qty") },
                     placeholder = { Text("0") },
                     trailingIcon = { Text(unit, modifier = Modifier.padding(end = 8.dp), fontSize = 12.sp) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
                     modifier = Modifier
                         .weight(1f)
                         .testTag("item_stock_input"),
@@ -423,6 +450,10 @@ fun AddEditItemSheet(
                     label = { Text("Low Stock Alert At") },
                     placeholder = { Text("5") },
                     trailingIcon = { Text(unit, modifier = Modifier.padding(end = 8.dp), fontSize = 12.sp) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
                     modifier = Modifier
                         .weight(1f)
                         .testTag("item_alert_input"),

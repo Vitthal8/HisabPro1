@@ -258,6 +258,10 @@ fun CreatePurchaseSheet(
                         leadingIcon = {
                             Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = Emerald700)
                         },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_purchase_supplier_name"),
@@ -273,6 +277,10 @@ fun CreatePurchaseSheet(
                             value = supplierGstin,
                             onValueChange = { supplierGstin = it.uppercase() },
                             label = { Text("Supplier GSTIN") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                            ),
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("input_purchase_supplier_gstin"),
@@ -285,6 +293,10 @@ fun CreatePurchaseSheet(
                             onValueChange = { vendorBillNumber = it },
                             label = { Text("Vendor Bill No.") },
                             placeholder = { Text("e.g. MKT/892") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                            ),
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("input_purchase_vendor_bill_no"),
@@ -431,6 +443,10 @@ fun CreatePurchaseSheet(
                             value = line.description,
                             onValueChange = { line.description = it },
                             label = { Text("Item Description *") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                            ),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             shape = RoundedCornerShape(8.dp)
@@ -445,6 +461,10 @@ fun CreatePurchaseSheet(
                                 onValueChange = { line.quantity = it.toDoubleOrNull() ?: 0.0 },
                                 label = { Text("Inward Qty") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                ),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
                                 shape = RoundedCornerShape(8.dp)
@@ -454,6 +474,10 @@ fun CreatePurchaseSheet(
                                 value = line.unit,
                                 onValueChange = { line.unit = it },
                                 label = { Text("Unit") },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                ),
                                 modifier = Modifier.weight(0.8f),
                                 singleLine = true,
                                 shape = RoundedCornerShape(8.dp)
@@ -464,6 +488,10 @@ fun CreatePurchaseSheet(
                                 onValueChange = { line.unitPrice = it.toDoubleOrNull() ?: 0.0 },
                                 label = { Text("Rate (₹)") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                ),
                                 modifier = Modifier.weight(1.2f),
                                 singleLine = true,
                                 shape = RoundedCornerShape(8.dp)
@@ -641,6 +669,10 @@ fun CreatePurchaseSheet(
                         label = { Text("Paid Amount (Leave empty for Full Paid)") },
                         placeholder = { Text("₹${String.format(Locale.ENGLISH, "%.2f", grandTotal)}") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_purchase_paid_amount"),
@@ -674,6 +706,10 @@ fun CreatePurchaseSheet(
                 value = notes,
                 onValueChange = { notes = it },
                 label = { Text("Notes / Transport / E-Way Bill Details") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp)
             )

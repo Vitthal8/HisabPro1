@@ -112,7 +112,8 @@ fun InvoiceDetailSheet(
         ) {
             // Header Bar
             Surface(
-                color = Emerald800,
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -126,40 +127,42 @@ fun InvoiceDetailSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(PureWhite.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Emerald700.copy(alpha = 0.12f),
+                            modifier = Modifier.size(38.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Receipt,
-                                contentDescription = null,
-                                tint = PureWhite,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Receipt,
+                                    contentDescription = null,
+                                    tint = Emerald700,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                         Column {
                             Text(
                                 text = invoice.invoiceNumber,
-                                color = PureWhite,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 17.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = invoice.type.label,
-                                color = PureWhite.copy(alpha = 0.8f),
-                                fontSize = 12.sp
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
 
                     IconButton(onClick = onDismiss) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = PureWhite)
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
+            HorizontalDivider(color = Slate200)
 
             Column(
                 modifier = Modifier

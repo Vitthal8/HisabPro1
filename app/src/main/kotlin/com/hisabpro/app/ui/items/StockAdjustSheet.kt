@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -36,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -84,6 +86,7 @@ fun StockAdjustSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        modifier = Modifier.imePadding(),
         dragHandle = null,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
@@ -263,6 +266,10 @@ fun StockAdjustSheet(
                 trailingIcon = { Text(item.unit, modifier = Modifier.padding(end = 12.dp), fontWeight = FontWeight.SemiBold) },
                 isError = qtyError,
                 supportingText = if (qtyError) { { Text("Please enter a valid quantity > 0") } } else null,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("adjust_stock_qty_input"),
@@ -339,6 +346,10 @@ fun StockAdjustSheet(
                 onValueChange = { note = it },
                 label = { Text("Note / Reference (Optional)") },
                 placeholder = { Text(if (isAddition) "e.g. Supplier Bill #405 or batch arrival" else "e.g. Damaged carton or counter sale") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("adjust_stock_note_input"),

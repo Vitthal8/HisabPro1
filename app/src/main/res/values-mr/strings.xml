@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">हिसाबप्रो</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">मुख्य</string>
+    <string name="nav_sales">विक्री</string>
+    <string name="nav_parties">पार्ट्या</string>
+    <string name="nav_reports">अहवाल</string>
+    <string name="nav_more">अधिक</string>
+
+    <!-- Dashboard & Quick Actions -->
+    <string name="add_sale">विक्री नोंदवा</string>
+    <string name="add_purchase">खरेदी नोंदवा</string>
+    <string name="add_customer">ग्राहक जोडा</string>
+    <string name="add_supplier">व्यापारी जोडा</string>
+    <string name="add_expense">खर्च जोडा</string>
+    <string name="receive_payment">रक्कम जमा करा</string>
+    <string name="make_payment">रक्कम अदा करा</string>
+    <string name="view_ledger">खातावही पाहा</string>
+    <string name="quick_billing">जलद बिल</string>
+
+    <!-- Financial Metrics & Double-Entry -->
+    <string name="receivables_dr">एकूण येणे (नावे / Dr)</string>
+    <string name="payables_cr">एकूण देणे (जमा / Cr)</string>
+    <string name="cash_in_hand">हातातील रोख (Cash)</string>
+    <string name="bank_balance">बँक व UPI शिल्लक</string>
+    <string name="net_balance">निव्वळ शिल्लक</string>
+    <string name="to_collect">ग्राहकांकडून येणे (Dr)</string>
+    <string name="to_pay">व्यापाऱ्यांना देणे (Cr)</string>
+
+    <!-- Invoicing & Billing -->
+    <string name="invoice_number">बिल क्रमांक</string>
+    <string name="purchase_bill_no">खरेदी पावती क्र.</string>
+    <string name="bill_date">तारीख</string>
+    <string name="customer_details">ग्राहक तपशील</string>
+    <string name="supplier_details">व्यापारी तपशील</string>
+    <string name="item_name">मालाचे नाव</string>
+    <string name="quantity">नग / प्रमाण</string>
+    <string name="rate">दर</string>
+    <string name="discount">सूट</string>
+    <string name="amount">रक्कम</string>
+    <string name="subtotal">करपात्र बेरीज</string>
+    <string name="cgst">CGST</string>
+    <string name="sgst">SGST</string>
+    <string name="igst">IGST</string>
+    <string name="tax_total">एकूण जीएसटी</string>
+    <string name="grand_total">एकूण देय रक्कम</string>
+    <string name="amount_paid">जमा रक्कम</string>
+    <string name="balance_due">शिल्लक बाकी</string>
+    <string name="payment_mode">पेमेंट पद्धत</string>
+    <string name="cash">रोख (Cash)</string>
+    <string name="upi">यूपीआय (UPI)</string>
+    <string name="bank_transfer">बँक ट्रान्सफर</string>
+    <string name="cheque">धनादेश (Cheque)</string>
+
+    <!-- Reports & Accounting -->
+    <string name="day_book">रोजकीर्द (Day Book)</string>
+    <string name="cash_book">रोकड वही (Cash Book)</string>
+    <string name="trial_balance">कच्चा ताळेबंद (Trial Balance)</string>
+    <string name="profit_and_loss">नफा-तोटा पत्रक (P&amp;L)</string>
+    <string name="stock_valuation">शिल्लक साठा मूल्यांकन</string>
+    <string name="gstr1_report">जीएसटीआर-१ रिटर्न</string>
+    <string name="gstr3b_report">जीएसटीआर-३B इनपुट क्रेडिट</string>
+    <string name="purchases_register">खरेदी वही व आयटीसी</string>
+    <string name="aging_report">उधारी वय विश्लेषण</string>
+
+    <!-- Common UI Actions -->
+    <string name="save">जतन करा</string>
+    <string name="cancel">रद्द करा</string>
+    <string name="edit">बदला</string>
+    <string name="delete">हटवा</string>
+    <string name="confirm">नक्की करा</string>
+    <string name="search_hint">नाव, फोन किंवा बिलाने शोधा...</string>
+    <string name="share_whatsapp">व्हॉट्सअ‍ॅपवर पाठवा</string>
+    <string name="export_pdf">पीडीएफ डाउनलोड करा</string>
+    <string name="export_csv">एक्सेल/CSV प्रत</string>
+    <string name="thermal_print">थर्मल प्रिंट</string>
+
+    <!-- Settings & Modes -->
+    <string name="business_setup">व्यवसाय माहिती</string>
+    <string name="gst_registered">जीएसटी नोंदणीकृत व्यापार</string>
+    <string name="non_gst_shop">जीएसटी नसलेले दुकान</string>
+    <string name="app_language">अ‍ॅपची भाषा</string>
+</resources>

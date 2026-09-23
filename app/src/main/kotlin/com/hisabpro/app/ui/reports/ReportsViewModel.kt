@@ -11,6 +11,7 @@ import com.hisabpro.app.data.model.KhataEntryType
 import com.hisabpro.app.data.model.Party
 import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.data.model.PartyWithBalance
+import com.hisabpro.app.data.model.PaymentMode
 import com.hisabpro.app.data.model.PurchaseBill
 import com.hisabpro.app.data.model.Transaction
 import com.hisabpro.app.data.model.TransactionType
@@ -156,6 +157,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
         val partyAging = calculatePartyAging(partiesWithBalances)
         val stockValuation = calculateStockValuation(items)
         val purchasesRegister = calculatePurchasesRegister(periodPurchases)
+        val trialBalance = calculateTrialBalance(invoices, purchases, transactions, partiesWithBalances, items)
 
         return ReportsUiState(
             isGstRegistered = isGstRegistered,
@@ -167,6 +169,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
             partyAging = partyAging,
             stockValuation = stockValuation,
             purchasesRegister = purchasesRegister,
+            trialBalance = trialBalance,
             selectedDaybookDateMillis = daybookDate
         )
     }
@@ -764,6 +767,119 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
                 Pair(0L, Long.MAX_VALUE)
             }
         }
+    }
+
+    private fun calculateTrialBalance(
+        invoices: List<Invoice>,
+        purchases: List<PurchaseBill>,
+        transactions: List<Transaction>,
+        partiesWithBalances: List<PartyWithBalance>,
+        items: List<Item>
+    ): TrialBalanceSummary {
+        val accounts = mutableListOf<TrialBalanceAccount>()
+
+        // 1. Cash In Hand (Asset - Dr)
+        val cashIn = transactions.filter { it.type == TransactionType.INCOME && it.paymentMode == PaymentMode.CASH }.sumOf { it.amount }
+        val cashOut = transactions.filter { it.type == TransactionType.EXPENSE && it.paymentMode == PaymentMode.CASH }.sumOf { it.amount }
+        val netCash = cashIn - cashOut
+        if (netCash >= 0) {
+            accounts.add(TrialBalanceAccount("1010", "Cash in Hand", "Asset", debitAmount = netCash, creditAmount = 0.0, note = "Cash Account Balance"))
+        } else {
+            accounts.add(TrialBalanceAccount("1010", "Cash Deficit (Overdrawn)", "Liability", debitAmount = 0.0, creditAmount = abs(netCash), note = "Negative Cash Balance"))
+        }
+
+        // 2. Bank & UPI Account (Asset - Dr)
+        val bankIn = transactions.filter { it.type == TransactionType.INCOME && it.paymentMode != PaymentMode.CASH }.sumOf { it.amount }
+        val bankOut = transactions.filter { it.type == TransactionType.EXPENSE && it.paymentMode != PaymentMode.CASH }.sumOf { it.amount }
+        val netBank = bankIn - bankOut
+        if (netBank >= 0) {
+            accounts.add(TrialBalanceAccount("1020", "Bank & UPI Accounts", "Asset", debitAmount = netBank, creditAmount = 0.0, note = "Bank Book Balance"))
+        } else {
+            accounts.add(TrialBalanceAccount("2020", "Bank Overdraft (OD)", "Liability", debitAmount = 0.0, creditAmount = abs(netBank), note = "Bank Overdraft Facility"))
+        }
+
+        // 3. Sundry Debtors / Customers Receivable (Asset - Dr)
+        val customersReceivable = partiesWithBalances
+            .filter { it.party.type == PartyType.CUSTOMER && it.netBalance > 0.01 }
+            .sumOf { it.netBalance }
+        if (customersReceivable > 0.0) {
+            accounts.add(TrialBalanceAccount("1030", "Sundry Debtors (Receivables)", "Asset", debitAmount = customersReceivable, creditAmount = 0.0, note = "Customer Outstanding Ledger"))
+        }
+
+        // 4. Closing Stock / Inventory (Asset - Dr)
+        val stockValuation = items.sumOf { it.currentStock * it.purchasePrice }
+        if (stockValuation > 0.0) {
+            accounts.add(TrialBalanceAccount("1040", "Closing Stock in Hand", "Asset", debitAmount = stockValuation, creditAmount = 0.0, note = "Valuation At Cost Price"))
+        }
+
+        // 5. Input Tax Credit (ITC) Available (Asset - Dr)
+        val itcAvailable = purchases.filter { it.itcEligible }.sumOf { it.totalTax }
+        if (itcAvailable > 0.0) {
+            accounts.add(TrialBalanceAccount("1050", "Input Tax Credit (ITC - GST)", "Asset", debitAmount = itcAvailable, creditAmount = 0.0, note = "Eligible GST On Inward Supplies"))
+        }
+
+        // 6. Sundry Creditors / Suppliers Payable (Liability - Cr)
+        val suppliersPayable = partiesWithBalances
+            .filter { it.party.type == PartyType.SUPPLIER && it.netBalance < -0.01 }
+            .sumOf { abs(it.netBalance) }
+        if (suppliersPayable > 0.0) {
+            accounts.add(TrialBalanceAccount("2010", "Sundry Creditors (Payables)", "Liability", debitAmount = 0.0, creditAmount = suppliersPayable, note = "Supplier Outstanding Khata"))
+        }
+
+        // 7. Output GST Liability (Liability - Cr)
+        val outputGst = invoices.filter { it.type == InvoiceType.TAX_INVOICE }.sumOf { it.totalTax }
+        if (outputGst > 0.0) {
+            accounts.add(TrialBalanceAccount("2030", "GST Output Tax Payable", "Liability", debitAmount = 0.0, creditAmount = outputGst, note = "GST Collected on Sales"))
+        }
+
+        // 8. Sales Revenue Account (Income - Cr)
+        val totalSalesRevenue = invoices.filter { it.type != InvoiceType.PROFORMA }.sumOf { it.subtotal }
+        if (totalSalesRevenue > 0.0) {
+            accounts.add(TrialBalanceAccount("3010", "Sales Revenue Account", "Income", debitAmount = 0.0, creditAmount = totalSalesRevenue, note = "Net Taxable Turnover"))
+        }
+
+        // 9. Purchases Account (Expense/Cost - Dr)
+        val totalPurchasesCost = purchases.sumOf { it.subtotal }
+        if (totalPurchasesCost > 0.0) {
+            accounts.add(TrialBalanceAccount("4010", "Purchases Account", "Expense", debitAmount = totalPurchasesCost, creditAmount = 0.0, note = "Inward Goods Cost"))
+        }
+
+        // 10. Operating Expenses by Category (Expense - Dr)
+        val expenses = transactions.filter { it.type == TransactionType.EXPENSE }
+        val expensesByCategory = expenses.groupBy { it.category.label }
+        expensesByCategory.forEach { (catLabel, txs) ->
+            val sum = txs.sumOf { it.amount }
+            if (sum > 0.0) {
+                accounts.add(TrialBalanceAccount("4020", "Expense: $catLabel", "Expense", debitAmount = sum, creditAmount = 0.0, note = "Business Expense"))
+            }
+        }
+
+        // 11. Balancing Owner's Capital & Retained Earnings
+        val totalDebitsWithoutEquity = accounts.sumOf { it.debitAmount }
+        val totalCreditsWithoutEquity = accounts.sumOf { it.creditAmount }
+        val balancingEquity = totalDebitsWithoutEquity - totalCreditsWithoutEquity
+        if (balancingEquity > 0.001) {
+            accounts.add(TrialBalanceAccount("5010", "Owner's Equity & Retained Earnings", "Liability", debitAmount = 0.0, creditAmount = balancingEquity, note = "Capital / Retained Surplus"))
+        } else if (balancingEquity < -0.001) {
+            accounts.add(TrialBalanceAccount("5010", "Owner's Drawings / Net Deficit", "Asset", debitAmount = abs(balancingEquity), creditAmount = 0.0, note = "Drawings / Net Deficit"))
+        }
+
+        val totalDebit = accounts.sumOf { it.debitAmount }
+        val totalCredit = accounts.sumOf { it.creditAmount }
+        val diff = abs(totalDebit - totalCredit)
+
+        return TrialBalanceSummary(
+            asOfDateMillis = System.currentTimeMillis(),
+            totalDebit = totalDebit,
+            totalCredit = totalCredit,
+            isBalanced = diff < 0.01,
+            difference = diff,
+            accounts = accounts,
+            assetTotal = accounts.filter { it.accountCategory == "Asset" }.sumOf { it.debitAmount },
+            liabilityTotal = accounts.filter { it.accountCategory == "Liability" }.sumOf { it.creditAmount },
+            incomeTotal = accounts.filter { it.accountCategory == "Income" }.sumOf { it.creditAmount },
+            expenseTotal = accounts.filter { it.accountCategory == "Expense" }.sumOf { it.debitAmount }
+        )
     }
 
     private class HsnAccumulator(

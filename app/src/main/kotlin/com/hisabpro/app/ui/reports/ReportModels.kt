@@ -173,6 +173,28 @@ data class PurchasesRegisterSummary(
     val purchases: List<PurchaseBill> = emptyList()
 )
 
+data class TrialBalanceAccount(
+    val accountCode: String,
+    val accountName: String,
+    val accountCategory: String, // "Asset", "Liability", "Income", "Expense", "Equity"
+    val debitAmount: Double = 0.0,
+    val creditAmount: Double = 0.0,
+    val note: String = ""
+)
+
+data class TrialBalanceSummary(
+    val asOfDateMillis: Long = System.currentTimeMillis(),
+    val totalDebit: Double = 0.0,
+    val totalCredit: Double = 0.0,
+    val isBalanced: Boolean = true,
+    val difference: Double = 0.0,
+    val accounts: List<TrialBalanceAccount> = emptyList(),
+    val assetTotal: Double = 0.0,
+    val liabilityTotal: Double = 0.0,
+    val incomeTotal: Double = 0.0,
+    val expenseTotal: Double = 0.0
+)
+
 data class ReportsUiState(
     val isGstRegistered: Boolean = false,
     val selectedPeriod: ReportPeriod = ReportPeriod.THIS_MONTH,
@@ -185,5 +207,6 @@ data class ReportsUiState(
     val partyAging: PartyAgingSummary = PartyAgingSummary(),
     val stockValuation: StockValuationSummary = StockValuationSummary(),
     val purchasesRegister: PurchasesRegisterSummary = PurchasesRegisterSummary(),
+    val trialBalance: TrialBalanceSummary = TrialBalanceSummary(),
     val selectedDaybookDateMillis: Long = System.currentTimeMillis()
 )

@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Description
@@ -59,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hisabpro.app.ui.HisabViewModel
+import com.hisabpro.app.ui.theme.DeepNavyBlue
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.Emerald900
@@ -88,6 +90,7 @@ fun ReportsScreen(
     var showAgingSheet by remember { mutableStateOf(false) }
     var showStockSheet by remember { mutableStateOf(false) }
     var showPurchasesRegisterSheet by remember { mutableStateOf(false) }
+    var showTrialBalanceSheet by remember { mutableStateOf(false) }
 
     val gstrSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val gstr3bSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -96,6 +99,7 @@ fun ReportsScreen(
     val agingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val stockSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val purchasesRegisterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val trialBalanceSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Column(
         modifier = modifier
@@ -428,6 +432,19 @@ fun ReportsScreen(
                 onClick = { showPurchasesRegisterSheet = true }
             )
 
+            // 7. Trial Balance (कच्चा ताळेबंद / तलपट)
+            ReportNavigationCard(
+                icon = Icons.Default.AccountBalance,
+                iconColor = DeepNavyBlue,
+                title = "Trial Balance (कच्चा ताळेबंद)",
+                subtitle = "Double-entry Dr/Cr verification, assets, liabilities & equity",
+                metricHighlight = if (uiState.trialBalance.isBalanced) "Balanced (Dr=Cr)" else "₹${HisabViewModel.formatAmount(uiState.trialBalance.difference)} Diff",
+                badge = if (uiState.trialBalance.isBalanced) "Balanced" else "Mismatch",
+                badgeColor = if (uiState.trialBalance.isBalanced) Emerald700 else Color(0xFFDC2626),
+                testTag = "card_report_trial_balance",
+                onClick = { showTrialBalanceSheet = true }
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Fast Share All-in-One CA Report
@@ -518,6 +535,15 @@ fun ReportsScreen(
             register = uiState.purchasesRegister,
             period = uiState.selectedPeriod,
             onDismiss = { showPurchasesRegisterSheet = false }
+        )
+    }
+
+    if (showTrialBalanceSheet) {
+        TrialBalanceReportSheet(
+            sheetState = trialBalanceSheetState,
+            trialBalance = uiState.trialBalance,
+            period = uiState.selectedPeriod,
+            onDismiss = { showTrialBalanceSheet = false }
         )
     }
 }

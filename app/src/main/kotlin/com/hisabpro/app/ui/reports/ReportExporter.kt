@@ -637,6 +637,78 @@ object ReportExporter {
         }
     }
 
+    fun shareTrialBalanceReport(
+        context: Context,
+        tb: TrialBalanceSummary,
+        period: ReportPeriod,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ) {
+        val totalDrStr = HisabViewModel.formatAmount(tb.totalDebit)
+        val totalCrStr = HisabViewModel.formatAmount(tb.totalCredit)
+        val diffStr = HisabViewModel.formatAmount(tb.difference)
+
+        val sb = StringBuilder()
+        sb.append("⚖️ *TRIAL BALANCE (कच्चा ताळेबंद / तलपट)*\n")
+        sb.append("🏢 Business: $businessName\n")
+        sb.append("📅 As of: ${dateFormat.format(Date(tb.asOfDateMillis))} (${period.label})\n")
+        sb.append("🕒 Generated: ${timeFormat.format(Date())}\n\n")
+
+        val status = if (tb.isBalanced) "✅ BALANCED (Dr == Cr)" else "⚠️ UNBALANCED (Diff: ₹$diffStr)"
+        sb.append("Status: $status\n")
+        sb.append("• Total Debits (Dr): ₹$totalDrStr\n")
+        sb.append("• Total Credits (Cr): ₹$totalCrStr\n\n")
+
+        sb.append("📁 *LEDGER ACCOUNTS:*\n")
+        tb.accounts.forEach { acc ->
+            val amountStr = if (acc.debitAmount > 0.0) {
+                "Dr ₹${HisabViewModel.formatAmount(acc.debitAmount)}"
+            } else {
+                "Cr ₹${HisabViewModel.formatAmount(acc.creditAmount)}"
+            }
+            sb.append("• [${acc.accountCategory}] ${acc.accountName}: $amountStr\n")
+        }
+
+        sb.append("\n✅ Generated via HisabPro Business Suite")
+        shareTextMessage(context, sb.toString(), "Trial Balance - $businessName")
+    }
+
+    fun exportTrialBalanceCsv(
+        context: Context,
+        tb: TrialBalanceSummary,
+        period: ReportPeriod,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ): Uri? {
+        return try {
+            val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+            val file = File(exportDir, "Trial_Balance_${System.currentTimeMillis()}.csv")
+
+            file.bufferedWriter().use { out ->
+                out.write("TRIAL BALANCE (KACHHA TALEBAND / TALPAT)\n")
+                out.write("Business,\"${businessName.replace("\"", "\"\"")}\"\n")
+                out.write("As of Date,\"${dateFormat.format(Date(tb.asOfDateMillis))}\"\n")
+                out.write("Period,\"${period.label}\"\n")
+                out.write("Status,\"${if (tb.isBalanced) "BALANCED" else "UNBALANCED"}\"\n")
+                out.write("\n")
+
+                out.write("Code,Account Name,Category,Debit (Dr INR),Credit (Cr INR),Notes\n")
+                tb.accounts.forEach { acc ->
+                    val dr = if (acc.debitAmount > 0) String.format(Locale.ENGLISH, "%.2f", acc.debitAmount) else "0.00"
+                    val cr = if (acc.creditAmount > 0) String.format(Locale.ENGLISH, "%.2f", acc.creditAmount) else "0.00"
+                    out.write("\"${acc.accountCode}\",\"${acc.accountName.replace("\"", "\"\"")}\",\"${acc.accountCategory}\",$dr,$cr,\"${acc.note.replace("\"", "\"\"")}\"\n")
+                }
+
+                out.write("\n")
+                out.write("TOTAL,,,${String.format(Locale.ENGLISH, "%.2f", tb.totalDebit)},${String.format(Locale.ENGLISH, "%.2f", tb.totalCredit)},\n")
+                out.write("DIFFERENCE,,,,${String.format(Locale.ENGLISH, "%.2f", tb.difference)},\n")
+            }
+
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
     fun shareCsvFile(context: Context, uri: Uri, title: String) {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/csv"

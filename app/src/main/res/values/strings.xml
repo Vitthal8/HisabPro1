@@ -1,4 +1,85 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">HisabPro</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_sales">Sales</string>
+    <string name="nav_parties">Parties</string>
+    <string name="nav_reports">Reports</string>
+    <string name="nav_more">More</string>
+
+    <!-- Dashboard & Quick Actions -->
+    <string name="add_sale">Add Sale</string>
+    <string name="add_purchase">Add Purchase</string>
+    <string name="add_customer">Add Customer</string>
+    <string name="add_supplier">Add Supplier</string>
+    <string name="add_expense">Add Expense</string>
+    <string name="receive_payment">Receive Payment</string>
+    <string name="make_payment">Make Payment</string>
+    <string name="view_ledger">View Ledger</string>
+    <string name="quick_billing">Quick Bill</string>
+
+    <!-- Financial Metrics & Double-Entry -->
+    <string name="receivables_dr">Total Receivables (Dr)</string>
+    <string name="payables_cr">Total Payables (Cr)</string>
+    <string name="cash_in_hand">Cash in Hand</string>
+    <string name="bank_balance">Bank &amp; UPI Balance</string>
+    <string name="net_balance">Net Balance</string>
+    <string name="to_collect">To Collect (Dr)</string>
+    <string name="to_pay">To Pay (Cr)</string>
+
+    <!-- Invoicing & Billing -->
+    <string name="invoice_number">Invoice No</string>
+    <string name="purchase_bill_no">Bill No</string>
+    <string name="bill_date">Date</string>
+    <string name="customer_details">Customer Details</string>
+    <string name="supplier_details">Supplier Details</string>
+    <string name="item_name">Item Name</string>
+    <string name="quantity">Quantity</string>
+    <string name="rate">Rate</string>
+    <string name="discount">Discount</string>
+    <string name="amount">Amount</string>
+    <string name="subtotal">Taxable Subtotal</string>
+    <string name="cgst">CGST</string>
+    <string name="sgst">SGST</string>
+    <string name="igst">IGST</string>
+    <string name="tax_total">Total GST</string>
+    <string name="grand_total">Grand Total</string>
+    <string name="amount_paid">Amount Paid</string>
+    <string name="balance_due">Balance Due</string>
+    <string name="payment_mode">Payment Mode</string>
+    <string name="cash">Cash</string>
+    <string name="upi">UPI</string>
+    <string name="bank_transfer">Bank Transfer</string>
+    <string name="cheque">Cheque</string>
+
+    <!-- Reports & Accounting -->
+    <string name="day_book">Day Book (Roznamcha)</string>
+    <string name="cash_book">Cash Book</string>
+    <string name="trial_balance">Trial Balance (कच्चा ताळेबंद)</string>
+    <string name="profit_and_loss">Profit &amp; Loss Statement</string>
+    <string name="stock_valuation">Stock Valuation &amp; Health</string>
+    <string name="gstr1_report">GSTR-1 Tax Filing</string>
+    <string name="gstr3b_report">GSTR-3B ITC Return</string>
+    <string name="purchases_register">Purchases Register &amp; ITC</string>
+    <string name="aging_report">Party Aging &amp; Overdue</string>
+
+    <!-- Common UI Actions -->
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="edit">Edit</string>
+    <string name="delete">Delete</string>
+    <string name="confirm">Confirm</string>
+    <string name="search_hint">Search by name, phone or bill no...</string>
+    <string name="share_whatsapp">Share WhatsApp</string>
+    <string name="export_pdf">Download PDF</string>
+    <string name="export_csv">Export CSV</string>
+    <string name="thermal_print">Thermal Print</string>
+
+    <!-- Settings & Modes -->
+    <string name="business_setup">Business Setup</string>
+    <string name="gst_registered">GST Registered Business</string>
+    <string name="non_gst_shop">Non-GST Shop</string>
+    <string name="app_language">App Language</string>
 </resources>

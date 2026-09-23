@@ -1,5 +1,6 @@
 package com.hisabpro.app.ui.items
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -70,8 +71,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hisabpro.app.data.model.Item
 import com.hisabpro.app.ui.theme.Amber700
+import com.hisabpro.app.ui.theme.Emerald50
 import com.hisabpro.app.ui.theme.Emerald700
+import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.PureWhite
+import com.hisabpro.app.ui.theme.Slate100
+import com.hisabpro.app.ui.theme.Slate200
+import com.hisabpro.app.ui.theme.Slate500
+import com.hisabpro.app.ui.theme.Slate600
+import com.hisabpro.app.ui.theme.Slate700
+import com.hisabpro.app.ui.theme.Slate900
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -234,8 +243,10 @@ fun ItemsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Slate200),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Row(
@@ -557,9 +568,10 @@ private fun ItemCard(
             .fillMaxWidth()
             .clickable { onItemClick() }
             .testTag("item_card_${item.id}"),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
+        border = BorderStroke(1.dp, Slate200),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(

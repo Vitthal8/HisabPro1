@@ -56,13 +56,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hisabpro.app.data.model.InvoiceStatus
 import com.hisabpro.app.data.model.PurchaseBill
+import androidx.compose.foundation.BorderStroke
+import com.hisabpro.app.ui.theme.Emerald50
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
+import com.hisabpro.app.ui.theme.Emerald900
 import com.hisabpro.app.ui.theme.ExpenseRed
 import com.hisabpro.app.ui.theme.IncomeGreen
 import com.hisabpro.app.ui.theme.PureWhite
+import com.hisabpro.app.ui.theme.Slate50
 import com.hisabpro.app.ui.theme.Slate100
 import com.hisabpro.app.ui.theme.Slate200
+import com.hisabpro.app.ui.theme.Slate400
+import com.hisabpro.app.ui.theme.Slate500
+import com.hisabpro.app.ui.theme.Slate600
+import com.hisabpro.app.ui.theme.Slate700
+import com.hisabpro.app.ui.theme.Slate800
+import com.hisabpro.app.ui.theme.Slate900
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -176,46 +186,80 @@ fun PurchaseDetailSheet(
 
             // Supplier Information
             Card(
-                colors = CardDefaults.cardColors(containerColor = Slate100),
-                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, Slate200),
+                shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
                         text = "PURCHASED FROM",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Slate500,
+                        letterSpacing = 0.5.sp
                     )
-                    Text(
-                        text = bill.supplierName,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                    if (bill.supplierPhone.isNotBlank()) {
-                        Text(
-                            text = "Phone: ${bill.supplierPhone}",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Emerald50,
+                            border = BorderStroke(1.dp, Emerald700.copy(alpha = 0.3f)),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = bill.supplierName.take(1).uppercase(),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = Emerald800
+                                )
+                            }
+                        }
+                        Column {
+                            Text(
+                                text = bill.supplierName,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = Slate900
+                            )
+                            if (bill.supplierPhone.isNotBlank()) {
+                                Text(
+                                    text = "📞 ${bill.supplierPhone}",
+                                    fontSize = 12.sp,
+                                    color = Slate600
+                                )
+                            }
+                        }
                     }
+
                     if (bill.supplierGstin.isNotBlank()) {
-                        Text(
-                            text = "GSTIN: ${bill.supplierGstin}",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Slate100,
+                            modifier = Modifier.padding(top = 2.dp)
+                        ) {
+                            Text(
+                                text = "GSTIN: ${bill.supplierGstin}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Slate700,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
                     }
                     if (bill.supplierAddress.isNotBlank()) {
                         Text(
-                            text = "Address: ${bill.supplierAddress}",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "📍 ${bill.supplierAddress}",
+                            fontSize = 12.sp,
+                            color = Slate600
                         )
                     }
                 }
@@ -223,14 +267,16 @@ fun PurchaseDetailSheet(
 
             // Items breakdown
             Text(
-                text = "Items & Inward Quantities",
+                text = "Items & Inward Quantities (${bill.items.size})",
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
+                fontSize = 14.sp,
+                color = Slate900
             )
 
             bill.items.forEachIndexed { index, item ->
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, Slate200),
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -241,17 +287,39 @@ fun PurchaseDetailSheet(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "${index + 1}. ${item.description}",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp
-                            )
-                            Text(
-                                text = "${item.quantity} ${item.unit} @ ₹${String.format(Locale.ENGLISH, "%.2f", item.unitPrice)} | GST: ${item.gstRate.toInt()}%",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Slate100,
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "${index + 1}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Slate600
+                                    )
+                                }
+                            }
+                            Column {
+                                Text(
+                                    text = item.description,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp,
+                                    color = Slate900
+                                )
+                                Text(
+                                    text = "${item.quantity} ${item.unit} @ ₹${String.format(Locale.ENGLISH, "%.2f", item.unitPrice)}" +
+                                        if (item.gstRate > 0) " | GST ${item.gstRate.toInt()}%" else "",
+                                    fontSize = 12.sp,
+                                    color = Slate500
+                                )
+                            }
                         }
                         Text(
                             text = "₹${String.format(Locale.ENGLISH, "%.2f", item.getTotal(bill.gstMode))}",
@@ -266,8 +334,9 @@ fun PurchaseDetailSheet(
             // ITC & GST Status
             if (bill.itcEligible) {
                 Surface(
-                    color = Emerald700.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFEFF6FF),
+                    border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -279,84 +348,112 @@ fun PurchaseDetailSheet(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = Emerald700,
-                            modifier = Modifier.size(18.dp)
+                            tint = Color(0xFF1D4ED8),
+                            modifier = Modifier.size(20.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Input Tax Credit (ITC) Eligible: ₹${String.format(Locale.ENGLISH, "%.2f", bill.totalTax)}",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
-                            color = Emerald800
-                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Input Tax Credit (ITC) Claimable",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color(0xFF1E40AF)
+                            )
+                            Text(
+                                text = "Eligible GST Credit: ₹${String.format(Locale.ENGLISH, "%.2f", bill.totalTax)}",
+                                fontSize = 12.sp,
+                                color = Color(0xFF2563EB)
+                            )
+                        }
                     }
                 }
             }
 
             // Summary Breakdown
             Card(
-                colors = CardDefaults.cardColors(containerColor = Slate100),
-                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, Slate200),
+                shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    Text(
+                        text = "PURCHASE SUMMARY",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Slate500,
+                        letterSpacing = 0.5.sp
+                    )
+
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Subtotal:", fontSize = 13.sp)
-                        Text("₹${String.format(Locale.ENGLISH, "%.2f", bill.subtotal)}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text("Subtotal:", fontSize = 13.sp, color = Slate600)
+                        Text("₹${String.format(Locale.ENGLISH, "%.2f", bill.subtotal)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Slate900)
                     }
                     if (bill.cgstTotal > 0) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("CGST:", fontSize = 13.sp)
-                            Text("₹${String.format(Locale.ENGLISH, "%.2f", bill.cgstTotal)}", fontSize = 13.sp)
+                            Text("CGST:", fontSize = 13.sp, color = Slate600)
+                            Text("+₹${String.format(Locale.ENGLISH, "%.2f", bill.cgstTotal)}", fontSize = 13.sp, color = Emerald800, fontWeight = FontWeight.Medium)
                         }
                     }
                     if (bill.sgstTotal > 0) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("SGST:", fontSize = 13.sp)
-                            Text("₹${String.format(Locale.ENGLISH, "%.2f", bill.sgstTotal)}", fontSize = 13.sp)
+                            Text("SGST:", fontSize = 13.sp, color = Slate600)
+                            Text("+₹${String.format(Locale.ENGLISH, "%.2f", bill.sgstTotal)}", fontSize = 13.sp, color = Emerald800, fontWeight = FontWeight.Medium)
                         }
                     }
                     if (bill.igstTotal > 0) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("IGST:", fontSize = 13.sp)
-                            Text("₹${String.format(Locale.ENGLISH, "%.2f", bill.igstTotal)}", fontSize = 13.sp)
+                            Text("IGST:", fontSize = 13.sp, color = Slate600)
+                            Text("+₹${String.format(Locale.ENGLISH, "%.2f", bill.igstTotal)}", fontSize = 13.sp, color = Emerald800, fontWeight = FontWeight.Medium)
                         }
                     }
                     if (bill.discountAmount > 0) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Discount:", fontSize = 13.sp)
-                            Text("-₹${String.format(Locale.ENGLISH, "%.2f", bill.discountAmount)}", fontSize = 13.sp, color = IncomeGreen)
+                            Text("Discount:", fontSize = 13.sp, color = IncomeGreen)
+                            Text("-₹${String.format(Locale.ENGLISH, "%.2f", bill.discountAmount)}", fontSize = 13.sp, color = IncomeGreen, fontWeight = FontWeight.SemiBold)
                         }
                     }
 
-                    HorizontalDivider(color = Slate200)
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Grand Total:", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            "₹${String.format(Locale.ENGLISH, "%.2f", bill.grandTotal)}",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Emerald800
-                        )
+                    // Grand Total Box
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Emerald50,
+                        border = BorderStroke(1.dp, Emerald700.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("GRAND TOTAL", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Emerald900)
+                            Text(
+                                "₹${String.format(Locale.ENGLISH, "%.2f", bill.grandTotal)}",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Emerald900
+                            )
+                        }
                     }
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Paid Amount (${bill.paymentMode}):", fontSize = 13.sp)
-                        Text("₹${String.format(Locale.ENGLISH, "%.2f", bill.paidAmount)}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text("Paid Amount (${bill.paymentMode}):", fontSize = 13.sp, color = Slate600)
+                        Text("₹${String.format(Locale.ENGLISH, "%.2f", bill.paidAmount)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = IncomeGreen)
                     }
 
                     if (bill.dueAmount > 0.01) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Payable Due:", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = ExpenseRed)
+                            Text("Payable Due:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ExpenseRed)
                             Text(
                                 "₹${String.format(Locale.ENGLISH, "%.2f", bill.dueAmount)}",
-                                fontSize = 15.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = ExpenseRed
                             )
@@ -376,37 +473,38 @@ fun PurchaseDetailSheet(
             // Actions: Mark Paid & WhatsApp Share
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Button(
                         onClick = { sharePurchaseVoucher(context, bill) },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
                         modifier = Modifier
                             .weight(1f)
-                            .height(46.dp)
+                            .height(48.dp)
                             .testTag("btn_share_purchase_voucher"),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Share, contentDescription = null, tint = PureWhite, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Share Voucher", color = PureWhite, fontWeight = FontWeight.Bold)
+                        Icon(imageVector = Icons.Default.Share, contentDescription = null, tint = PureWhite, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Share Voucher", color = PureWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
 
                     OutlinedButton(
                         onClick = { onExportCsv(bill) },
+                        border = BorderStroke(1.dp, Emerald700),
                         modifier = Modifier
                             .weight(1f)
-                            .height(46.dp)
+                            .height(48.dp)
                             .testTag("btn_export_purchase_csv"),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, tint = Emerald700, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Export CSV", color = Emerald700, fontWeight = FontWeight.Bold)
+                        Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, tint = Emerald700, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Export CSV", color = Emerald700, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
 
@@ -418,13 +516,13 @@ fun PurchaseDetailSheet(
                         colors = ButtonDefaults.buttonColors(containerColor = Emerald700),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(46.dp)
+                            .height(48.dp)
                             .testTag("btn_mark_purchase_paid"),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = PureWhite, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Mark Paid", color = PureWhite, fontWeight = FontWeight.Bold)
+                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = PureWhite, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Mark as Fully Paid", color = PureWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
 
@@ -432,11 +530,12 @@ fun PurchaseDetailSheet(
                     onClick = { showDeleteDialog = true },
                     modifier = Modifier
                         .fillMaxWidth()
+                        .height(44.dp)
                         .testTag("btn_delete_purchase_bill")
                 ) {
                     Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = ExpenseRed, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Delete Purchase Bill", color = ExpenseRed)
+                    Text("Delete Inward Bill", color = ExpenseRed, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }
             }
 

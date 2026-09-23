@@ -72,13 +72,23 @@ import com.hisabpro.app.data.model.Party
 import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.data.model.PurchaseBill
 import com.hisabpro.app.data.model.PurchaseItem
+import androidx.compose.foundation.BorderStroke
+import com.hisabpro.app.ui.theme.Emerald50
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
+import com.hisabpro.app.ui.theme.Emerald900
 import com.hisabpro.app.ui.theme.ExpenseRed
 import com.hisabpro.app.ui.theme.IncomeGreen
 import com.hisabpro.app.ui.theme.PureWhite
+import com.hisabpro.app.ui.theme.Slate50
 import com.hisabpro.app.ui.theme.Slate100
 import com.hisabpro.app.ui.theme.Slate200
+import com.hisabpro.app.ui.theme.Slate400
+import com.hisabpro.app.ui.theme.Slate500
+import com.hisabpro.app.ui.theme.Slate600
+import com.hisabpro.app.ui.theme.Slate700
+import com.hisabpro.app.ui.theme.Slate800
+import com.hisabpro.app.ui.theme.Slate900
 import java.util.Locale
 import java.util.UUID
 
@@ -169,35 +179,37 @@ fun CreatePurchaseSheet(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(Emerald700.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Emerald50,
+                        border = BorderStroke(1.dp, Emerald700.copy(alpha = 0.2f)),
+                        modifier = Modifier.size(42.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.ShoppingBag,
-                            contentDescription = null,
-                            tint = Emerald700,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingBag,
+                                contentDescription = null,
+                                tint = Emerald700,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                     Column {
                         Text(
                             text = "New Purchase Bill",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                            fontSize = 18.sp,
+                            color = Slate900
                         )
                         Text(
-                            text = "Inward Stock & ITC Entry ($nextPurchaseNumber)",
+                            text = "Inward Stock & Tax Credit ($nextPurchaseNumber)",
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Slate500
                         )
                     }
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
+                    Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = Slate500)
                 }
             }
 
@@ -205,8 +217,9 @@ fun CreatePurchaseSheet(
 
             // Supplier Selection Card
             Card(
-                colors = CardDefaults.cardColors(containerColor = Slate100),
-                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, Slate200),
+                shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -219,7 +232,8 @@ fun CreatePurchaseSheet(
                         text = "SUPPLIER / DISTRIBUTOR DETAILS",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Slate500,
+                        letterSpacing = 0.5.sp
                     )
 
                     // Quick supplier chips
@@ -238,10 +252,24 @@ fun CreatePurchaseSheet(
                                         supplierPhone = sup.phone
                                         supplierGstin = sup.gstin
                                     },
-                                    label = { Text(sup.name, fontSize = 12.sp) },
+                                    label = {
+                                        Text(
+                                            text = sup.name,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
+                                        )
+                                    },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = Emerald700,
-                                        selectedLabelColor = PureWhite
+                                        selectedLabelColor = PureWhite,
+                                        containerColor = Slate50,
+                                        labelColor = Slate700
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        borderColor = if (isSel) Emerald700 else Slate200,
+                                        selectedBorderColor = Emerald700,
+                                        enabled = true,
+                                        selected = isSel
                                     )
                                 )
                             }
@@ -259,8 +287,8 @@ fun CreatePurchaseSheet(
                             Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = Emerald700)
                         },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                            focusedBorderColor = Emerald700,
+                            unfocusedBorderColor = Slate200
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -278,8 +306,8 @@ fun CreatePurchaseSheet(
                             onValueChange = { supplierGstin = it.uppercase() },
                             label = { Text("Supplier GSTIN") },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                focusedBorderColor = Emerald700,
+                                unfocusedBorderColor = Slate200
                             ),
                             modifier = Modifier
                                 .weight(1f)
@@ -294,8 +322,8 @@ fun CreatePurchaseSheet(
                             label = { Text("Vendor Bill No.") },
                             placeholder = { Text("e.g. MKT/892") },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                focusedBorderColor = Emerald700,
+                                unfocusedBorderColor = Slate200
                             ),
                             modifier = Modifier
                                 .weight(1f)
@@ -309,27 +337,63 @@ fun CreatePurchaseSheet(
 
             // GST Supply Mode
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(text = "GST Supply Type", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(
+                    text = "GST Supply Type",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = Slate700
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    val isIntra = gstMode == GstMode.INTRA_STATE
                     FilterChip(
-                        selected = gstMode == GstMode.INTRA_STATE,
+                        selected = isIntra,
                         onClick = { gstMode = GstMode.INTRA_STATE },
-                        label = { Text("Intra-State (CGST + SGST)") },
+                        label = {
+                            Text(
+                                "Intra-State (CGST + SGST)",
+                                fontSize = 12.sp,
+                                fontWeight = if (isIntra) FontWeight.Bold else FontWeight.Medium
+                            )
+                        },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Emerald700,
-                            selectedLabelColor = PureWhite
+                            selectedLabelColor = PureWhite,
+                            containerColor = Slate50,
+                            labelColor = Slate700
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            borderColor = if (isIntra) Emerald700 else Slate200,
+                            selectedBorderColor = Emerald700,
+                            enabled = true,
+                            selected = isIntra
                         )
                     )
+
+                    val isInter = gstMode == GstMode.INTER_STATE
                     FilterChip(
-                        selected = gstMode == GstMode.INTER_STATE,
+                        selected = isInter,
                         onClick = { gstMode = GstMode.INTER_STATE },
-                        label = { Text("Inter-State (IGST)") },
+                        label = {
+                            Text(
+                                "Inter-State (IGST)",
+                                fontSize = 12.sp,
+                                fontWeight = if (isInter) FontWeight.Bold else FontWeight.Medium
+                            )
+                        },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Emerald700,
-                            selectedLabelColor = PureWhite
+                            selectedLabelColor = PureWhite,
+                            containerColor = Slate50,
+                            labelColor = Slate700
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            borderColor = if (isInter) Emerald700 else Slate200,
+                            selectedBorderColor = Emerald700,
+                            enabled = true,
+                            selected = isInter
                         )
                     )
                 }
@@ -370,7 +434,8 @@ fun CreatePurchaseSheet(
 
             draftItems.forEachIndexed { index, line ->
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, Slate200),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -409,9 +474,9 @@ fun CreatePurchaseSheet(
                         // Select from Inventory quick chips
                         if (inventoryItems.isNotEmpty() && line.description.isBlank()) {
                             Text(
-                                text = "Pick from inventory or type below:",
+                                text = "Pick from inventory:",
                                 fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = Slate500
                             )
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -419,10 +484,10 @@ fun CreatePurchaseSheet(
                             ) {
                                 inventoryItems.take(3).forEach { invItem ->
                                     Surface(
-                                        color = MaterialTheme.colorScheme.surface,
+                                        color = Slate50,
                                         shape = RoundedCornerShape(6.dp),
+                                        border = BorderStroke(1.dp, Slate200),
                                         modifier = Modifier
-                                            .border(1.dp, Slate200, RoundedCornerShape(6.dp))
                                             .clickable {
                                                 line.description = invItem.name
                                                 line.itemId = invItem.id
@@ -433,7 +498,7 @@ fun CreatePurchaseSheet(
                                             }
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
-                                        Text(invItem.name, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                        Text(invItem.name, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Slate700)
                                     }
                                 }
                             }
@@ -444,8 +509,8 @@ fun CreatePurchaseSheet(
                             onValueChange = { line.description = it },
                             label = { Text("Item Description *") },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                focusedBorderColor = Emerald700,
+                                unfocusedBorderColor = Slate200
                             ),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
@@ -462,8 +527,8 @@ fun CreatePurchaseSheet(
                                 label = { Text("Inward Qty") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                    focusedBorderColor = Emerald700,
+                                    unfocusedBorderColor = Slate200
                                 ),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
@@ -475,8 +540,8 @@ fun CreatePurchaseSheet(
                                 onValueChange = { line.unit = it },
                                 label = { Text("Unit") },
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                    focusedBorderColor = Emerald700,
+                                    unfocusedBorderColor = Slate200
                                 ),
                                 modifier = Modifier.weight(0.8f),
                                 singleLine = true,
@@ -489,8 +554,8 @@ fun CreatePurchaseSheet(
                                 label = { Text("Rate (₹)") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                    focusedBorderColor = Emerald700,
+                                    unfocusedBorderColor = Slate200
                                 ),
                                 modifier = Modifier.weight(1.2f),
                                 singleLine = true,
@@ -544,9 +609,10 @@ fun CreatePurchaseSheet(
             }
 
             // ITC Eligibility Card
-            Card(
-                colors = CardDefaults.cardColors(containerColor = if (itcEligible) Emerald700.copy(alpha = 0.08f) else Slate100),
-                shape = RoundedCornerShape(12.dp),
+            Surface(
+                color = if (itcEligible) Color(0xFFEFF6FF) else MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, if (itcEligible) Color(0xFFBFDBFE) else Slate200),
+                shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -558,19 +624,20 @@ fun CreatePurchaseSheet(
                     Checkbox(
                         checked = itcEligible,
                         onCheckedChange = { itcEligible = it },
-                        colors = CheckboxDefaults.colors(checkedColor = Emerald700)
+                        colors = CheckboxDefaults.colors(checkedColor = Color(0xFF1D4ED8))
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Column {
                         Text(
                             text = "Input Tax Credit (ITC) Eligible",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+                            fontSize = 13.sp,
+                            color = if (itcEligible) Color(0xFF1E40AF) else Slate800
                         )
                         Text(
                             text = "Claim ₹${String.format(Locale.ENGLISH, "%.2f", totalTax)} ITC to reduce Net GST Payable in GSTR-3B",
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (itcEligible) Color(0xFF2563EB) else Slate500
                         )
                     }
                 }
@@ -578,8 +645,9 @@ fun CreatePurchaseSheet(
 
             // Summary Card
             Card(
-                colors = CardDefaults.cardColors(containerColor = Slate100),
-                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, Slate200),
+                shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -592,15 +660,16 @@ fun CreatePurchaseSheet(
                         text = "BILL SUMMARY",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Slate500,
+                        letterSpacing = 0.5.sp
                     )
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Subtotal:", fontSize = 13.sp)
-                        Text("₹${String.format(Locale.ENGLISH, "%.2f", subtotal)}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text("Subtotal:", fontSize = 13.sp, color = Slate600)
+                        Text("₹${String.format(Locale.ENGLISH, "%.2f", subtotal)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Slate900)
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Total GST Tax:", fontSize = 13.sp)
-                        Text("₹${String.format(Locale.ENGLISH, "%.2f", totalTax)}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text("Total GST Tax:", fontSize = 13.sp, color = Slate600)
+                        Text("₹${String.format(Locale.ENGLISH, "%.2f", totalTax)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Emerald800)
                     }
 
                     OutlinedTextField(
@@ -608,29 +677,46 @@ fun CreatePurchaseSheet(
                         onValueChange = { discountInput = it },
                         label = { Text("Supplier Discount (₹)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Emerald700,
+                            unfocusedBorderColor = Slate200
+                        ),
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(10.dp)
                     )
 
-                    HorizontalDivider(color = Slate200)
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Grand Total:", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            "₹${String.format(Locale.ENGLISH, "%.2f", grandTotal)}",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Emerald800
-                        )
+                    // Grand Total Box
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Emerald50,
+                        border = BorderStroke(1.dp, Emerald700.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("GRAND TOTAL", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Emerald900)
+                            Text(
+                                "₹${String.format(Locale.ENGLISH, "%.2f", grandTotal)}",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Emerald900
+                            )
+                        }
                     }
                 }
             }
 
             // Payment Settlement
             Card(
-                colors = CardDefaults.cardColors(containerColor = Slate100),
-                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, Slate200),
+                shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -643,7 +729,8 @@ fun CreatePurchaseSheet(
                         text = "PAYMENT TO SUPPLIER",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Slate500,
+                        letterSpacing = 0.5.sp
                     )
 
                     Row(
@@ -651,13 +738,28 @@ fun CreatePurchaseSheet(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         listOf("Bank Transfer", "UPI", "Cash", "Cheque").forEach { mode ->
+                            val isSel = paymentMode == mode
                             FilterChip(
-                                selected = paymentMode == mode,
+                                selected = isSel,
                                 onClick = { paymentMode = mode },
-                                label = { Text(mode, fontSize = 12.sp) },
+                                label = {
+                                    Text(
+                                        mode,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = Emerald700,
-                                    selectedLabelColor = PureWhite
+                                    selectedLabelColor = PureWhite,
+                                    containerColor = Slate50,
+                                    labelColor = Slate700
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    borderColor = if (isSel) Emerald700 else Slate200,
+                                    selectedBorderColor = Emerald700,
+                                    enabled = true,
+                                    selected = isSel
                                 )
                             )
                         }
@@ -666,38 +768,52 @@ fun CreatePurchaseSheet(
                     OutlinedTextField(
                         value = paidAmountInput,
                         onValueChange = { paidAmountInput = it },
-                        label = { Text("Paid Amount (Leave empty for Full Paid)") },
+                        label = { Text("Paid Amount (Leave blank for Full Paid)") },
                         placeholder = { Text("₹${String.format(Locale.ENGLISH, "%.2f", grandTotal)}") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                            focusedBorderColor = Emerald700,
+                            unfocusedBorderColor = Slate200
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_purchase_paid_amount"),
                         singleLine = true,
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(10.dp)
                     )
 
                     if (dueAmount > 0.01) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFFEF2F2),
+                            border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Pending Payable to Supplier:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ExpenseRed)
-                            Text(
-                                "₹${String.format(Locale.ENGLISH, "%.2f", dueAmount)}",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = ExpenseRed
-                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Pending Payable to Supplier:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ExpenseRed)
+                                    Text(
+                                        "₹${String.format(Locale.ENGLISH, "%.2f", dueAmount)}",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = ExpenseRed
+                                    )
+                                }
+                                Text(
+                                    text = "Will be added to ${customSupplierName.ifBlank { "Supplier" }} Khata as Credit Payable.",
+                                    fontSize = 11.sp,
+                                    color = ExpenseRed.copy(alpha = 0.8f)
+                                )
+                            }
                         }
-                        Text(
-                            text = "Will be added to ${customSupplierName.ifBlank { "Supplier" }} Khata as Credit Payable.",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
             }
@@ -707,8 +823,8 @@ fun CreatePurchaseSheet(
                 onValueChange = { notes = it },
                 label = { Text("Notes / Transport / E-Way Bill Details") },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    focusedBorderColor = Emerald700,
+                    unfocusedBorderColor = Slate200
                 ),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp)

@@ -64,14 +64,23 @@ import com.hisabpro.app.data.model.Invoice
 import com.hisabpro.app.data.model.InvoiceStatus
 import com.hisabpro.app.data.model.InvoiceType
 import com.hisabpro.app.data.repository.SettingsRepository
+import androidx.compose.foundation.BorderStroke
+import com.hisabpro.app.ui.theme.Emerald50
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
+import com.hisabpro.app.ui.theme.Emerald900
 import com.hisabpro.app.ui.theme.ExpenseRed
 import com.hisabpro.app.ui.theme.IncomeGreen
 import com.hisabpro.app.ui.theme.PureWhite
+import com.hisabpro.app.ui.theme.Slate50
 import com.hisabpro.app.ui.theme.Slate100
 import com.hisabpro.app.ui.theme.Slate200
+import com.hisabpro.app.ui.theme.Slate400
+import com.hisabpro.app.ui.theme.Slate500
+import com.hisabpro.app.ui.theme.Slate600
 import com.hisabpro.app.ui.theme.Slate700
+import com.hisabpro.app.ui.theme.Slate800
+import com.hisabpro.app.ui.theme.Slate900
 import com.hisabpro.app.util.InvoiceUpiQrSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import java.text.SimpleDateFormat
@@ -218,46 +227,80 @@ fun InvoiceDetailSheet(
 
                 // Customer Info Card
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Slate100),
-                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, Slate200),
+                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
                             text = "BILLED TO",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Slate500,
+                            letterSpacing = 0.5.sp
                         )
-                        Text(
-                            text = invoice.customerName,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                        if (invoice.customerPhone.isNotBlank()) {
-                            Text(
-                                text = "Phone: ${invoice.customerPhone}",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Emerald50,
+                                border = BorderStroke(1.dp, Emerald700.copy(alpha = 0.3f)),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = invoice.customerName.take(1).uppercase(),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = Emerald800
+                                    )
+                                }
+                            }
+                            Column {
+                                Text(
+                                    text = invoice.customerName,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = Slate900
+                                )
+                                if (invoice.customerPhone.isNotBlank()) {
+                                    Text(
+                                        text = "📞 ${invoice.customerPhone}",
+                                        fontSize = 12.sp,
+                                        color = Slate600
+                                    )
+                                }
+                            }
                         }
+
                         if (invoice.customerGstin.isNotBlank()) {
-                            Text(
-                                text = "GSTIN: ${invoice.customerGstin}",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Slate100,
+                                modifier = Modifier.padding(top = 2.dp)
+                            ) {
+                                Text(
+                                    text = "GSTIN: ${invoice.customerGstin}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Slate700,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
                         }
                         if (invoice.customerAddress.isNotBlank()) {
                             Text(
-                                text = "Address: ${invoice.customerAddress}",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "📍 ${invoice.customerAddress}",
+                                fontSize = 12.sp,
+                                color = Slate600
                             )
                         }
                     }
@@ -265,14 +308,16 @@ fun InvoiceDetailSheet(
 
                 // Line Items Table
                 Text(
-                    text = "Items & Breakdown",
+                    text = "Items & Breakdown (${invoice.items.size})",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
+                    fontSize = 14.sp,
+                    color = Slate900
                 )
 
                 invoice.items.forEachIndexed { index, item ->
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, Slate200),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -283,17 +328,39 @@ fun InvoiceDetailSheet(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "${index + 1}. ${item.description}",
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 14.sp
-                                )
-                                Text(
-                                    text = "${item.quantity} ${item.unit} @ ₹${String.format(Locale.ENGLISH, "%.2f", item.unitPrice)} | GST: ${item.gstRate}%",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Slate100,
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "${index + 1}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Slate600
+                                        )
+                                    }
+                                }
+                                Column {
+                                    Text(
+                                        text = item.description,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp,
+                                        color = Slate900
+                                    )
+                                    Text(
+                                        text = "${item.quantity} ${item.unit} @ ₹${String.format(Locale.ENGLISH, "%.2f", item.unitPrice)}" +
+                                            if (item.gstRate > 0) " | GST ${item.gstRate}%" else "",
+                                        fontSize = 12.sp,
+                                        color = Slate500
+                                    )
+                                }
                             }
                             Text(
                                 text = "₹${String.format(Locale.ENGLISH, "%.2f", item.getTotal(invoice.gstMode))}",
@@ -307,65 +374,82 @@ fun InvoiceDetailSheet(
 
                 // Summary Card
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Slate100),
-                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, Slate200),
+                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        Text(
+                            text = "PAYMENT SUMMARY",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Slate500,
+                            letterSpacing = 0.5.sp
+                        )
+
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Subtotal (Taxable):", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("₹${String.format(Locale.ENGLISH, "%.2f", invoice.subtotal)}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text("Subtotal (Taxable):", fontSize = 13.sp, color = Slate600)
+                            Text("₹${String.format(Locale.ENGLISH, "%.2f", invoice.subtotal)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Slate900)
                         }
 
                         if (invoice.discountAmount > 0) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("Discount:", fontSize = 13.sp, color = ExpenseRed)
-                                Text("-₹${String.format(Locale.ENGLISH, "%.2f", invoice.discountAmount)}", fontSize = 13.sp, color = ExpenseRed, fontWeight = FontWeight.Medium)
+                                Text("-₹${String.format(Locale.ENGLISH, "%.2f", invoice.discountAmount)}", fontSize = 13.sp, color = ExpenseRed, fontWeight = FontWeight.SemiBold)
                             }
                         }
 
                         if (invoice.type == InvoiceType.TAX_INVOICE) {
                             if (invoice.gstMode == GstMode.INTRA_STATE) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("CGST:", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("+₹${String.format(Locale.ENGLISH, "%.2f", invoice.cgstTotal)}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Text("CGST:", fontSize = 13.sp, color = Slate600)
+                                    Text("+₹${String.format(Locale.ENGLISH, "%.2f", invoice.cgstTotal)}", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Emerald800)
                                 }
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("SGST:", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("+₹${String.format(Locale.ENGLISH, "%.2f", invoice.sgstTotal)}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Text("SGST:", fontSize = 13.sp, color = Slate600)
+                                    Text("+₹${String.format(Locale.ENGLISH, "%.2f", invoice.sgstTotal)}", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Emerald800)
                                 }
                             } else if (invoice.gstMode == GstMode.INTER_STATE) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("IGST:", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("+₹${String.format(Locale.ENGLISH, "%.2f", invoice.igstTotal)}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Text("IGST:", fontSize = 13.sp, color = Slate600)
+                                    Text("+₹${String.format(Locale.ENGLISH, "%.2f", invoice.igstTotal)}", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Emerald800)
                                 }
                             }
                         }
 
-                        HorizontalDivider(color = Slate200, modifier = Modifier.padding(vertical = 4.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        // Grand Total Box
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Emerald50,
+                            border = BorderStroke(1.dp, Emerald700.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("GRAND TOTAL:", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Text(
-                                text = "₹${String.format(Locale.ENGLISH, "%.2f", invoice.grandTotal)}",
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 18.sp,
-                                color = Emerald800
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("GRAND TOTAL", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Emerald900)
+                                Text(
+                                    text = "₹${String.format(Locale.ENGLISH, "%.2f", invoice.grandTotal)}",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 20.sp,
+                                    color = Emerald900
+                                )
+                            }
                         }
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Paid Amount:", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("₹${String.format(Locale.ENGLISH, "%.2f", invoice.paidAmount)}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text("Paid Amount:", fontSize = 13.sp, color = Slate600)
+                            Text("₹${String.format(Locale.ENGLISH, "%.2f", invoice.paidAmount)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = IncomeGreen)
                         }
 
                         if (invoice.dueAmount > 0) {

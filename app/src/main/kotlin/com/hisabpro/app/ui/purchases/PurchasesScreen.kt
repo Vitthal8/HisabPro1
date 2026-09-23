@@ -66,14 +66,23 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hisabpro.app.data.model.InvoiceStatus
 import com.hisabpro.app.data.model.PurchaseBill
+import androidx.compose.foundation.BorderStroke
+import com.hisabpro.app.ui.theme.Emerald50
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
+import com.hisabpro.app.ui.theme.Emerald900
 import com.hisabpro.app.ui.theme.ExpenseRed
 import com.hisabpro.app.ui.theme.IncomeGreen
 import com.hisabpro.app.ui.theme.PureWhite
+import com.hisabpro.app.ui.theme.Slate50
 import com.hisabpro.app.ui.theme.Slate100
 import com.hisabpro.app.ui.theme.Slate200
+import com.hisabpro.app.ui.theme.Slate400
+import com.hisabpro.app.ui.theme.Slate500
+import com.hisabpro.app.ui.theme.Slate600
 import com.hisabpro.app.ui.theme.Slate700
+import com.hisabpro.app.ui.theme.Slate800
+import com.hisabpro.app.ui.theme.Slate900
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -160,7 +169,7 @@ fun PurchasesScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         // Header info
                         Row(
@@ -168,19 +177,37 @@ fun PurchasesScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.LocalShipping,
-                                    contentDescription = null,
-                                    tint = Emerald700,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Inward Stock & Purchases",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp
-                                )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Emerald50,
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.LocalShipping,
+                                            contentDescription = null,
+                                            tint = Emerald700,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Column {
+                                    Text(
+                                        text = "Inward Stock & Purchases",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = Slate900
+                                    )
+                                    Text(
+                                        text = "${uiState.totalBillCount} recorded bills",
+                                        fontSize = 12.sp,
+                                        color = Slate500
+                                    )
+                                }
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(
@@ -210,8 +237,9 @@ fun PurchasesScreen(
                         ) {
                             // Total Purchases
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = Slate100),
-                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                border = BorderStroke(1.dp, Slate200),
+                                shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
@@ -219,19 +247,21 @@ fun PurchasesScreen(
                                         text = "PURCHASES",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = Slate500,
+                                        letterSpacing = 0.5.sp
                                     )
-                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = "₹${String.format(Locale.ENGLISH, "%.0f", uiState.totalPurchasesAmount)}",
                                         fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Emerald800
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Slate900
                                     )
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = "${uiState.totalBillCount} Bills",
-                                        fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        fontSize = 11.sp,
+                                        color = Slate500
                                     )
                                 }
                             }
@@ -239,7 +269,8 @@ fun PurchasesScreen(
                             // ITC Claimable
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
-                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                                shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
@@ -247,18 +278,20 @@ fun PurchasesScreen(
                                         text = "ITC CREDIT",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF1D4ED8)
+                                        color = Color(0xFF1D4ED8),
+                                        letterSpacing = 0.5.sp
                                     )
-                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = "₹${String.format(Locale.ENGLISH, "%.0f", uiState.totalItcAmount)}",
                                         fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
+                                        fontWeight = FontWeight.ExtraBold,
                                         color = Color(0xFF1E40AF)
                                     )
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = "Tax Offset",
-                                        fontSize = 10.sp,
+                                        fontSize = 11.sp,
                                         color = Color(0xFF3B82F6)
                                     )
                                 }
@@ -267,7 +300,8 @@ fun PurchasesScreen(
                             // Supplier Payables
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
-                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                                shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
@@ -275,18 +309,20 @@ fun PurchasesScreen(
                                         text = "PAYABLES",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
+                                        color = ExpenseRed,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "₹${String.format(Locale.ENGLISH, "%.0f", uiState.totalSupplierPayables)}",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.ExtraBold,
                                         color = ExpenseRed
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = "₹${String.format(Locale.ENGLISH, "%.0f", uiState.totalSupplierPayables)}",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = ExpenseRed
-                                    )
-                                    Text(
-                                        text = "To Suppliers",
-                                        fontSize = 10.sp,
+                                        text = "Due to Vendors",
+                                        fontSize = 11.sp,
                                         color = ExpenseRed.copy(alpha = 0.8f)
                                     )
                                 }
@@ -305,13 +341,28 @@ fun PurchasesScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         PurchaseFilter.entries.forEach { filter ->
+                            val isSelected = uiState.selectedFilter == filter
                             FilterChip(
-                                selected = uiState.selectedFilter == filter,
+                                selected = isSelected,
                                 onClick = { viewModel.setFilter(filter) },
-                                label = { Text(filter.label, fontSize = 12.sp) },
+                                label = {
+                                    Text(
+                                        text = filter.label,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = Emerald700,
-                                    selectedLabelColor = PureWhite
+                                    selectedLabelColor = PureWhite,
+                                    containerColor = Slate50,
+                                    labelColor = Slate700
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    borderColor = if (isSelected) Emerald700 else Slate200,
+                                    selectedBorderColor = Emerald700,
+                                    enabled = true,
+                                    selected = isSelected
                                 ),
                                 modifier = Modifier.testTag("filter_purchase_${filter.name.lowercase()}")
                             )
@@ -322,31 +373,50 @@ fun PurchasesScreen(
                 // Purchases List
                 if (uiState.filteredPurchases.isEmpty()) {
                     item {
-                        Column(
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, Slate200),
+                            shape = RoundedCornerShape(16.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(40.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                                .padding(24.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.ShoppingBag,
-                                contentDescription = null,
-                                tint = Emerald700.copy(alpha = 0.4f),
-                                modifier = Modifier.size(56.dp)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "No purchase bills found",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                            Text(
-                                text = "Record inward supplier bills to auto-add stock and claim ITC.",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Emerald50,
+                                    modifier = Modifier.size(64.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.ShoppingBag,
+                                            contentDescription = null,
+                                            tint = Emerald700,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Text(
+                                    text = "No purchase bills found",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Slate900
+                                )
+                                Text(
+                                    text = "Record inward supplier bills to auto-add stock and claim input tax credit.",
+                                    fontSize = 13.sp,
+                                    color = Slate500,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
                         }
                     }
                 } else {
@@ -424,12 +494,12 @@ fun PurchaseBillCard(
     onClick: () -> Unit,
     onShare: (() -> Unit)? = null
 ) {
-    val dateFormat = remember { SimpleDateFormat("dd MMM", Locale.ENGLISH) }
+    val dateFormat = remember { SimpleDateFormat("dd MMM, yyyy", Locale.ENGLISH) }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        border = BorderStroke(1.dp, Slate200),
+        shape = RoundedCornerShape(14.dp),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 5.dp)
@@ -440,64 +510,95 @@ fun PurchaseBillCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = bill.supplierName,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Emerald50,
+                        border = BorderStroke(1.dp, Emerald700.copy(alpha = 0.25f)),
+                        modifier = Modifier.size(40.dp)
                     ) {
-                        Text(
-                            text = bill.purchaseNumber,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Emerald800
-                        )
-                        if (bill.vendorBillNumber.isNotBlank()) {
+                        Box(contentAlignment = Alignment.Center) {
                             Text(
-                                text = "• Ref: ${bill.vendorBillNumber}",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = bill.supplierName.take(1).uppercase(),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = Emerald800
                             )
                         }
+                    }
+
+                    Column {
                         Text(
-                            text = "• ${dateFormat.format(Date(bill.dateMillis))}",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = bill.supplierName,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Slate900,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Slate100,
+                                modifier = Modifier.padding(top = 2.dp)
+                            ) {
+                                Text(
+                                    text = bill.purchaseNumber,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Emerald800,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                            if (bill.vendorBillNumber.isNotBlank()) {
+                                Text(
+                                    text = "• Ref: ${bill.vendorBillNumber}",
+                                    fontSize = 11.sp,
+                                    color = Slate500
+                                )
+                            }
+                            Text(
+                                text = "• ${dateFormat.format(Date(bill.dateMillis))}",
+                                fontSize = 11.sp,
+                                color = Slate500
+                            )
+                        }
                     }
                 }
 
-                // Amount
+                // Amount & Status Badge
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = "₹${String.format(Locale.ENGLISH, "%.2f", bill.grandTotal)}",
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         fontSize = 16.sp,
-                        color = Emerald800
+                        color = Slate900
                     )
+                    Spacer(modifier = Modifier.height(3.dp))
                     Surface(
                         color = when (bill.paymentStatus) {
-                            InvoiceStatus.PAID -> IncomeGreen.copy(alpha = 0.15f)
-                            InvoiceStatus.PARTIAL -> Color(0xFFF59E0B).copy(alpha = 0.15f)
-                            InvoiceStatus.UNPAID -> ExpenseRed.copy(alpha = 0.15f)
+                            InvoiceStatus.PAID -> IncomeGreen.copy(alpha = 0.12f)
+                            InvoiceStatus.PARTIAL -> Color(0xFFFEF3C7)
+                            InvoiceStatus.UNPAID -> ExpenseRed.copy(alpha = 0.12f)
                         },
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
-                            text = if (bill.dueAmount > 0) "Due ₹${String.format(Locale.ENGLISH, "%.0f", bill.dueAmount)}" else "Paid",
+                            text = if (bill.dueAmount > 0) "Due: ₹${String.format(Locale.ENGLISH, "%.0f", bill.dueAmount)}" else "PAID",
                             color = when (bill.paymentStatus) {
                                 InvoiceStatus.PAID -> IncomeGreen
                                 InvoiceStatus.PARTIAL -> Color(0xFFD97706)
@@ -505,7 +606,7 @@ fun PurchaseBillCard(
                             },
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
                 }
@@ -522,8 +623,8 @@ fun PurchaseBillCard(
                 val itemSummary = bill.items.joinToString(", ") { it.description }
                 Text(
                     text = "${bill.items.size} item(s): $itemSummary",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    color = Slate600,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
@@ -536,13 +637,14 @@ fun PurchaseBillCard(
                     if (bill.itcEligible && bill.totalTax > 0) {
                         Surface(
                             color = Color(0xFFEFF6FF),
+                            border = BorderStroke(0.5.dp, Color(0xFFBFDBFE)),
                             shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
                                 text = "ITC: ₹${String.format(Locale.ENGLISH, "%.0f", bill.totalTax)}",
                                 fontSize = 10.sp,
                                 color = Color(0xFF1D4ED8),
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }

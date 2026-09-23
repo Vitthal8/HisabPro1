@@ -82,15 +82,23 @@ import com.hisabpro.app.data.model.InvoiceItem
 import com.hisabpro.app.data.model.InvoiceStatus
 import com.hisabpro.app.data.model.InvoiceType
 import com.hisabpro.app.data.model.Party
+import com.hisabpro.app.ui.theme.Emerald50
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
+import com.hisabpro.app.ui.theme.Emerald900
 import com.hisabpro.app.ui.theme.ExpenseRed
 import com.hisabpro.app.ui.theme.IncomeGreen
 import com.hisabpro.app.ui.theme.PureWhite
+import com.hisabpro.app.ui.theme.Slate50
 import com.hisabpro.app.ui.theme.Slate100
 import com.hisabpro.app.ui.theme.Slate200
+import com.hisabpro.app.ui.theme.Slate400
+import com.hisabpro.app.ui.theme.Slate500
+import com.hisabpro.app.ui.theme.Slate600
 import com.hisabpro.app.ui.theme.Slate700
 import com.hisabpro.app.ui.theme.Slate800
+import com.hisabpro.app.ui.theme.Slate900
+import androidx.compose.foundation.BorderStroke
 import java.text.NumberFormat
 import java.util.Locale
 import java.util.UUID
@@ -216,7 +224,8 @@ fun CreateInvoiceSheet(
         ) {
             // Header Bar
             Surface(
-                color = Emerald800,
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -230,19 +239,19 @@ fun CreateInvoiceSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(PureWhite.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isQuickSaleMode) Emerald700.copy(alpha = 0.14f) else Emerald700.copy(alpha = 0.1f),
+                            modifier = Modifier.size(38.dp)
                         ) {
-                            Icon(
-                                imageVector = if (isQuickSaleMode) Icons.Default.FlashOn else Icons.Default.Receipt,
-                                contentDescription = null,
-                                tint = PureWhite,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = if (isQuickSaleMode) Icons.Default.FlashOn else Icons.Default.Receipt,
+                                    contentDescription = null,
+                                    tint = Emerald700,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                         Column {
                             Text(
@@ -251,16 +260,17 @@ fun CreateInvoiceSheet(
                                     isQuickSaleMode -> "Quick Counter Sale"
                                     else -> "New Invoice / Bill"
                                 },
-                                color = PureWhite,
-                                fontSize = 18.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 17.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = if (invoiceToEdit != null) "Modify items, totals, or customer details"
-                                else if (isQuickSaleMode) "Instant cash bill in 5 seconds"
+                                else if (isQuickSaleMode) "Instant walk-in cash billing"
                                 else "Complete GST/Non-GST tax invoice",
-                                color = PureWhite.copy(alpha = 0.8f),
-                                fontSize = 12.sp
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
@@ -268,11 +278,12 @@ fun CreateInvoiceSheet(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = PureWhite
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
             }
+            HorizontalDivider(color = Slate200)
 
             Column(
                 modifier = Modifier
@@ -283,34 +294,49 @@ fun CreateInvoiceSheet(
                 // Quick Sale Mode Switch Card
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isQuickSaleMode) Emerald700.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        containerColor = if (isQuickSaleMode) Emerald50 else Slate50
+                    ),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = if (isQuickSaleMode) Emerald700.copy(alpha = 0.35f) else Slate200
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
+                            .padding(14.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.FlashOn,
-                                contentDescription = null,
-                                tint = if (isQuickSaleMode) Emerald700 else Slate700
-                            )
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isQuickSaleMode) Emerald700 else Slate200,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.FlashOn,
+                                        contentDescription = null,
+                                        tint = if (isQuickSaleMode) PureWhite else Slate600,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
                             Column {
                                 Text(
-                                    text = "Quick Sale Mode",
+                                    text = "Quick Counter Mode",
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
+                                    fontSize = 14.sp,
+                                    color = if (isQuickSaleMode) Emerald900 else MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = if (isQuickSaleMode) "No customer required (Cash Customer)" else "Detailed invoice with customer info",
+                                    text = if (isQuickSaleMode) "Active: Skip customer info for walk-in cash sales" else "Switch on for rapid counter bills",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -329,11 +355,17 @@ fun CreateInvoiceSheet(
                                 }
                             },
                             label = {
-                                Text(if (isQuickSaleMode) "ENABLED" else "OFF")
+                                Text(
+                                    text = if (isQuickSaleMode) "ON" else "OFF",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
                             },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = Emerald700,
-                                selectedLabelColor = PureWhite
+                                selectedLabelColor = PureWhite,
+                                containerColor = Slate200,
+                                labelColor = Slate700
                             )
                         )
                     }
@@ -878,22 +910,36 @@ fun CreateInvoiceSheet(
 
                 // Live Financial Summary Banner
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Emerald800),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, Slate200),
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        Text(
+                            text = "BILL SUMMARY",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Slate500,
+                            letterSpacing = 0.5.sp
+                        )
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Subtotal (Taxable):", color = PureWhite.copy(alpha = 0.8f), fontSize = 13.sp)
-                            Text("₹${String.format(Locale.ENGLISH, "%.2f", subtotal)}", color = PureWhite, fontSize = 13.sp)
+                            Text("Subtotal (Taxable):", color = Slate600, fontSize = 13.sp)
+                            Text(
+                                "₹${String.format(Locale.ENGLISH, "%.2f", subtotal)}",
+                                color = Slate900,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
 
                         if (selectedType == InvoiceType.TAX_INVOICE && gstMode != GstMode.EXEMPT) {
@@ -903,10 +949,15 @@ fun CreateInvoiceSheet(
                             ) {
                                 Text(
                                     text = if (gstMode == GstMode.INTRA_STATE) "CGST + SGST:" else "IGST:",
-                                    color = PureWhite.copy(alpha = 0.8f),
+                                    color = Slate600,
                                     fontSize = 13.sp
                                 )
-                                Text("+₹${String.format(Locale.ENGLISH, "%.2f", totalTax)}", color = PureWhite, fontSize = 13.sp)
+                                Text(
+                                    "+₹${String.format(Locale.ENGLISH, "%.2f", totalTax)}",
+                                    color = Emerald800,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         }
 
@@ -915,33 +966,60 @@ fun CreateInvoiceSheet(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("Discount:", color = PureWhite.copy(alpha = 0.8f), fontSize = 13.sp)
-                                Text("-₹${String.format(Locale.ENGLISH, "%.2f", discount)}", color = PureWhite, fontSize = 13.sp)
+                                Text("Discount:", color = ExpenseRed, fontSize = 13.sp)
+                                Text(
+                                    "-₹${String.format(Locale.ENGLISH, "%.2f", discount)}",
+                                    color = ExpenseRed,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         }
 
-                        HorizontalDivider(
-                            color = PureWhite.copy(alpha = 0.25f),
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        // Grand Total Box
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Emerald50,
+                            border = BorderStroke(1.dp, Emerald700.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column {
-                                Text("GRAND TOTAL", color = PureWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                if (dueAmount > 0) {
-                                    Text("Balance Due: ₹${String.format(Locale.ENGLISH, "%.2f", dueAmount)}", color = PureWhite.copy(alpha = 0.8f), fontSize = 12.sp)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "GRAND TOTAL",
+                                        color = Emerald900,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                    if (dueAmount > 0) {
+                                        Text(
+                                            text = "Due: ₹${String.format(Locale.ENGLISH, "%.2f", dueAmount)}",
+                                            color = ExpenseRed,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "Fully Paid",
+                                            color = IncomeGreen,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
                                 }
+                                Text(
+                                    text = "₹${String.format(Locale.ENGLISH, "%.2f", grandTotal)}",
+                                    color = Emerald900,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 22.sp
+                                )
                             }
-                            Text(
-                                text = "₹${String.format(Locale.ENGLISH, "%.2f", grandTotal)}",
-                                color = PureWhite,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 22.sp
-                            )
                         }
                     }
                 }
@@ -982,7 +1060,7 @@ fun CreateInvoiceSheet(
 
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Button(
                         onClick = {
@@ -990,17 +1068,18 @@ fun CreateInvoiceSheet(
                             onSaveInvoice(inv, SaveAction.SAVE_ONLY)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Emerald700),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .height(50.dp)
                             .testTag("btn_save_invoice")
                     ) {
                         Icon(imageVector = Icons.Default.Check, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (invoiceToEdit != null) "Update Invoice" else "Save Invoice",
-                            fontWeight = FontWeight.Bold
+                            text = if (invoiceToEdit != null) "Update Invoice" else "Save & Complete Bill",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
                         )
                     }
 
@@ -1014,14 +1093,15 @@ fun CreateInvoiceSheet(
                                 onSaveInvoice(inv, SaveAction.SAVE_AND_WHATSAPP)
                             },
                             shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Color(0xFF25D366)),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(46.dp)
                                 .testTag("btn_save_and_whatsapp")
                         ) {
-                            Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(imageVector = Icons.Default.Share, contentDescription = null, tint = Color(0xFF1EBE5D), modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Save & WhatsApp", fontSize = 12.sp)
+                            Text("Save & WhatsApp", fontSize = 12.sp, color = Color(0xFF128C7E), fontWeight = FontWeight.SemiBold)
                         }
 
                         OutlinedButton(
@@ -1030,14 +1110,15 @@ fun CreateInvoiceSheet(
                                 onSaveInvoice(inv, SaveAction.SAVE_AND_PDF)
                             },
                             shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Slate400),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(46.dp)
                                 .testTag("btn_save_and_pdf")
                         ) {
-                            Icon(imageVector = Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(imageVector = Icons.Default.PictureAsPdf, contentDescription = null, tint = Slate700, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Save & PDF", fontSize = 12.sp)
+                            Text("Save & PDF", fontSize = 12.sp, color = Slate800, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }

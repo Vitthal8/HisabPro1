@@ -13,6 +13,10 @@ import com.hisabpro.app.data.repository.InvoiceRepository
 import com.hisabpro.app.data.repository.ItemRepository
 import com.hisabpro.app.data.repository.PartyRepository
 import com.hisabpro.app.data.repository.SettingsRepository
+import com.hisabpro.app.data.repository.TransactionRepository
+import com.hisabpro.app.domain.accounting.AccountingEngine
+import com.hisabpro.app.domain.usecase.CreateInvoiceUseCase
+import com.hisabpro.app.domain.usecase.DeleteInvoiceUseCase
 import com.hisabpro.app.util.InvoicePdfGenerator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -39,6 +43,19 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
     private val repository = InvoiceRepository.getInstance(application.applicationContext)
     private val partyRepository = PartyRepository.getInstance(application.applicationContext)
     private val itemRepository = ItemRepository.getInstance(application.applicationContext)
+    private val transactionRepository = TransactionRepository.getInstance(application.applicationContext)
+
+    // Domain Use Cases
+    private val createInvoiceUseCase = CreateInvoiceUseCase(
+        invoiceRepository = repository,
+        itemRepository = itemRepository,
+        partyRepository = partyRepository,
+        transactionRepository = transactionRepository
+    )
+    private val deleteInvoiceUseCase = DeleteInvoiceUseCase(
+        invoiceRepository = repository,
+        itemRepository = itemRepository
+    )
 
     private val _searchQuery = MutableStateFlow("")
     private val _typeFilter = MutableStateFlow<InvoiceType?>(null)
@@ -88,10 +105,10 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
         SalesUiState(
             invoices = invoices,
             filteredInvoices = filtered,
-            totalSalesVolume = totalSales,
-            totalTaxCollected = totalTax,
-            totalPendingDue = totalDue,
-            totalPaidSales = totalPaid,
+            totalSalesVolume = AccountingEngine.roundToTwoDecimals(totalSales),
+            totalTaxCollected = AccountingEngine.roundToTwoDecimals(totalTax),
+            totalPendingDue = AccountingEngine.roundToTwoDecimals(totalDue),
+            totalPaidSales = AccountingEngine.roundToTwoDecimals(totalPaid),
             searchQuery = query,
             typeFilter = typeFilter,
             statusFilter = statusFilter,
@@ -124,19 +141,9 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun createInvoice(invoice: Invoice): Invoice {
-        val saved = repository.addInvoice(invoice)
-        // If customer exists in Khata and there is pending credit due, optionally update party ledger
-        if (!invoice.customerId.isNullOrBlank() && invoice.dueAmount > 0) {
-            partyRepository.addKhataEntry(
-                partyId = invoice.customerId,
-                amount = invoice.dueAmount,
-                type = com.hisabpro.app.data.model.KhataEntryType.YOU_GAVE,
-                dateMillis = invoice.dateMillis,
-                billNumber = invoice.invoiceNumber,
-                note = "Sale Invoice #${invoice.invoiceNumber} credit balance"
-            )
+        return createInvoiceUseCase.execute(invoice).getOrElse {
+            repository.addInvoice(invoice)
         }
-        return saved
     }
 
     fun updateInvoice(invoice: Invoice) {
@@ -162,17 +169,7 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun deleteInvoice(invoiceId: String) {
-        val invoice = repository.invoices.value.find { it.id == invoiceId }
-        if (invoice != null) {
-            invoice.items.forEach { lineItem ->
-                itemRepository.restoreStockForInvoiceItem(
-                    itemNameOrId = lineItem.description,
-                    quantity = lineItem.quantity,
-                    invoiceNumber = invoice.invoiceNumber
-                )
-            }
-        }
-        repository.deleteInvoice(invoiceId)
+        deleteInvoiceUseCase.execute(invoiceId)
         if (_selectedInvoiceId.value == invoiceId) {
             _selectedInvoiceId.value = null
         }

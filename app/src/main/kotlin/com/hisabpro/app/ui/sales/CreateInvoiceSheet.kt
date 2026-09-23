@@ -82,6 +82,8 @@ import com.hisabpro.app.data.model.InvoiceItem
 import com.hisabpro.app.data.model.InvoiceStatus
 import com.hisabpro.app.data.model.InvoiceType
 import com.hisabpro.app.data.model.Party
+import com.hisabpro.app.domain.accounting.AccountingEngine
+import com.hisabpro.app.domain.validation.InputValidator
 import com.hisabpro.app.ui.theme.Emerald50
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
@@ -201,13 +203,13 @@ fun CreateInvoiceSheet(
         items.sumOf { it.getTaxAmount(gstMode) }
     }
     val discount = discountText.toDoubleOrNull() ?: 0.0
-    val grandTotal = kotlin.math.max(0.0, subtotal + totalTax - discount)
+    val grandTotal = AccountingEngine.calculateGrandTotal(subtotal, totalTax, discount)
     val autoPaid = when (paymentStatus) {
         InvoiceStatus.PAID -> grandTotal
         InvoiceStatus.UNPAID -> 0.0
         InvoiceStatus.PARTIAL -> paidAmountText.toDoubleOrNull() ?: 0.0
     }
-    val dueAmount = kotlin.math.max(0.0, grandTotal - autoPaid)
+    val dueAmount = AccountingEngine.calculateBalanceDue(grandTotal, autoPaid)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1026,16 +1028,26 @@ fun CreateInvoiceSheet(
 
                 // Action Buttons: Save, Save & WhatsApp, Save & PDF
                 fun buildInvoice(): Invoice? {
-                    if (items.isEmpty()) {
-                        errorMessage = "Please add at least one line item."
-                        return null
-                    }
                     val cName = if (isQuickSaleMode) {
                         "Cash Customer"
                     } else if (customerName.isNotBlank()) {
                         customerName.trim()
                     } else {
                         "Cash Customer"
+                    }
+
+                    val validation = InputValidator.validateInvoice(cName, items.size)
+                    if (!validation.isSuccess) {
+                        errorMessage = validation.errorMessage
+                        return null
+                    }
+
+                    if (customerGstin.isNotBlank() && selectedType == InvoiceType.TAX_INVOICE) {
+                        val gstinVal = InputValidator.validateGstin(customerGstin)
+                        if (!gstinVal.isSuccess) {
+                            errorMessage = gstinVal.errorMessage
+                            return null
+                        }
                     }
 
                     return Invoice(

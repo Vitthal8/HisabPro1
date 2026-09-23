@@ -182,6 +182,7 @@ object InvoicePdfGenerator {
         y += boxHeight + 16f
 
         // Table Header
+        val isGstBill = invoice.type == InvoiceType.TAX_INVOICE && invoice.gstMode != GstMode.EXEMPT
         val thHeight = 22f
         paint.color = Color.parseColor("#E8F5E9") // Subtle light green table header
         canvas.drawRect(margin, y, width - margin, y + thHeight, paint)
@@ -192,19 +193,23 @@ object InvoicePdfGenerator {
 
         val colSno = margin + 8f
         val colDesc = margin + 35f
-        val colHsn = margin + 220f
-        val colQty = margin + 285f
-        val colRate = margin + 355f
-        val colGst = margin + 430f
+        val colHsn = if (isGstBill) margin + 220f else 0f
+        val colQty = if (isGstBill) margin + 285f else margin + 270f
+        val colRate = if (isGstBill) margin + 355f else margin + 360f
+        val colGst = if (isGstBill) margin + 430f else 0f
         val colTotal = width - margin - 8f
 
         canvas.drawText("#", colSno, y + 15f, paint)
         canvas.drawText("Item / Description", colDesc, y + 15f, paint)
-        canvas.drawText("HSN", colHsn, y + 15f, paint)
+        if (isGstBill) {
+            canvas.drawText("HSN", colHsn, y + 15f, paint)
+        }
         canvas.drawText("Qty", colQty, y + 15f, paint)
         canvas.drawText("Rate", colRate, y + 15f, paint)
-        canvas.drawText("GST", colGst, y + 15f, paint)
-        val thTotalText = "Total (₹)"
+        if (isGstBill) {
+            canvas.drawText("GST", colGst, y + 15f, paint)
+        }
+        val thTotalText = if (isGstBill) "Total (₹)" else "Amount (₹)"
         val thTotalWidth = paint.measureText(thTotalText)
         canvas.drawText(thTotalText, colTotal - thTotalWidth, y + 15f, paint)
 
@@ -226,17 +231,23 @@ object InvoicePdfGenerator {
 
             paint.color = Color.parseColor("#111827")
             paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            val desc = if (item.description.length > 32) item.description.take(30) + ".." else item.description
+            val descMax = if (isGstBill) 32 else 45
+            val desc = if (item.description.length > descMax) item.description.take(descMax - 2) + ".." else item.description
             canvas.drawText(desc, colDesc, y + 15f, paint)
 
             paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             paint.color = Color.parseColor("#6B7280")
-            canvas.drawText(if (item.hsnCode.isNotBlank()) item.hsnCode else "-", colHsn, y + 15f, paint)
+            if (isGstBill) {
+                canvas.drawText(if (item.hsnCode.isNotBlank()) item.hsnCode else "-", colHsn, y + 15f, paint)
+            }
             canvas.drawText("${item.quantity.toIntIfWhole()} ${item.unit}", colQty, y + 15f, paint)
             canvas.drawText("₹${String.format(Locale.ENGLISH, "%.2f", item.unitPrice)}", colRate, y + 15f, paint)
-            canvas.drawText(if (invoice.gstMode != GstMode.EXEMPT && invoice.type != InvoiceType.NON_GST_BILL) "${item.gstRate.toIntIfWhole()}%" else "0%", colGst, y + 15f, paint)
+            if (isGstBill) {
+                canvas.drawText("${item.gstRate.toIntIfWhole()}%", colGst, y + 15f, paint)
+            }
 
-            val itemTotalStr = "₹${String.format(Locale.ENGLISH, "%.2f", item.getTotal(invoice.gstMode))}"
+            val itemTotalAmount = if (isGstBill) item.getTotal(invoice.gstMode) else item.taxableAmount
+            val itemTotalStr = "₹${String.format(Locale.ENGLISH, "%.2f", itemTotalAmount)}"
             val itemTotalW = paint.measureText(itemTotalStr)
             paint.color = Color.parseColor("#111827")
             paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -344,13 +355,14 @@ object InvoicePdfGenerator {
             sumY += 16f
         }
 
-        drawSummaryLine("Subtotal (Taxable):", "₹${String.format(Locale.ENGLISH, "%.2f", invoice.subtotal)}")
+        val subtotalLabel = if (isGstBill) "Subtotal (Taxable):" else "Subtotal:"
+        drawSummaryLine(subtotalLabel, "₹${String.format(Locale.ENGLISH, "%.2f", invoice.subtotal)}")
 
         if (invoice.discountAmount > 0) {
             drawSummaryLine("Discount:", "-₹${String.format(Locale.ENGLISH, "%.2f", invoice.discountAmount)}", color = Color.parseColor("#DC2626"))
         }
 
-        if (invoice.type == InvoiceType.TAX_INVOICE) {
+        if (isGstBill) {
             if (invoice.gstMode == GstMode.INTRA_STATE) {
                 drawSummaryLine("CGST:", "+₹${String.format(Locale.ENGLISH, "%.2f", invoice.cgstTotal)}")
                 drawSummaryLine("SGST:", "+₹${String.format(Locale.ENGLISH, "%.2f", invoice.sgstTotal)}")

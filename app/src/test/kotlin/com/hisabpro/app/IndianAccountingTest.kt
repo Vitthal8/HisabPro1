@@ -177,4 +177,56 @@ class IndianAccountingTest {
         val supplierCr = IndianAccountingFormat.getDrCrIndicator(8000.0, isCustomer = false)
         assertEquals("Cr", supplierCr)
     }
+
+    @Test
+    fun testAccountingEngineCalculations() {
+        val taxable = com.hisabpro.app.domain.accounting.AccountingEngine.calculateLineItemTaxable(2.5, 450.0)
+        assertEquals(1125.0, taxable, 0.001)
+
+        val taxAmount = com.hisabpro.app.domain.accounting.AccountingEngine.calculateTaxAmount(taxable, 18.0, isGst = true)
+        assertEquals(202.50, taxAmount, 0.001)
+
+        val cgst = com.hisabpro.app.domain.accounting.AccountingEngine.calculateCgst(taxAmount, GstMode.INTRA_STATE, isGst = true)
+        val sgst = com.hisabpro.app.domain.accounting.AccountingEngine.calculateSgst(taxAmount, GstMode.INTRA_STATE, isGst = true)
+        assertEquals(101.25, cgst, 0.001)
+        assertEquals(101.25, sgst, 0.001)
+
+        val grandTotal = com.hisabpro.app.domain.accounting.AccountingEngine.calculateGrandTotal(taxable, taxAmount, 25.0)
+        assertEquals(1302.50, grandTotal, 0.001)
+
+        val balanceDue = com.hisabpro.app.domain.accounting.AccountingEngine.calculateBalanceDue(grandTotal, 1000.0)
+        assertEquals(302.50, balanceDue, 0.001)
+    }
+
+    @Test
+    fun testInputValidator() {
+        // Valid Maharashtra GSTIN
+        assertTrue(com.hisabpro.app.domain.validation.InputValidator.validateGstin("27ABCDE1234F1Z5").isSuccess)
+        // Invalid GSTIN
+        assertTrue(com.hisabpro.app.domain.validation.InputValidator.validateGstin("INVALID123").errorMessage != null)
+
+        // Valid Indian Mobile
+        assertTrue(com.hisabpro.app.domain.validation.InputValidator.validatePhone("9876543210").isSuccess)
+        // Invalid Phone
+        assertTrue(com.hisabpro.app.domain.validation.InputValidator.validatePhone("12345").errorMessage != null)
+
+        // Invoice validation
+        assertTrue(com.hisabpro.app.domain.validation.InputValidator.validateInvoice("Ramesh Stores", 2).isSuccess)
+        assertTrue(com.hisabpro.app.domain.validation.InputValidator.validateInvoice("", 2).errorMessage != null)
+        assertTrue(com.hisabpro.app.domain.validation.InputValidator.validateInvoice("Ramesh Stores", 0).errorMessage != null)
+    }
+
+    @Test
+    fun testSubscriptionTierLimits() {
+        com.hisabpro.app.domain.subscription.SubscriptionManager.setActivePlan(com.hisabpro.app.domain.subscription.SubscriptionPlan.FREE)
+        val underLimit = com.hisabpro.app.domain.subscription.SubscriptionManager.checkInvoiceCreationAllowed(49)
+        assertTrue(underLimit.isGranted)
+
+        val atLimit = com.hisabpro.app.domain.subscription.SubscriptionManager.checkInvoiceCreationAllowed(50)
+        assertTrue(!atLimit.isGranted)
+
+        com.hisabpro.app.domain.subscription.SubscriptionManager.setActivePlan(com.hisabpro.app.domain.subscription.SubscriptionPlan.PRO)
+        val proUnlimited = com.hisabpro.app.domain.subscription.SubscriptionManager.checkInvoiceCreationAllowed(100)
+        assertTrue(proUnlimited.isGranted)
+    }
 }

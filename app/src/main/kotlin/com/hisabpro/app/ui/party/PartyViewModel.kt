@@ -56,6 +56,13 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
     private val purchaseRepository = PurchaseRepository.getInstance(application.applicationContext)
     private val transactionRepository = TransactionRepository.getInstance(application.applicationContext)
 
+    // Domain Use Case
+    private val recordPaymentUseCase = com.hisabpro.app.domain.usecase.RecordPaymentUseCase(
+        partyRepository = repository,
+        transactionRepository = transactionRepository,
+        invoiceRepository = invoiceRepository
+    )
+
     private val _searchQuery = MutableStateFlow("")
     private val _typeFilter = MutableStateFlow<PartyType?>(null)
     private val _tagFilter = MutableStateFlow<PartyTag?>(null)
@@ -277,39 +284,13 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
         referenceNo: String,
         notes: String
     ) {
-        val entryType = if (direction == PaymentDirection.RECEIPT_IN) {
-            KhataEntryType.YOU_GOT
-        } else {
-            KhataEntryType.YOU_GAVE
-        }
-        val partyName = repository.parties.value.find { it.id == partyId }?.name ?: "Party"
-        val actionLabel = if (direction == PaymentDirection.RECEIPT_IN) "Payment Received" else "Payment Made"
-        val noteCombined = buildString {
-            append("$actionLabel via ${paymentMode.label}")
-            if (referenceNo.isNotBlank()) append(" (Ref: $referenceNo)")
-            if (notes.isNotBlank()) append(" - $notes")
-        }
-
-        // 1. Add to Party Khata Ledger
-        repository.addKhataEntry(
+        recordPaymentUseCase.execute(
             partyId = partyId,
             amount = amount,
-            type = entryType,
-            dateMillis = System.currentTimeMillis(),
-            billNumber = referenceNo,
-            note = noteCombined
-        )
-
-        // 2. Add to Cashbook / Daybook (TransactionRepository)
-        val transType = if (direction == PaymentDirection.RECEIPT_IN) TransactionType.INCOME else TransactionType.EXPENSE
-        transactionRepository.addTransaction(
-            title = "$actionLabel - $partyName",
-            amount = amount,
-            type = transType,
-            category = Category.BUSINESS,
-            dateMillis = System.currentTimeMillis(),
+            direction = direction,
             paymentMode = paymentMode,
-            note = noteCombined
+            referenceNo = referenceNo,
+            notes = notes
         )
     }
 

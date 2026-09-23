@@ -65,9 +65,10 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "hisabpro_database"
                 )
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
                 INSTANCE = instance
+                DatabaseMigrationHelper.migrateIfNecessary(context.applicationContext, instance)
                 instance
             }
         }

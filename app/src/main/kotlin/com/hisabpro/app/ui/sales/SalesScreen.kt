@@ -115,15 +115,15 @@ fun SalesScreen(
     val businessProfile by settingsRepo.profile.collectAsStateWithLifecycle()
 
     var selectedBillingTab by rememberSaveable { mutableIntStateOf(0) } // 0: Sales, 1: Purchases
-    var showProfileSheet by remember { mutableStateOf(false) }
     var showCreateSheet by remember { mutableStateOf(false) }
     var invoiceToEdit by remember { mutableStateOf<Invoice?>(null) }
-    var initialCreateType by remember { mutableStateOf(InvoiceType.TAX_INVOICE) }
+    var initialCreateType by remember {
+        mutableStateOf(if (businessProfile.isGstRegistered) InvoiceType.TAX_INVOICE else InvoiceType.NON_GST_BILL)
+    }
     var showSearchBar by remember { mutableStateOf(false) }
 
     val createSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val profileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
 
     Scaffold(
@@ -160,16 +160,6 @@ fun SalesScreen(
                         }
                     },
                     actions = {
-                        IconButton(
-                            onClick = { showProfileSheet = true },
-                            modifier = Modifier.testTag("btn_store_profile_settings")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Storefront,
-                                contentDescription = "Store Profile & Settings",
-                                tint = PureWhite
-                            )
-                        }
                         if (selectedBillingTab == 0) {
                             IconButton(
                                 onClick = { showSearchBar = !showSearchBar },
@@ -245,11 +235,16 @@ fun SalesScreen(
             if (selectedBillingTab == 0) {
                 ExtendedFloatingActionButton(
                     onClick = {
-                        initialCreateType = InvoiceType.TAX_INVOICE
+                        initialCreateType = if (businessProfile.isGstRegistered) InvoiceType.TAX_INVOICE else InvoiceType.NON_GST_BILL
                         showCreateSheet = true
                     },
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("New Invoice", fontWeight = FontWeight.Bold) },
+                    text = {
+                        Text(
+                            text = if (businessProfile.isGstRegistered) "New Invoice" else "New Bill",
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
                     containerColor = Emerald700,
                     contentColor = PureWhite,
                     modifier = Modifier.testTag("fab_create_invoice")
@@ -304,7 +299,8 @@ fun SalesScreen(
             SalesSummaryBanner(
                 totalSales = uiState.totalSalesVolume,
                 totalTax = uiState.totalTaxCollected,
-                totalDue = uiState.totalPendingDue
+                totalDue = uiState.totalPendingDue,
+                isGstRegistered = businessProfile.isGstRegistered
             )
 
             // Filter Chips Row
@@ -328,18 +324,20 @@ fun SalesScreen(
                     )
                 )
 
-                FilterChip(
-                    selected = uiState.typeFilter == InvoiceType.TAX_INVOICE,
-                    onClick = {
-                        viewModel.setTypeFilter(if (uiState.typeFilter == InvoiceType.TAX_INVOICE) null else InvoiceType.TAX_INVOICE)
-                        viewModel.setStatusFilter(null)
-                    },
-                    label = { Text("GST Invoices") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Emerald700,
-                        selectedLabelColor = PureWhite
+                if (businessProfile.isGstRegistered) {
+                    FilterChip(
+                        selected = uiState.typeFilter == InvoiceType.TAX_INVOICE,
+                        onClick = {
+                            viewModel.setTypeFilter(if (uiState.typeFilter == InvoiceType.TAX_INVOICE) null else InvoiceType.TAX_INVOICE)
+                            viewModel.setStatusFilter(null)
+                        },
+                        label = { Text("GST Invoices") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Emerald700,
+                            selectedLabelColor = PureWhite
+                        )
                     )
-                )
+                }
 
                 FilterChip(
                     selected = uiState.typeFilter == InvoiceType.NON_GST_BILL,
@@ -347,7 +345,7 @@ fun SalesScreen(
                         viewModel.setTypeFilter(if (uiState.typeFilter == InvoiceType.NON_GST_BILL) null else InvoiceType.NON_GST_BILL)
                         viewModel.setStatusFilter(null)
                     },
-                    label = { Text("Simple Bills") },
+                    label = { Text(if (businessProfile.isGstRegistered) "Simple Bills" else "Sales Bills") },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = Emerald700,
                         selectedLabelColor = PureWhite
@@ -463,7 +461,7 @@ fun SalesScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(
@@ -488,20 +486,6 @@ fun SalesScreen(
             }
         }
     }
-    }
-
-    // Business Profile & Settings Sheet
-    if (showProfileSheet) {
-        BusinessProfileSheet(
-            profile = businessProfile,
-            sheetState = profileSheetState,
-            onDismiss = { showProfileSheet = false },
-            onSaveProfile = { updated ->
-                settingsRepo.updateProfile(updated)
-                showProfileSheet = false
-                Toast.makeText(context, "Business profile updated!", Toast.LENGTH_SHORT).show()
-            }
-        )
     }
 
     // Detail Sheet
@@ -586,8 +570,10 @@ fun SalesScreen(
 private fun SalesSummaryBanner(
     totalSales: Double,
     totalTax: Double,
-    totalDue: Double
+    totalDue: Double,
+    isGstRegistered: Boolean = true
 ) {
+    val totalReceived = kotlin.math.max(0.0, totalSales - totalDue)
     Surface(
         color = Emerald900,
         modifier = Modifier.fillMaxWidth()
@@ -615,13 +601,13 @@ private fun SalesSummaryBanner(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "GST TAX",
+                    text = if (isGstRegistered) "GST TAX" else "RECEIVED",
                     color = PureWhite.copy(alpha = 0.7f),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "₹${String.format(Locale.ENGLISH, "%,.0f", totalTax)}",
+                    text = if (isGstRegistered) "₹${String.format(Locale.ENGLISH, "%,.0f", totalTax)}" else "₹${String.format(Locale.ENGLISH, "%,.0f", totalReceived)}",
                     color = PureWhite,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp

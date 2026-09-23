@@ -17,9 +17,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
@@ -42,6 +44,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -61,6 +64,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hisabpro.app.data.model.BusinessProfile
@@ -127,6 +133,7 @@ fun BusinessProfileSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        modifier = Modifier.imePadding(),
         containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = null
     ) {
@@ -317,6 +324,14 @@ fun BusinessProfileSheet(
                         onValueChange = { upiId = it.trim().lowercase() },
                         label = { Text("Business UPI VPA ID *") },
                         placeholder = { Text("e.g. yourname@okhdfcbank or paytm") },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Next
+                        ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                        ),
                         trailingIcon = {
                             if (upiId.isNotBlank()) {
                                 IconButton(onClick = {
@@ -405,10 +420,21 @@ fun BusinessProfileSheet(
                         value = bankName,
                         onValueChange = { bankName = it },
                         label = { Text("Bank Name") },
+                        placeholder = { Text("e.g. State Bank of India, HDFC Bank") },
                         leadingIcon = {
                             Icon(imageVector = Icons.Default.AccountBalance, contentDescription = null, tint = Emerald700)
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Words,
+                            imeAction = ImeAction.Next
+                        ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_settings_bank_name"),
                         singleLine = true,
                         shape = RoundedCornerShape(10.dp)
                     )
@@ -419,17 +445,39 @@ fun BusinessProfileSheet(
                     ) {
                         OutlinedTextField(
                             value = accountNumber,
-                            onValueChange = { accountNumber = it },
+                            onValueChange = { accountNumber = it.trim() },
                             label = { Text("Account No.") },
-                            modifier = Modifier.weight(1.2f),
+                            placeholder = { Text("e.g. 1234567890") },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Next
+                            ),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .testTag("input_settings_account_no"),
                             singleLine = true,
                             shape = RoundedCornerShape(10.dp)
                         )
                         OutlinedTextField(
                             value = ifscCode,
-                            onValueChange = { ifscCode = it.uppercase() },
+                            onValueChange = { ifscCode = it.uppercase().trim().take(11) },
                             label = { Text("IFSC Code") },
-                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("SBIN0001234") },
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = KeyboardCapitalization.Characters,
+                                imeAction = ImeAction.Done
+                            ),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("input_settings_ifsc_code"),
                             singleLine = true,
                             shape = RoundedCornerShape(10.dp)
                         )
@@ -570,7 +618,7 @@ fun BusinessProfileSheet(
                 Text("Save Profile & Settings", color = PureWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(60.dp))
         }
     }
 }

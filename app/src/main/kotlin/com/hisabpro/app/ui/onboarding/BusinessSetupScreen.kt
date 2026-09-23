@@ -19,7 +19,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CheckCircle
@@ -42,14 +47,18 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +71,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -139,31 +149,24 @@ fun BusinessSetupScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val scrollState = rememberScrollState()
 
-    Box(
+    Scaffold(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(bottom = 90.dp)
-        ) {
-            // Header Banner with Saffron & Deep Navy Gradient
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(DeepNavyBlue, Color(0xFF0F1442))
-                        )
-                    )
-                    .padding(horizontal = 20.dp, vertical = 28.dp)
+            .imePadding(),
+        topBar = {
+            Surface(
+                color = DeepNavyBlue,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -171,57 +174,152 @@ fun BusinessSetupScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = SaffronOrange,
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
+                            if (onDismiss != null) {
+                                IconButton(
+                                    onClick = onDismiss,
+                                    modifier = Modifier.size(36.dp)
+                                ) {
                                     Icon(
-                                        imageVector = Icons.Default.Store,
-                                        contentDescription = null,
-                                        tint = PureWhite,
-                                        modifier = Modifier.size(24.dp)
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = PureWhite
                                     )
                                 }
+                            } else {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = SaffronOrange,
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Store,
+                                            contentDescription = null,
+                                            tint = PureWhite,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
                             }
+
                             Column {
                                 Text(
-                                    text = if (isInitialOnboarding) "Setup Your Business" else "Business & GST Profile",
+                                    text = if (isInitialOnboarding) "Setup Your Business" else "Business Profile & Settings",
                                     color = PureWhite,
-                                    fontSize = 20.sp,
+                                    fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = "HisabPro • Indian SMB Accounting",
                                     color = PureWhite.copy(alpha = 0.8f),
-                                    fontSize = 12.sp
+                                    fontSize = 11.sp
                                 )
                             }
                         }
 
                         if (onDismiss != null && !isInitialOnboarding) {
-                            Surface(
-                                shape = CircleShape,
-                                color = PureWhite.copy(alpha = 0.15f),
-                                modifier = Modifier
-                                    .clickable { onDismiss() }
-                                    .padding(8.dp)
-                            ) {
+                            TextButton(onClick = onDismiss) {
                                 Text(
-                                    text = "Done",
-                                    color = PureWhite,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp)
+                                    text = "Close",
+                                    color = PureWhite.copy(alpha = 0.9f),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }
                     }
+                }
+            }
+        },
+        bottomBar = {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
+                tonalElevation = 8.dp,
+                shadowElevation = 8.dp,
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Box(modifier = Modifier.padding(16.dp)) {
+                    Button(
+                        onClick = {
+                            if (shopName.isBlank()) {
+                                errorMessage = "Please enter your Shop or Business Name"
+                                return@Button
+                            }
+                            if (isGstRegistered && gstin.length < 15) {
+                                errorMessage = "GSTIN must be 15 alphanumeric characters"
+                                return@Button
+                            }
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                            val stateName = selectedStateWithCode.substringBefore(" (").trim()
+                            val stateCodeStr = selectedStateWithCode.substringAfter("(").substringBefore(")").trim()
 
-                    // Language Selector Chips
+                            val updated = currentProfile.copy(
+                                shopName = shopName.trim(),
+                                ownerName = ownerName.trim(),
+                                phone = phone.trim(),
+                                email = email.trim(),
+                                isGstRegistered = isGstRegistered,
+                                gstin = if (isGstRegistered) gstin.trim().uppercase() else "",
+                                pan = pan.trim().uppercase(),
+                                isCompositionScheme = isCompositionScheme,
+                                compositionType = compositionType,
+                                state = stateName,
+                                stateCode = stateCodeStr,
+                                city = city.trim(),
+                                address = address.trim(),
+                                pincode = pincode.trim(),
+                                upiId = upiId.trim(),
+                                bankName = bankName.trim(),
+                                accountNumber = accountNumber.trim(),
+                                ifscCode = ifscCode.trim(),
+                                appLanguage = selectedLanguage,
+                                hasCompletedOnboarding = true
+                            )
+
+                            onSaveProfile(updated)
+                            onDismiss?.invoke()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .testTag("save_business_setup_btn"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
+                    ) {
+                        Text(
+                            text = if (isInitialOnboarding) "Complete Setup & Launch HisabPro" else "Save Business Profile",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PureWhite
+                        )
+                    }
+                }
+            }
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(scrollState)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Language Selector Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = DeepNavyBlue.copy(alpha = 0.06f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -229,14 +327,17 @@ fun BusinessSetupScreen(
                         Icon(
                             imageVector = Icons.Default.Translate,
                             contentDescription = null,
-                            tint = PureWhite.copy(alpha = 0.8f),
-                            modifier = Modifier.size(16.dp)
+                            tint = DeepNavyBlue,
+                            modifier = Modifier.size(18.dp)
                         )
                         Text(
                             text = "Language:",
-                            color = PureWhite.copy(alpha = 0.8f),
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Slate800
                         )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("en" to "English", "hi" to "हिंदी", "mr" to "मराठी").forEach { (code, label) ->
                             FilterChip(
                                 selected = selectedLanguage == code,
@@ -245,21 +346,14 @@ fun BusinessSetupScreen(
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = SaffronOrange,
                                     selectedLabelColor = PureWhite,
-                                    containerColor = PureWhite.copy(alpha = 0.1f),
-                                    labelColor = PureWhite
+                                    containerColor = PureWhite,
+                                    labelColor = Slate800
                                 )
                             )
                         }
                     }
                 }
             }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
                 // CORE REQUIREMENT: GST vs Non-GST Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -599,11 +693,22 @@ fun BusinessSetupScreen(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = "Payment & Bank Details",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountBalance,
+                                contentDescription = null,
+                                tint = DeepNavyBlue,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Payment & Bank Details",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                         Text(
                             text = "Prints dynamic UPI QR on invoices for instant payment collection via PhonePe, GPay, Paytm",
                             style = MaterialTheme.typography.bodySmall,
@@ -616,7 +721,17 @@ fun BusinessSetupScreen(
                             label = { Text("UPI ID / VPA") },
                             placeholder = { Text("e.g. yourshop@okhdfcbank") },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Email,
+                                imeAction = ImeAction.Next
+                            ),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("setup_upi_id_input")
                         )
 
                         OutlinedTextField(
@@ -625,7 +740,17 @@ fun BusinessSetupScreen(
                             label = { Text("Bank Name") },
                             placeholder = { Text("e.g. State Bank of India") },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = KeyboardCapitalization.Words,
+                                imeAction = ImeAction.Next
+                            ),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("setup_bank_name_input")
                         )
 
                         Row(
@@ -636,17 +761,37 @@ fun BusinessSetupScreen(
                                 value = accountNumber,
                                 onValueChange = { accountNumber = it.trim() },
                                 label = { Text("Account No.") },
+                                placeholder = { Text("e.g. 1234567890") },
                                 singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.weight(1.2f)
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Next
+                                ),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier
+                                    .weight(1.2f)
+                                    .testTag("setup_account_number_input")
                             )
                             OutlinedTextField(
                                 value = ifscCode,
                                 onValueChange = { ifscCode = it.uppercase().trim().take(11) },
                                 label = { Text("IFSC Code") },
+                                placeholder = { Text("SBIN0001234") },
                                 singleLine = true,
-                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
-                                modifier = Modifier.weight(1f)
+                                keyboardOptions = KeyboardOptions(
+                                    capitalization = KeyboardCapitalization.Characters,
+                                    imeAction = ImeAction.Done
+                                ),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("setup_ifsc_code_input")
                             )
                         }
                     }
@@ -667,73 +812,8 @@ fun BusinessSetupScreen(
                         )
                     }
                 }
-            }
-        }
 
-        // Bottom Action Bar
-        Surface(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth(),
-            tonalElevation = 8.dp,
-            shadowElevation = 8.dp
-        ) {
-            Box(modifier = Modifier.padding(16.dp)) {
-                Button(
-                    onClick = {
-                        if (shopName.isBlank()) {
-                            errorMessage = "Please enter your Shop or Business Name"
-                            return@Button
-                        }
-                        if (isGstRegistered && gstin.length < 15) {
-                            errorMessage = "GSTIN must be 15 alphanumeric characters"
-                            return@Button
-                        }
-
-                        val stateName = selectedStateWithCode.substringBefore(" (").trim()
-                        val stateCodeStr = selectedStateWithCode.substringAfter("(").substringBefore(")").trim()
-
-                        val updated = currentProfile.copy(
-                            shopName = shopName.trim(),
-                            ownerName = ownerName.trim(),
-                            phone = phone.trim(),
-                            email = email.trim(),
-                            isGstRegistered = isGstRegistered,
-                            gstin = if (isGstRegistered) gstin.trim().uppercase() else "",
-                            pan = pan.trim().uppercase(),
-                            isCompositionScheme = isCompositionScheme,
-                            compositionType = compositionType,
-                            state = stateName,
-                            stateCode = stateCodeStr,
-                            city = city.trim(),
-                            address = address.trim(),
-                            pincode = pincode.trim(),
-                            upiId = upiId.trim(),
-                            bankName = bankName.trim(),
-                            accountNumber = accountNumber.trim(),
-                            ifscCode = ifscCode.trim(),
-                            appLanguage = selectedLanguage,
-                            hasCompletedOnboarding = true
-                        )
-
-                        onSaveProfile(updated)
-                        onDismiss?.invoke()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp)
-                        .testTag("save_business_setup_btn"),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
-                ) {
-                    Text(
-                        text = if (isInitialOnboarding) "Complete Setup & Launch HisabPro" else "Save Business Profile",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = PureWhite
-                    )
-                }
+                Spacer(modifier = Modifier.height(48.dp))
             }
         }
     }
-}

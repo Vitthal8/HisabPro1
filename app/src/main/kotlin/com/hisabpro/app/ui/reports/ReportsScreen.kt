@@ -255,12 +255,21 @@ fun ReportsScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Emerald900
                             )
-                            Text(
-                                text = "Tax ₹${HisabViewModel.formatAmount(uiState.gstr1.totalTax)}",
-                                fontSize = 11.sp,
-                                color = Color(0xFFD97706),
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            if (uiState.isGstRegistered) {
+                                Text(
+                                    text = "Tax ₹${HisabViewModel.formatAmount(uiState.gstr1.totalTax)}",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFD97706),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            } else {
+                                Text(
+                                    text = "Non-GST Business",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF64748B),
+                                    fontWeight = FontWeight.Normal
+                                )
+                            }
                         }
                     }
 
@@ -316,31 +325,33 @@ fun ReportsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 1. GSTR-1 Tax Filing Report Card
-            ReportNavigationCard(
-                icon = Icons.Default.Description,
-                iconColor = Emerald800,
-                title = "GSTR-1 Tax Filing Summary",
-                subtitle = "B2B, B2C, 0-28% GST Slabs & HSN Summary",
-                metricHighlight = "₹${HisabViewModel.formatAmount(uiState.gstr1.totalTax)} Tax",
-                badge = "CA Ready",
-                badgeColor = Color(0xFFD97706),
-                testTag = "card_report_gstr1",
-                onClick = { showGstrSheet = true }
-            )
+            // 1. GSTR-1 Tax Filing Report Card (Only for GST Registered Businesses)
+            if (uiState.isGstRegistered) {
+                ReportNavigationCard(
+                    icon = Icons.Default.Description,
+                    iconColor = Emerald800,
+                    title = "GSTR-1 Tax Filing Summary",
+                    subtitle = "B2B, B2C, 0-28% GST Slabs & HSN Summary",
+                    metricHighlight = "₹${HisabViewModel.formatAmount(uiState.gstr1.totalTax)} Tax",
+                    badge = "CA Ready",
+                    badgeColor = Color(0xFFD97706),
+                    testTag = "card_report_gstr1",
+                    onClick = { showGstrSheet = true }
+                )
 
-            // 1b. GSTR-3B Tax Offset & ITC Return Card
-            ReportNavigationCard(
-                icon = Icons.Default.Assessment,
-                iconColor = Emerald700,
-                title = "GSTR-3B Tax Offset & ITC Return",
-                subtitle = "Output Tax vs. Input Tax Credit (ITC) = Net Tax",
-                metricHighlight = "₹${HisabViewModel.formatAmount(uiState.gstr3b.totalNetGstPayable)} Cash Tax",
-                badge = "ITC Claim",
-                badgeColor = Color(0xFF1D4ED8),
-                testTag = "card_report_gstr3b",
-                onClick = { showGstr3bSheet = true }
-            )
+                // 1b. GSTR-3B Tax Offset & ITC Return Card
+                ReportNavigationCard(
+                    icon = Icons.Default.Assessment,
+                    iconColor = Emerald700,
+                    title = "GSTR-3B Tax Offset & ITC Return",
+                    subtitle = "Output Tax vs. Input Tax Credit (ITC) = Net Tax",
+                    metricHighlight = "₹${HisabViewModel.formatAmount(uiState.gstr3b.totalNetGstPayable)} Cash Tax",
+                    badge = "ITC Claim",
+                    badgeColor = Color(0xFF1D4ED8),
+                    testTag = "card_report_gstr3b",
+                    onClick = { showGstr3bSheet = true }
+                )
+            }
 
             // 2. Profit & Loss Report Card
             ReportNavigationCard(

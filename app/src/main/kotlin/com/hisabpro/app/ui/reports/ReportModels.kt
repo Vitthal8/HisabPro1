@@ -91,15 +91,46 @@ data class Gstr3bSummary(
     val totalNetGstPayable: Double = 0.0
 )
 
+enum class VoucherType(val label: String, val badgeColor: Long) {
+    SALE("Sale", 0xFF16A34A),
+    PURCHASE("Purchase", 0xFFDC2626),
+    RECEIPT("Receipt", 0xFF2563EB),
+    PAYMENT("Payment", 0xFFEA580C),
+    EXPENSE("Expense", 0xFF9333EA),
+    JOURNAL("Journal", 0xFF0891B2),
+    CREDIT_NOTE("Credit Note", 0xFF0D9488),
+    DEBIT_NOTE("Debit Note", 0xFFC026D3)
+}
+
+data class DaybookVoucherEntry(
+    val id: String,
+    val dateMillis: Long,
+    val voucherNumber: String,
+    val voucherType: VoucherType,
+    val narration: String,
+    val debitAccount: String,
+    val creditAccount: String,
+    val amount: Double,
+    val paymentMode: String = "CASH"
+)
+
 data class DaybookSummary(
     val dateMillis: Long = System.currentTimeMillis(),
     val daySalesTotal: Double = 0.0,
     val daySalesCount: Int = 0,
+    val dayPurchasesTotal: Double = 0.0,
+    val dayPurchasesCount: Int = 0,
     val dayInvoices: List<Invoice> = emptyList(),
+    val dayPurchases: List<PurchaseBill> = emptyList(),
     val dayCashIn: Double = 0.0,
     val dayCashOut: Double = 0.0,
+    val dayBankIn: Double = 0.0,
+    val dayBankOut: Double = 0.0,
     val dayTransactions: List<Transaction> = emptyList(),
-    val netDayMovement: Double = 0.0
+    val vouchers: List<DaybookVoucherEntry> = emptyList(),
+    val netDayMovement: Double = 0.0,
+    val netCashMovement: Double = 0.0,
+    val netBankMovement: Double = 0.0
 )
 
 data class PartyAgingItem(
@@ -143,6 +174,7 @@ data class PurchasesRegisterSummary(
 )
 
 data class ReportsUiState(
+    val isGstRegistered: Boolean = false,
     val selectedPeriod: ReportPeriod = ReportPeriod.THIS_MONTH,
     val customStartDate: Long? = null,
     val customEndDate: Long? = null,

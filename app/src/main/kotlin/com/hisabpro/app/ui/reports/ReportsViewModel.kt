@@ -18,6 +18,7 @@ import com.hisabpro.app.data.repository.InvoiceRepository
 import com.hisabpro.app.data.repository.ItemRepository
 import com.hisabpro.app.data.repository.PartyRepository
 import com.hisabpro.app.data.repository.PurchaseRepository
+import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.data.repository.TransactionRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -35,6 +36,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
     private val purchaseRepo = PurchaseRepository.getInstance(application.applicationContext)
     private val partyRepo = PartyRepository.getInstance(application.applicationContext)
     private val itemRepo = ItemRepository.getInstance(application.applicationContext)
+    private val settingsRepo = SettingsRepository.getInstance(application.applicationContext)
 
     private val _selectedPeriod = MutableStateFlow(ReportPeriod.THIS_MONTH)
     private val _selectedDaybookDate = MutableStateFlow(System.currentTimeMillis())
@@ -69,8 +71,9 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
     val uiState: StateFlow<ReportsUiState> = combine(
         entitiesFlow,
         _selectedPeriod,
-        _selectedDaybookDate
-    ) { entities, period, daybookDate ->
+        _selectedDaybookDate,
+        settingsRepo.profile
+    ) { entities, period, daybookDate, profile ->
         buildReportsUiState(
             invoices = entities.invoices,
             transactions = entities.transactions,
@@ -79,7 +82,8 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
             entries = entities.entries,
             items = entities.items,
             period = period,
-            daybookDate = daybookDate
+            daybookDate = daybookDate,
+            isGstRegistered = profile.isGstRegistered
         )
     }.stateIn(
         scope = viewModelScope,
@@ -103,7 +107,8 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
         entries: List<KhataEntry>,
         items: List<Item>,
         period: ReportPeriod,
-        daybookDate: Long
+        daybookDate: Long,
+        isGstRegistered: Boolean
     ): ReportsUiState {
         val (startTime, endTime) = calculatePeriodBounds(period)
 
@@ -147,12 +152,13 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
         val gstr1 = calculateGstr1(periodInvoices)
         val gstr3b = calculateGstr3b(periodInvoices, periodPurchases)
         val profitLoss = calculateProfitLoss(periodInvoices, periodTransactions, periodPurchases, items)
-        val daybook = calculateDaybook(invoices, transactions, daybookDate)
+        val daybook = calculateDaybook(invoices, purchases, transactions, daybookDate)
         val partyAging = calculatePartyAging(partiesWithBalances)
         val stockValuation = calculateStockValuation(items)
         val purchasesRegister = calculatePurchasesRegister(periodPurchases)
 
         return ReportsUiState(
+            isGstRegistered = isGstRegistered,
             selectedPeriod = period,
             gstr1 = gstr1,
             gstr3b = gstr3b,
@@ -406,6 +412,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
 
     private fun calculateDaybook(
         allInvoices: List<Invoice>,
+        allPurchases: List<PurchaseBill>,
         allTransactions: List<Transaction>,
         dateMillis: Long
     ): DaybookSummary {
@@ -423,25 +430,167 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
         val dayInvoices = allInvoices.filter {
             it.dateMillis in startOfDay..endOfDay && it.type != InvoiceType.PROFORMA
         }
-        val daySalesTotal = dayInvoices.sumOf { it.grandTotal }
-
+        val dayPurchases = allPurchases.filter {
+            it.dateMillis in startOfDay..endOfDay
+        }
         val dayTransactions = allTransactions.filter {
             it.dateMillis in startOfDay..endOfDay
         }
 
-        val dayCashIn = dayInvoices.sumOf { it.paidAmount } +
-            dayTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-        val dayCashOut = dayTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+        val daySalesTotal = dayInvoices.sumOf { it.grandTotal }
+        val dayPurchasesTotal = dayPurchases.sumOf { it.grandTotal }
+
+        // Cash vs Bank separation (Section 8)
+        var dayCashIn = 0.0
+        var dayCashOut = 0.0
+        var dayBankIn = 0.0
+        var dayBankOut = 0.0
+
+        val voucherList = mutableListOf<DaybookVoucherEntry>()
+
+        // 1. Sales Vouchers
+        for (inv in dayInvoices) {
+            voucherList.add(
+                DaybookVoucherEntry(
+                    id = "sale_${inv.id}",
+                    dateMillis = inv.dateMillis,
+                    voucherNumber = inv.invoiceNumber,
+                    voucherType = VoucherType.SALE,
+                    narration = "Sale to ${inv.customerName} (${inv.items.size} items)",
+                    debitAccount = if (inv.paidAmount >= inv.grandTotal) "Cash in Hand" else "${inv.customerName} (Debtors)",
+                    creditAccount = "Sales Account",
+                    amount = inv.grandTotal,
+                    paymentMode = if (inv.paidAmount > 0) "CASH" else "CREDIT"
+                )
+            )
+
+            if (inv.paidAmount > 0) {
+                dayCashIn += inv.paidAmount
+                voucherList.add(
+                    DaybookVoucherEntry(
+                        id = "rcp_${inv.id}",
+                        dateMillis = inv.dateMillis,
+                        voucherNumber = "RCP-${inv.invoiceNumber}",
+                        voucherType = VoucherType.RECEIPT,
+                        narration = "Cash received from ${inv.customerName}",
+                        debitAccount = "Cash in Hand",
+                        creditAccount = "${inv.customerName} (Debtors)",
+                        amount = inv.paidAmount,
+                        paymentMode = "CASH"
+                    )
+                )
+            }
+        }
+
+        // 2. Purchase Vouchers
+        for (pur in dayPurchases) {
+            voucherList.add(
+                DaybookVoucherEntry(
+                    id = "pur_${pur.id}",
+                    dateMillis = pur.dateMillis,
+                    voucherNumber = pur.purchaseNumber,
+                    voucherType = VoucherType.PURCHASE,
+                    narration = "Purchase from ${pur.supplierName} (${pur.items.size} items)",
+                    debitAccount = "Purchases Account",
+                    creditAccount = if (pur.paidAmount >= pur.grandTotal) "Cash / Bank" else "${pur.supplierName} (Creditors)",
+                    amount = pur.grandTotal,
+                    paymentMode = pur.paymentMode
+                )
+            )
+
+            if (pur.paidAmount > 0) {
+                val isCash = pur.paymentMode.contains("Cash", ignoreCase = true)
+                if (isCash) {
+                    dayCashOut += pur.paidAmount
+                } else {
+                    dayBankOut += pur.paidAmount
+                }
+
+                voucherList.add(
+                    DaybookVoucherEntry(
+                        id = "pay_${pur.id}",
+                        dateMillis = pur.dateMillis,
+                        voucherNumber = "PAY-${pur.purchaseNumber}",
+                        voucherType = VoucherType.PAYMENT,
+                        narration = "Payment to ${pur.supplierName}",
+                        debitAccount = "${pur.supplierName} (Creditors)",
+                        creditAccount = if (isCash) "Cash in Hand" else "Bank / UPI (${pur.paymentMode})",
+                        amount = pur.paidAmount,
+                        paymentMode = pur.paymentMode
+                    )
+                )
+            }
+        }
+
+        // 3. Transactions (Expenses & Incomes)
+        for (tx in dayTransactions) {
+            val isCash = tx.paymentMode.name.contains("CASH", ignoreCase = true)
+            if (tx.type == TransactionType.EXPENSE) {
+                if (isCash) {
+                    dayCashOut += tx.amount
+                } else {
+                    dayBankOut += tx.amount
+                }
+
+                voucherList.add(
+                    DaybookVoucherEntry(
+                        id = "exp_${tx.id}",
+                        dateMillis = tx.dateMillis,
+                        voucherNumber = "EXP-${tx.id.take(6).uppercase()}",
+                        voucherType = VoucherType.EXPENSE,
+                        narration = "${tx.category.label}: ${tx.title}" + (if (tx.note.isNotBlank()) " - ${tx.note}" else ""),
+                        debitAccount = "${tx.category.label} Expense",
+                        creditAccount = if (isCash) "Cash in Hand" else "Bank / UPI (${tx.paymentMode.label})",
+                        amount = tx.amount,
+                        paymentMode = tx.paymentMode.name
+                    )
+                )
+            } else {
+                if (isCash) {
+                    dayCashIn += tx.amount
+                } else {
+                    dayBankIn += tx.amount
+                }
+
+                voucherList.add(
+                    DaybookVoucherEntry(
+                        id = "inc_${tx.id}",
+                        dateMillis = tx.dateMillis,
+                        voucherNumber = "INC-${tx.id.take(6).uppercase()}",
+                        voucherType = VoucherType.RECEIPT,
+                        narration = "${tx.category.label}: ${tx.title}" + (if (tx.note.isNotBlank()) " - ${tx.note}" else ""),
+                        debitAccount = if (isCash) "Cash in Hand" else "Bank / UPI (${tx.paymentMode.label})",
+                        creditAccount = "Direct Income",
+                        amount = tx.amount,
+                        paymentMode = tx.paymentMode.name
+                    )
+                )
+            }
+        }
+
+        voucherList.sortByDescending { it.dateMillis }
+
+        val netCash = dayCashIn - dayCashOut
+        val netBank = dayBankIn - dayBankOut
+        val netTotal = (dayCashIn + dayBankIn) - (dayCashOut + dayBankOut)
 
         return DaybookSummary(
             dateMillis = dateMillis,
             daySalesTotal = daySalesTotal,
             daySalesCount = dayInvoices.size,
+            dayPurchasesTotal = dayPurchasesTotal,
+            dayPurchasesCount = dayPurchases.size,
             dayInvoices = dayInvoices,
+            dayPurchases = dayPurchases,
             dayCashIn = dayCashIn,
             dayCashOut = dayCashOut,
+            dayBankIn = dayBankIn,
+            dayBankOut = dayBankOut,
             dayTransactions = dayTransactions,
-            netDayMovement = dayCashIn - dayCashOut
+            vouchers = voucherList,
+            netDayMovement = netTotal,
+            netCashMovement = netCash,
+            netBankMovement = netBank
         )
     }
 

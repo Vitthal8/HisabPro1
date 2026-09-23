@@ -110,25 +110,39 @@ object ReportExporter {
     ) {
         val dateStr = dateFormat.format(Date(daybook.dateMillis))
         val salesStr = HisabViewModel.formatAmount(daybook.daySalesTotal)
+        val purchasesStr = HisabViewModel.formatAmount(daybook.dayPurchasesTotal)
         val cashInStr = HisabViewModel.formatAmount(daybook.dayCashIn)
         val cashOutStr = HisabViewModel.formatAmount(daybook.dayCashOut)
-        val netMovementStr = HisabViewModel.formatAmount(daybook.netDayMovement)
+        val netCashStr = HisabViewModel.formatAmount(daybook.netCashMovement)
+        val bankInStr = HisabViewModel.formatAmount(daybook.dayBankIn)
+        val bankOutStr = HisabViewModel.formatAmount(daybook.dayBankOut)
+        val netBankStr = HisabViewModel.formatAmount(daybook.netBankMovement)
 
         val sb = StringBuilder()
-        sb.append("📖 *DAILY DAYBOOK REGISTER*\n")
+        sb.append("📖 *DAILY DAY BOOK (ROZNAMCHA)*\n")
         sb.append("🏢 Business: $businessName\n")
         sb.append("📅 Date: $dateStr\n\n")
 
-        sb.append("💵 *DAILY CASH & SALES SUMMARY*\n")
-        sb.append("• Total Invoiced Sales: ₹$salesStr (${daybook.daySalesCount} bills)\n")
-        sb.append("• Total Cash Received: ₹$cashInStr\n")
-        sb.append("• Total Cash Paid Out: ₹$cashOutStr\n")
-        sb.append("• *Net Cashflow Today: ₹$netMovementStr*\n\n")
+        sb.append("📊 *DAILY TURNOVER SUMMARY*\n")
+        sb.append("• Sales: ₹$salesStr (${daybook.daySalesCount} bills)\n")
+        sb.append("• Purchases: ₹$purchasesStr (${daybook.dayPurchasesCount} bills)\n\n")
 
-        if (daybook.dayInvoices.isNotEmpty()) {
-            sb.append("📑 *INVOICES ISSUED TODAY*\n")
-            daybook.dayInvoices.take(8).forEach { inv ->
-                sb.append("• #${inv.invoiceNumber} - ${inv.customerName}: ₹${HisabViewModel.formatAmount(inv.grandTotal)} (${inv.paymentStatus.label})\n")
+        sb.append("💵 *CASH BOOK (ROKAD)*\n")
+        sb.append("• Cash Inflow: ₹$cashInStr\n")
+        sb.append("• Cash Outflow: ₹$cashOutStr\n")
+        sb.append("• *Net Cash Movement: ₹$netCashStr*\n\n")
+
+        sb.append("🏦 *BANK & UPI BOOK*\n")
+        sb.append("• Bank/UPI Inflow: ₹$bankInStr\n")
+        sb.append("• Bank/UPI Outflow: ₹$bankOutStr\n")
+        sb.append("• *Net Bank Movement: ₹$netBankStr*\n\n")
+
+        if (daybook.vouchers.isNotEmpty()) {
+            sb.append("📑 *DAILY JOURNAL VOUCHERS (${daybook.vouchers.size})*\n")
+            daybook.vouchers.take(12).forEach { v ->
+                sb.append("• [${v.voucherType.label}] #${v.voucherNumber}: ₹${HisabViewModel.formatAmount(v.amount)}\n")
+                sb.append("  Dr: ${v.debitAccount} | Cr: ${v.creditAccount}\n")
+                sb.append("  ${v.narration}\n")
             }
             sb.append("\n")
         }
@@ -422,31 +436,43 @@ object ReportExporter {
             if (!reportsDir.exists()) reportsDir.mkdirs()
 
             val dateStr = SimpleDateFormat("yyyyMMdd", Locale.ENGLISH).format(Date(daybook.dateMillis))
-            val file = File(reportsDir, "Daybook_${dateStr}_${System.currentTimeMillis()}.csv")
+            val file = File(reportsDir, "Daybook_Roznamcha_${dateStr}_${System.currentTimeMillis()}.csv")
             file.bufferedWriter().use { out ->
-                out.write("DAILY DAYBOOK REGISTER\n")
+                out.write("DAILY DAY BOOK (ROZNAMCHA) REGISTER\n")
                 out.write("Business Name,\"$businessName\"\n")
                 out.write("Date,${dateFormat.format(Date(daybook.dateMillis))}\n")
                 out.write("Generated At,${timeFormat.format(Date())}\n\n")
 
-                out.write("SUMMARY\n")
-                out.write("Metric,Amount (INR)\n")
-                out.write("Invoiced Sales,${daybook.daySalesTotal}\n")
-                out.write("Total Cash In,${daybook.dayCashIn}\n")
-                out.write("Total Cash Out,${daybook.dayCashOut}\n")
-                out.write("Net Daily Movement,${daybook.netDayMovement}\n\n")
+                out.write("EXECUTIVE SUMMARY\n")
+                out.write("Particulars,Amount (INR)\n")
+                out.write("Total Invoiced Sales,${daybook.daySalesTotal}\n")
+                out.write("Total Inward Purchases,${daybook.dayPurchasesTotal}\n")
+                out.write("Cash Inflow (Rokad In),${daybook.dayCashIn}\n")
+                out.write("Cash Outflow (Rokad Out),${daybook.dayCashOut}\n")
+                out.write("Net Cash Movement,${daybook.netCashMovement}\n")
+                out.write("Bank & UPI Inflow,${daybook.dayBankIn}\n")
+                out.write("Bank & UPI Outflow,${daybook.dayBankOut}\n")
+                out.write("Net Bank Movement,${daybook.netBankMovement}\n")
+                out.write("Net Total Liquidity Movement,${daybook.netDayMovement}\n\n")
 
-                out.write("DAY INVOICES ISSUED\n")
+                out.write("DAILY JOURNAL VOUCHERS (ROZNAMCHA)\n")
+                out.write("Voucher No,Voucher Type,Debit (Dr) Account,Credit (Cr) Account,Narration,Payment Mode,Amount (INR)\n")
+                daybook.vouchers.forEach { v ->
+                    out.write("\"${v.voucherNumber}\",\"${v.voucherType.label}\",\"${v.debitAccount}\",\"${v.creditAccount}\",\"${v.narration.replace("\"", "\"\"")}\",\"${v.paymentMode}\",${v.amount}\n")
+                }
+                out.write("\n")
+
+                out.write("DAY INVOICES\n")
                 out.write("Invoice No,Customer,Subtotal,Tax,Grand Total,Status\n")
                 daybook.dayInvoices.forEach { inv ->
                     out.write("\"${inv.invoiceNumber}\",\"${inv.customerName}\",${inv.subtotal},${inv.totalTax},${inv.grandTotal},\"${inv.paymentStatus.label}\"\n")
                 }
                 out.write("\n")
 
-                out.write("DAY CASHBOOK TRANSACTIONS\n")
-                out.write("Type,Title,Category,Payment Mode,Amount\n")
-                daybook.dayTransactions.forEach { tx ->
-                    out.write("\"${tx.type.name}\",\"${tx.title}\",\"${tx.category.label}\",\"${tx.paymentMode.label}\",${tx.amount}\n")
+                out.write("DAY PURCHASES\n")
+                out.write("Bill No,Supplier,Subtotal,Tax,Grand Total,Status\n")
+                daybook.dayPurchases.forEach { pur ->
+                    out.write("\"${pur.purchaseNumber}\",\"${pur.supplierName}\",${pur.subtotal},${pur.totalTax},${pur.grandTotal},\"${pur.paymentStatus.label}\"\n")
                 }
             }
 

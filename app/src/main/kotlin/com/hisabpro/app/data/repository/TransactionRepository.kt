@@ -2,18 +2,27 @@ package com.hisabpro.app.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.hisabpro.app.data.local.AppDatabase
+import com.hisabpro.app.data.local.entity.ExpenseEntity
+import com.hisabpro.app.data.local.entity.PaymentEntity
 import com.hisabpro.app.data.model.Category
 import com.hisabpro.app.data.model.PaymentMode
 import com.hisabpro.app.data.model.Transaction
 import com.hisabpro.app.data.model.TransactionType
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
 class TransactionRepository(context: Context) {
+
+    private val db = AppDatabase.getInstance(context)
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("hisab_pro_prefs", Context.MODE_PRIVATE)
@@ -76,6 +85,43 @@ class TransactionRepository(context: Context) {
         }
         prefs.edit().putString(KEY_TRANSACTIONS, jsonArray.toString()).apply()
         _transactions.value = list
+
+        scope.launch {
+            try {
+                for (item in list) {
+                    if (item.type == TransactionType.EXPENSE) {
+                        db.expenseDao().insertExpense(
+                            ExpenseEntity(
+                                id = item.id,
+                                businessId = "default_business",
+                                dateMillis = item.dateMillis,
+                                category = item.category.name,
+                                amount = item.amount,
+                                description = item.title + (if (item.note.isNotBlank()) " - ${item.note}" else ""),
+                                mode = item.paymentMode.name,
+                                receiptPath = ""
+                            )
+                        )
+                    } else {
+                        db.paymentDao().insertPayment(
+                            PaymentEntity(
+                                id = item.id,
+                                businessId = "default_business",
+                                partyId = "",
+                                dateMillis = item.dateMillis,
+                                amount = item.amount,
+                                mode = item.paymentMode.name,
+                                referenceNo = item.title,
+                                notes = item.note,
+                                linkedInvoiceId = null
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     fun addTransaction(
@@ -111,6 +157,14 @@ class TransactionRepository(context: Context) {
     fun deleteTransaction(id: String) {
         val updated = _transactions.value.filterNot { it.id == id }
         saveTransactions(updated)
+        scope.launch {
+            try {
+                db.expenseDao().deleteExpense(id)
+                db.paymentDao().deletePayment(id)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     fun resetToDemo() {

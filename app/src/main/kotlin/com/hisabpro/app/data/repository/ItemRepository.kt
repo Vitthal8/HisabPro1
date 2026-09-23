@@ -2,17 +2,25 @@ package com.hisabpro.app.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.hisabpro.app.data.local.AppDatabase
+import com.hisabpro.app.data.local.entity.ItemEntity
 import com.hisabpro.app.data.model.Item
 import com.hisabpro.app.data.model.StockHistoryEntry
 import com.hisabpro.app.data.model.StockReason
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
 class ItemRepository(context: Context) {
+
+    private val db = AppDatabase.getInstance(context)
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("hisab_pro_items_v1", Context.MODE_PRIVATE)
@@ -137,6 +145,14 @@ class ItemRepository(context: Context) {
 
         val hist = _stockHistory.value.filter { it.itemId != itemId }
         saveHistoryInternal(hist)
+
+        scope.launch {
+            try {
+                db.itemDao().deleteItem(itemId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     fun adjustStock(
@@ -276,6 +292,31 @@ class ItemRepository(context: Context) {
             array.put(obj)
         }
         prefs.edit().putString(KEY_ITEMS, array.toString()).apply()
+
+        scope.launch {
+            try {
+                val entities = list.map { item ->
+                    ItemEntity(
+                        id = item.id,
+                        businessId = "default_business",
+                        name = item.name,
+                        itemCode = item.itemCode,
+                        category = item.category,
+                        unit = item.unit,
+                        sellPrice = item.salePrice,
+                        purchasePrice = item.purchasePrice,
+                        gstRate = item.gstRate,
+                        hsnCode = item.hsnCode,
+                        stockQty = item.currentStock,
+                        minStockAlert = item.minStockAlert,
+                        createdAt = item.updatedAtMillis
+                    )
+                }
+                db.itemDao().insertAllItems(entities)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     private fun saveHistoryInternal(list: List<StockHistoryEntry>) {

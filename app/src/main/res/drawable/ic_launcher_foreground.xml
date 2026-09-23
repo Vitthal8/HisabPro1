@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Center 66dp safe zone (21 to 87) -->
+    <!-- Ledger Book Base -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,26 C30.7,26 28,28.7 28,32 L28,76 C28,79.3 30.7,82 34,82 L76,82 C78.2,82 80,80.2 80,78 L80,30 C80,27.8 78.2,26 76,26 L34,26 Z" />
+    <!-- Book Spine Accent -->
+    <path
+        android:fillColor="#FF6B00"
+        android:pathData="M28,32 L34,32 L34,82 L28,76 Z" />
+    <!-- Rupee Sign inside the ledger -->
+    <path
+        android:fillColor="#1A237E"
+        android:pathData="M44,38 L66,38 L66,42 L44,42 Z M44,46 L66,46 L66,50 L44,50 Z M44,54 L52,54 C58,54 62,50 62,45 C62,40 58,37 53,37 L44,37 L44,41 L52,41 C55,41 57,43 57,45 C57,47 55,49 52,49 L44,49 L44,54 Z M51,54 L65,72 L59,72 L45,54 Z" />
+</vector>

@@ -2,21 +2,30 @@ package com.hisabpro.app.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.hisabpro.app.data.local.AppDatabase
+import com.hisabpro.app.data.local.entity.KhataEntryEntity
+import com.hisabpro.app.data.local.entity.PartyEntity
 import com.hisabpro.app.data.model.KhataEntry
 import com.hisabpro.app.data.model.KhataEntryType
 import com.hisabpro.app.data.model.Party
 import com.hisabpro.app.data.model.PartyTag
 import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.data.model.PartyWithBalance
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
 class PartyRepository(context: Context) {
+
+    private val db = AppDatabase.getInstance(context)
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("hisab_pro_parties_v1", Context.MODE_PRIVATE)
@@ -108,6 +117,27 @@ class PartyRepository(context: Context) {
         }
         prefs.edit().putString(KEY_PARTIES, array.toString()).apply()
         _parties.value = list
+
+        scope.launch {
+            try {
+                val entities = list.map { p ->
+                    PartyEntity(
+                        id = p.id,
+                        businessId = "default_business",
+                        name = p.name,
+                        phone = p.phone,
+                        address = p.address,
+                        gstin = p.gstin,
+                        type = p.type.name,
+                        tag = p.tag.name,
+                        createdAt = p.createdAt
+                    )
+                }
+                db.partyDao().insertAllParties(entities)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     private fun saveEntriesInternal(list: List<KhataEntry>) {
@@ -126,6 +156,25 @@ class PartyRepository(context: Context) {
         }
         prefs.edit().putString(KEY_ENTRIES, array.toString()).apply()
         _entries.value = list
+
+        scope.launch {
+            try {
+                val entities = list.map { e ->
+                    KhataEntryEntity(
+                        id = e.id,
+                        partyId = e.partyId,
+                        amount = e.amount,
+                        type = e.type.name,
+                        dateMillis = e.dateMillis,
+                        billNumber = e.billNumber,
+                        note = e.note
+                    )
+                }
+                db.khataDao().insertAllEntries(entities)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     fun addParty(
@@ -163,6 +212,14 @@ class PartyRepository(context: Context) {
         val updatedEntries = _entries.value.filterNot { it.partyId == partyId }
         savePartiesInternal(updatedParties)
         saveEntriesInternal(updatedEntries)
+        scope.launch {
+            try {
+                db.partyDao().deleteParty(partyId)
+                db.khataDao().deleteEntriesForParty(partyId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     fun addKhataEntry(
@@ -190,6 +247,13 @@ class PartyRepository(context: Context) {
     fun deleteKhataEntry(entryId: String) {
         val updated = _entries.value.filterNot { it.id == entryId }
         saveEntriesInternal(updated)
+        scope.launch {
+            try {
+                db.khataDao().deleteEntry(entryId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     fun getEntriesForParty(partyId: String): List<KhataEntry> {

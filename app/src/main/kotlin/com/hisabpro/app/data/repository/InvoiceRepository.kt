@@ -2,20 +2,29 @@ package com.hisabpro.app.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.hisabpro.app.data.local.AppDatabase
+import com.hisabpro.app.data.local.entity.InvoiceEntity
+import com.hisabpro.app.data.local.entity.InvoiceItemEntity
 import com.hisabpro.app.data.model.GstMode
 import com.hisabpro.app.data.model.Invoice
 import com.hisabpro.app.data.model.InvoiceItem
 import com.hisabpro.app.data.model.InvoiceStatus
 import com.hisabpro.app.data.model.InvoiceType
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
 import java.util.UUID
 
 class InvoiceRepository(context: Context) {
+
+    private val db = AppDatabase.getInstance(context)
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("hisab_pro_invoices_v1", Context.MODE_PRIVATE)
@@ -123,6 +132,55 @@ class InvoiceRepository(context: Context) {
         }
         prefs.edit().putString(KEY_INVOICES, array.toString()).apply()
         _invoices.value = list.sortedByDescending { it.dateMillis }
+
+        scope.launch {
+            try {
+                for (inv in list) {
+                    val invoiceEntity = InvoiceEntity(
+                        id = inv.id,
+                        businessId = "default_business",
+                        invoiceNo = inv.invoiceNumber,
+                        dateMillis = inv.dateMillis,
+                        partyId = inv.customerId,
+                        customerName = inv.customerName,
+                        customerPhone = inv.customerPhone,
+                        customerAddress = inv.customerAddress,
+                        customerGstin = inv.customerGstin,
+                        type = inv.type.name,
+                        gstMode = inv.gstMode.name,
+                        subtotal = inv.subtotal,
+                        cgst = inv.cgstTotal,
+                        sgst = inv.sgstTotal,
+                        igst = inv.igstTotal,
+                        discountAmount = inv.discountAmount,
+                        total = inv.grandTotal,
+                        paidAmount = inv.paidAmount,
+                        paymentStatus = inv.paymentStatus.name,
+                        paymentMode = if (inv.paidAmount > 0) "CASH" else "UNPAID",
+                        notes = inv.notes,
+                        isGst = inv.type != InvoiceType.NON_GST_BILL && inv.gstMode != GstMode.EXEMPT,
+                        createdAt = inv.createdAt
+                    )
+                    val itemEntities = inv.items.map { item ->
+                        InvoiceItemEntity(
+                            id = item.id,
+                            invoiceId = inv.id,
+                            itemName = item.description,
+                            hsnCode = item.hsnCode,
+                            qty = item.quantity,
+                            unit = item.unit,
+                            rate = item.unitPrice,
+                            cgstRate = if (inv.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0,
+                            sgstRate = if (inv.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0,
+                            amount = item.getTotal(inv.gstMode)
+                        )
+                    }
+                    db.invoiceDao().insertInvoiceWithItems(invoiceEntity, itemEntities)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     fun generateNextInvoiceNumber(type: InvoiceType, prefixOverride: String? = null): String {
@@ -169,6 +227,13 @@ class InvoiceRepository(context: Context) {
     fun deleteInvoice(invoiceId: String) {
         val updated = _invoices.value.filterNot { it.id == invoiceId }
         saveInternal(updated)
+        scope.launch {
+            try {
+                db.invoiceDao().deleteInvoiceWithItems(invoiceId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     fun duplicateInvoice(invoiceId: String): Invoice? {

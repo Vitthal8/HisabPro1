@@ -1,6 +1,7 @@
 package com.hisabpro.app.ui.reports
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,15 +18,22 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.TrendingDown
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,25 +43,35 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.hisabpro.app.data.model.TransactionType
 import com.hisabpro.app.ui.HisabViewModel
-import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.Emerald900
 import com.hisabpro.app.ui.theme.PureWhite
+import com.hisabpro.app.util.IndianAccountingFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+private enum class DaybookFilterTab(val label: String) {
+    ALL("All Vouchers"),
+    CASH_BOOK("Cash Book (रोकड)"),
+    BANK_BOOK("Bank & UPI"),
+    SALES("Sales"),
+    PURCHASES("Purchases")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +85,8 @@ fun DaybookReportSheet(
     val dateFormat = SimpleDateFormat("EEEE, dd MMMM yyyy", Locale.ENGLISH)
     val timeFormat = SimpleDateFormat("hh:mm a", Locale.ENGLISH)
     val dateDisplay = dateFormat.format(Date(daybook.dateMillis))
+
+    var selectedTab by remember { mutableStateOf(DaybookFilterTab.ALL) }
 
     fun shiftDate(days: Int) {
         val cal = Calendar.getInstance().apply {
@@ -98,14 +118,14 @@ fun DaybookReportSheet(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Emerald800.copy(alpha = 0.12f),
+                        color = Emerald800,
                         modifier = Modifier.size(36.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Default.CalendarMonth,
+                                imageVector = Icons.Default.ReceiptLong,
                                 contentDescription = null,
-                                tint = Emerald800,
+                                tint = PureWhite,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -113,33 +133,32 @@ fun DaybookReportSheet(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = "Daily Daybook Register",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
+                            text = "Day Book (रोजकिर्द / रोजनामचा)",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 17.sp,
                             color = Emerald900
                         )
                         Text(
-                            text = "Daily Audit of Cash & Invoiced Sales",
-                            fontSize = 12.sp,
-                            color = Color(0xFF667085)
+                            text = "Daily Journal & Cash/Bank Book",
+                            fontSize = 11.sp,
+                            color = Color(0xFF64748B)
                         )
                     }
                 }
 
                 IconButton(onClick = onDismiss) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        imageVector = Icons.Default.Close,
                         contentDescription = "Close",
-                        tint = Color(0xFF667085)
+                        tint = Color(0xFF64748B)
                     )
                 }
             }
 
-            // Date Navigation Strip
-            Card(
-                modifier = Modifier.fillMaxWidth(),
+            // Date Navigation Bar
+            Surface(
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC))
+                color = Color(0xFFF8FAFC)
             ) {
                 Row(
                     modifier = Modifier
@@ -229,7 +248,7 @@ fun DaybookReportSheet(
                 }
             }
 
-            // Daily Snapshot Cards
+            // Daily Snapshot Cards: Sales & Purchases
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -237,16 +256,27 @@ fun DaybookReportSheet(
                 Card(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Emerald800.copy(alpha = 0.08f))
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4))
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Day's Sales", fontSize = 11.sp, color = Emerald800, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.TrendingUp,
+                                contentDescription = null,
+                                tint = Color(0xFF16A34A),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text("Day's Sales", fontSize = 11.sp, color = Color(0xFF16A34A), fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(3.dp))
                         Text(
-                            text = "₹${HisabViewModel.formatAmount(daybook.daySalesTotal)}",
-                            fontSize = 16.sp,
+                            text = IndianAccountingFormat.formatIndianCurrency(daybook.daySalesTotal),
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Emerald900
+                            color = Color(0xFF15803D)
                         )
                         Text("${daybook.daySalesCount} Invoices", fontSize = 10.sp, color = Color(0xFF64748B))
                     }
@@ -255,23 +285,65 @@ fun DaybookReportSheet(
                 Card(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.TrendingDown,
+                                contentDescription = null,
+                                tint = Color(0xFFDC2626),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text("Day's Purchases", fontSize = 11.sp, color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = IndianAccountingFormat.formatIndianCurrency(daybook.dayPurchasesTotal),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFFB91C1C)
+                        )
+                        Text("${daybook.dayPurchasesCount} Inward Bills", fontSize = 10.sp, color = Color(0xFF64748B))
+                    }
+                }
+            }
+
+            // Cash Book vs Bank Book Split (Section 8)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Cash Book
+                Card(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (daybook.netDayMovement >= 0) Color(0xFFF0FDF4) else Color(0xFFFEF2F2)
+                        containerColor = if (daybook.netCashMovement >= 0) Color(0xFFF0FDF4) else Color(0xFFFEF2F2)
                     )
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Payments,
+                                contentDescription = null,
+                                tint = Color(0xFF047857),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text("Cash Book (रोख)", fontSize = 11.sp, color = Color(0xFF047857), fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(3.dp))
                         Text(
-                            text = "Net Cash Movement",
-                            fontSize = 11.sp,
-                            color = if (daybook.netDayMovement >= 0) Color(0xFF16A34A) else Color(0xFFDC2626),
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "${if (daybook.netDayMovement >= 0) "+" else "-"}₹${HisabViewModel.formatAmount(kotlin.math.abs(daybook.netDayMovement))}",
-                            fontSize = 16.sp,
+                            text = "${if (daybook.netCashMovement >= 0) "+" else "-"}₹${HisabViewModel.formatAmount(kotlin.math.abs(daybook.netCashMovement))}",
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = if (daybook.netDayMovement >= 0) Color(0xFF16A34A) else Color(0xFFDC2626)
+                            color = if (daybook.netCashMovement >= 0) Color(0xFF16A34A) else Color(0xFFDC2626)
                         )
                         Text(
                             text = "In: ₹${HisabViewModel.formatAmount(daybook.dayCashIn)} | Out: ₹${HisabViewModel.formatAmount(daybook.dayCashOut)}",
@@ -280,124 +352,188 @@ fun DaybookReportSheet(
                         )
                     }
                 }
-            }
 
-            // Invoices Issued on Date
-            Text(
-                text = "Invoices Issued (${daybook.dayInvoices.size})",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = Emerald900
-            )
-
-            if (daybook.dayInvoices.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No invoices billed on this date", color = Color(0xFF94A3B8), fontSize = 12.sp)
-                }
-            } else {
+                // Bank Book
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA))
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (daybook.netBankMovement >= 0) Color(0xFFEFF6FF) else Color(0xFFFEF2F2)
+                    )
                 ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        daybook.dayInvoices.forEach { inv ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "#${inv.invoiceNumber} • ${inv.customerName}",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = Color(0xFF1E293B)
-                                    )
-                                    Text(
-                                        text = "${inv.type.label} • ${inv.items.size} items",
-                                        fontSize = 11.sp,
-                                        color = Color(0xFF64748B)
-                                    )
-                                }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(
-                                        text = "₹${HisabViewModel.formatAmount(inv.grandTotal)}",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = Emerald800
-                                    )
-                                    Text(
-                                        text = inv.paymentStatus.label,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = if (inv.isFullyPaid) Color(0xFF16A34A) else Color(0xFFDC2626)
-                                    )
-                                }
-                            }
-                            HorizontalDivider(color = Color(0xFFF1F5F9))
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountBalance,
+                                contentDescription = null,
+                                tint = Color(0xFF1D4ED8),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text("Bank & UPI Book", fontSize = 11.sp, color = Color(0xFF1D4ED8), fontWeight = FontWeight.Bold)
                         }
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = "${if (daybook.netBankMovement >= 0) "+" else "-"}₹${HisabViewModel.formatAmount(kotlin.math.abs(daybook.netBankMovement))}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (daybook.netBankMovement >= 0) Color(0xFF2563EB) else Color(0xFFDC2626)
+                        )
+                        Text(
+                            text = "In: ₹${HisabViewModel.formatAmount(daybook.dayBankIn)} | Out: ₹${HisabViewModel.formatAmount(daybook.dayBankOut)}",
+                            fontSize = 9.sp,
+                            color = Color(0xFF64748B)
+                        )
                     }
                 }
             }
 
-            // Cashbook Activity on Date
+            // Filter Tabs
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                DaybookFilterTab.entries.forEach { tab ->
+                    val isSelected = selectedTab == tab
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { selectedTab = tab },
+                        label = { Text(tab.label, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Emerald800,
+                            selectedLabelColor = PureWhite
+                        )
+                    )
+                }
+            }
+
+            // Filtered Vouchers List
+            val displayedVouchers = when (selectedTab) {
+                DaybookFilterTab.ALL -> daybook.vouchers
+                DaybookFilterTab.CASH_BOOK -> daybook.vouchers.filter {
+                    it.paymentMode.equals("CASH", ignoreCase = true) ||
+                        it.debitAccount.contains("Cash", ignoreCase = true) ||
+                        it.creditAccount.contains("Cash", ignoreCase = true)
+                }
+                DaybookFilterTab.BANK_BOOK -> daybook.vouchers.filter {
+                    !it.paymentMode.equals("CASH", ignoreCase = true) &&
+                        !it.paymentMode.equals("CREDIT", ignoreCase = true)
+                }
+                DaybookFilterTab.SALES -> daybook.vouchers.filter { it.voucherType == VoucherType.SALE }
+                DaybookFilterTab.PURCHASES -> daybook.vouchers.filter { it.voucherType == VoucherType.PURCHASE }
+            }
+
             Text(
-                text = "Cashbook Activity (${daybook.dayTransactions.size})",
+                text = "Journal Vouchers (${displayedVouchers.size})",
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
                 color = Emerald900
             )
 
-            if (daybook.dayTransactions.isEmpty()) {
+            if (displayedVouchers.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 12.dp),
+                        .padding(vertical = 24.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No cashbook entries on this date", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                    Text("No vouchers recorded on this date", color = Color(0xFF94A3B8), fontSize = 13.sp)
                 }
             } else {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA))
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        daybook.dayTransactions.forEach { tx ->
-                            val isIncome = tx.type == TransactionType.INCOME
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    displayedVouchers.forEach { voucher ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
+                                // Top row: Voucher Type badge, Number & Amount
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = Color(voucher.voucherType.badgeColor)
+                                        ) {
+                                            Text(
+                                                text = voucher.voucherType.label,
+                                                color = PureWhite,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = "#${voucher.voucherNumber}",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF1E293B)
+                                        )
+                                    }
+
                                     Text(
-                                        text = tx.title,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = Color(0xFF1E293B)
-                                    )
-                                    Text(
-                                        text = "${tx.category.label} • ${tx.paymentMode.label} • ${timeFormat.format(Date(tx.dateMillis))}",
-                                        fontSize = 11.sp,
-                                        color = Color(0xFF64748B)
+                                        text = IndianAccountingFormat.formatIndianCurrency(voucher.amount),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.sp,
+                                        color = Color(0xFF0F172A)
                                     )
                                 }
+
+                                // Narration
                                 Text(
-                                    text = "${if (isIncome) "+" else "-"}₹${HisabViewModel.formatAmount(tx.amount)}",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = if (isIncome) Color(0xFF16A34A) else Color(0xFFDC2626)
+                                    text = voucher.narration,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF334155),
+                                    fontWeight = FontWeight.Medium
                                 )
+
+                                HorizontalDivider(color = Color(0xFFE2E8F0), thickness = 0.5.dp)
+
+                                // Double Entry Accounts (Dr / Cr)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text("Dr:", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF16A34A))
+                                            Text(voucher.debitAccount, fontSize = 11.sp, color = Color(0xFF475569))
+                                        }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text("Cr:", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFFDC2626))
+                                            Text(voucher.creditAccount, fontSize = 11.sp, color = Color(0xFF475569))
+                                        }
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color(0xFFE2E8F0)
+                                    ) {
+                                        Text(
+                                            text = voucher.paymentMode,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFF475569),
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
                             }
-                            HorizontalDivider(color = Color(0xFFF1F5F9))
                         }
                     }
                 }

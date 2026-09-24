@@ -90,6 +90,7 @@ fun BusinessProfileSheet(
     var ownerName by remember { mutableStateOf(profile.ownerName) }
     var phone by remember { mutableStateOf(profile.phone) }
     var email by remember { mutableStateOf(profile.email) }
+    var isGstRegistered by remember { mutableStateOf(profile.isGstRegistered) }
     var gstin by remember { mutableStateOf(profile.gstin) }
     var address by remember { mutableStateOf(profile.address) }
     var city by remember { mutableStateOf(profile.city) }
@@ -113,6 +114,7 @@ fun BusinessProfileSheet(
         ownerName = profile.ownerName
         phone = profile.phone
         email = profile.email
+        isGstRegistered = profile.isGstRegistered
         gstin = profile.gstin
         address = profile.address
         city = profile.city
@@ -243,23 +245,65 @@ fun BusinessProfileSheet(
                         )
                     }
 
-                    OutlinedTextField(
-                        value = gstin,
-                        onValueChange = { gstin = it.uppercase() },
-                        label = { Text("GSTIN (15 Digits)") },
-                        supportingText = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (gstin.length == 15) "Valid 15-digit GSTIN format" else "Leave blank if unregistered composition / small trader",
-                                fontSize = 11.sp,
-                                color = if (gstin.length == 15) Emerald700 else MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "GST Registered Business?",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
                             )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("input_settings_gstin"),
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp)
-                    )
+                            Text(
+                                text = if (isGstRegistered) "YES — Enable CGST/SGST/IGST & HSN" else "NO — Simple Non-GST Billing Mode",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = isGstRegistered,
+                            onCheckedChange = { isGstRegistered = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = PureWhite,
+                                checkedTrackColor = Emerald700
+                            )
+                        )
+                    }
+
+                    if (isGstRegistered) {
+                        OutlinedTextField(
+                            value = gstin,
+                            onValueChange = { gstin = it.uppercase() },
+                            label = { Text("GSTIN (15 Digits)") },
+                            supportingText = {
+                                Text(
+                                    text = if (gstin.length == 15) "Valid 15-digit GSTIN format" else "Enter 15-digit GSTIN",
+                                    fontSize = 11.sp,
+                                    color = if (gstin.length == 15) Emerald700 else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("input_settings_gstin"),
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                    } else {
+                        Surface(
+                            color = Slate200.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Non-GST Mode: GSTIN, HSN/SAC codes, and GST rates are cleanly hidden on invoices and reports.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    }
 
                     OutlinedTextField(
                         value = address,
@@ -586,7 +630,8 @@ fun BusinessProfileSheet(
                         ownerName = ownerName,
                         phone = phone,
                         email = email,
-                        gstin = gstin,
+                        isGstRegistered = isGstRegistered,
+                        gstin = if (isGstRegistered) gstin else "",
                         address = address,
                         city = city,
                         state = state,

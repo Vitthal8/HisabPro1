@@ -35,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,6 +71,29 @@ fun AddKhataEntryDialog(
     var billNumber by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val invoiceRepo = remember { com.hisabpro.app.data.repository.InvoiceRepository.getInstance(context) }
+    val allInvoices by invoiceRepo.invoices.collectAsStateWithLifecycle()
+
+    val openInvoices = remember(party, entryType, allInvoices) {
+        allInvoices.filter { inv ->
+            inv.customerId == party.id &&
+            inv.dueAmount > 0.01 &&
+            inv.paymentStatus != com.hisabpro.app.data.model.InvoiceStatus.PAID
+        }.sortedByDescending { it.dateMillis }
+    }
+
+    // Auto-populate reference invoice number and due amount when receiving payment
+    androidx.compose.runtime.LaunchedEffect(party, entryType, openInvoices) {
+        if (entryType == KhataEntryType.YOU_GOT && openInvoices.isNotEmpty() && billNumber.isBlank()) {
+            val autoInv = openInvoices.first()
+            billNumber = autoInv.invoiceNumber
+            if (amountText.isBlank()) {
+                amountText = if (autoInv.dueAmount % 1.0 == 0.0) autoInv.dueAmount.toInt().toString() else autoInv.dueAmount.toString()
+            }
+        }
+    }
 
     val isGave = entryType == KhataEntryType.YOU_GAVE
     val themeColor = if (isGave) ExpenseRed else IncomeGreen

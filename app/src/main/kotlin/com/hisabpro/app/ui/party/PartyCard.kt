@@ -41,6 +41,7 @@ import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.data.model.PartyWithBalance
 import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.ui.HisabViewModel
+import com.hisabpro.app.ui.theme.DeepNavyBlue
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.ExpenseRed
 import com.hisabpro.app.ui.theme.ExpenseRedContainer
@@ -102,6 +103,7 @@ fun PartyCard(
             val avatarBg = when (party.type) {
                 PartyType.CUSTOMER -> Emerald700
                 PartyType.SUPPLIER -> Slate700
+                PartyType.BOTH -> DeepNavyBlue
             }
 
             Box(

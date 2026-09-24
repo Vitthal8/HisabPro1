@@ -103,7 +103,7 @@ fun CreatePurchaseSheet(
     onSavePurchase: (PurchaseBill) -> Unit
 ) {
     val filteredSuppliers = remember(suppliers) {
-        suppliers.filter { it.type == PartyType.SUPPLIER }.ifEmpty { suppliers }
+        suppliers.filter { it.type == PartyType.SUPPLIER || it.type == PartyType.BOTH }.ifEmpty { suppliers }
     }
 
     var selectedSupplier by remember { mutableStateOf<Party?>(filteredSuppliers.firstOrNull()) }

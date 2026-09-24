@@ -129,14 +129,15 @@ fun PartiesListScreen(
             onUpdateParty = { updatedParty ->
                 viewModel.updateParty(updatedParty)
             },
-            onRecordPayment = { direction, amount, mode, ref, notes ->
+            onRecordPayment = { direction, amount, mode, ref, notes, linkedInvId ->
                 viewModel.recordPartyPayment(
                     partyId = uiState.selectedParty!!.party.id,
                     amount = amount,
                     direction = direction,
                     paymentMode = mode,
                     referenceNo = ref,
-                    notes = notes
+                    notes = notes,
+                    linkedInvoiceId = linkedInvId
                 )
             }
         )
@@ -417,7 +418,8 @@ fun PartiesListScreen(
                     direction = data.direction,
                     paymentMode = data.paymentMode,
                     referenceNo = data.referenceNo,
-                    notes = data.notes
+                    notes = data.notes,
+                    linkedInvoiceId = data.linkedInvoiceId
                 )
                 quickPaymentPartyId = null
             }

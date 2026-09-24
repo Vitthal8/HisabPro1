@@ -98,6 +98,7 @@ fun DashboardScreen(
     onRecordPaymentClick: () -> Unit,
     onAddExpenseClick: () -> Unit,
     onAddPartyClick: () -> Unit,
+    onAddPurchaseClick: (() -> Unit)? = null,
     onDaybookClick: () -> Unit,
     onCashbookClick: () -> Unit,
     onViewAllSalesClick: () -> Unit,
@@ -293,7 +294,7 @@ fun DashboardScreen(
                     ) {
                         QuickActionButton(
                             icon = Icons.Default.ReceiptLong,
-                            label = "New Bill",
+                            label = "Add Sale",
                             color = SaffronOrange,
                             onClick = onNewSaleClick,
                             tag = "quick_action_sale"
@@ -306,13 +307,6 @@ fun DashboardScreen(
                             tag = "quick_action_payment_in"
                         )
                         QuickActionButton(
-                            icon = Icons.Default.ArrowUpward,
-                            label = "Expense",
-                            color = ExpenseRed,
-                            onClick = onAddExpenseClick,
-                            tag = "quick_action_expense"
-                        )
-                        QuickActionButton(
                             icon = Icons.Default.PersonAdd,
                             label = "Add Party",
                             color = DeepNavyBlue,
@@ -320,11 +314,18 @@ fun DashboardScreen(
                             tag = "quick_action_party"
                         )
                         QuickActionButton(
-                            icon = Icons.Default.MenuBook,
-                            label = "Day Book",
+                            icon = Icons.Default.ArrowUpward,
+                            label = "Add Expense",
+                            color = ExpenseRed,
+                            onClick = onAddExpenseClick,
+                            tag = "quick_action_expense"
+                        )
+                        QuickActionButton(
+                            icon = Icons.Default.Inventory2,
+                            label = "Add Purchase",
                             color = Emerald700,
-                            onClick = onDaybookClick,
-                            tag = "quick_action_daybook"
+                            onClick = { onAddPurchaseClick?.invoke() ?: onDaybookClick() },
+                            tag = "quick_action_purchase"
                         )
                     }
                 }

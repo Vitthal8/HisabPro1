@@ -54,6 +54,10 @@ import com.hisabpro.app.ui.theme.IncomeGreen
 import com.hisabpro.app.ui.theme.PureWhite
 import com.hisabpro.app.ui.theme.Slate100
 import com.hisabpro.app.ui.theme.Slate200
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.hisabpro.app.data.repository.SettingsRepository
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,6 +70,8 @@ fun Gstr3bReportSheet(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val settingsRepo = remember { SettingsRepository.getInstance(context) }
+    val businessProfile by settingsRepo.profile.collectAsStateWithLifecycle()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -119,6 +125,33 @@ fun Gstr3bReportSheet(
                 }
                 IconButton(onClick = onDismiss) {
                     Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
+                }
+            }
+
+            if (!businessProfile.isGstRegistered) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "GST Reporting Inactive",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color(0xFFB78103)
+                        )
+                        Text(
+                            text = "This business operates in Non-GST mode (gst_enabled = false). All sales and purchases are recorded without GST.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF5D4037)
+                        )
+                    }
                 }
             }
 

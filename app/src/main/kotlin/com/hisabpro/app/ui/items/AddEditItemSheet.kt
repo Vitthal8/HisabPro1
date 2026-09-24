@@ -58,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,6 +81,11 @@ fun AddEditItemSheet(
     onDismiss: () -> Unit,
     onSave: (Item) -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settingsRepo = remember { com.hisabpro.app.data.repository.SettingsRepository.getInstance(context) }
+    val businessProfile by settingsRepo.profile.collectAsStateWithLifecycle()
+    val isGstRegistered = businessProfile.isGstRegistered
+
     var name by remember { mutableStateOf(itemToEdit?.name ?: "") }
     var itemCode by remember { mutableStateOf(itemToEdit?.itemCode ?: "") }
     var category by remember { mutableStateOf(itemToEdit?.category ?: "General") }
@@ -202,21 +208,23 @@ fun AddEditItemSheet(
                     singleLine = true
                 )
 
-                OutlinedTextField(
-                    value = hsnCode,
-                    onValueChange = { hsnCode = it },
-                    label = { Text("HSN / SAC Code") },
-                    placeholder = { Text("e.g. 1006") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("item_hsn_input"),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true
-                )
+                if (isGstRegistered) {
+                    OutlinedTextField(
+                        value = hsnCode,
+                        onValueChange = { hsnCode = it },
+                        label = { Text("HSN / SAC Code") },
+                        placeholder = { Text("e.g. 1006") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("item_hsn_input"),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -380,35 +388,37 @@ fun AddEditItemSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            if (isGstRegistered) {
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // GST Rate Chips
-            Text(
-                text = "GST TAX SLAB",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                GST_RATES.forEach { rate ->
-                    FilterChip(
-                        selected = gstRate == rate,
-                        onClick = { gstRate = rate },
-                        label = { Text("${rate.toInt()}% GST") },
-                        leadingIcon = if (gstRate == rate) {
-                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                        } else null,
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Emerald700.copy(alpha = 0.15f),
-                            selectedLabelColor = Emerald700
+                // GST Rate Chips
+                Text(
+                    text = "GST TAX SLAB",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    GST_RATES.forEach { rate ->
+                        FilterChip(
+                            selected = gstRate == rate,
+                            onClick = { gstRate = rate },
+                            label = { Text("${rate.toInt()}% GST") },
+                            leadingIcon = if (gstRate == rate) {
+                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else null,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Emerald700.copy(alpha = 0.15f),
+                                selectedLabelColor = Emerald700
+                            )
                         )
-                    )
+                    }
                 }
             }
 

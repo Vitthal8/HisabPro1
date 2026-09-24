@@ -9,16 +9,16 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface KhataDao {
-    @Query("SELECT * FROM khata_entries ORDER BY dateMillis DESC")
+    @Query("SELECT * FROM khata_entries ORDER BY date DESC")
     fun getAllEntries(): Flow<List<KhataEntryEntity>>
 
-    @Query("SELECT * FROM khata_entries ORDER BY dateMillis DESC")
+    @Query("SELECT * FROM khata_entries ORDER BY date DESC")
     suspend fun getAllEntriesSync(): List<KhataEntryEntity>
 
-    @Query("SELECT * FROM khata_entries WHERE partyId = :partyId ORDER BY dateMillis DESC")
+    @Query("SELECT * FROM khata_entries WHERE party_id = :partyId ORDER BY date DESC")
     fun getEntriesForParty(partyId: String): Flow<List<KhataEntryEntity>>
 
-    @Query("SELECT * FROM khata_entries WHERE partyId = :partyId ORDER BY dateMillis DESC")
+    @Query("SELECT * FROM khata_entries WHERE party_id = :partyId ORDER BY date DESC")
     suspend fun getEntriesForPartySync(partyId: String): List<KhataEntryEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -30,6 +30,6 @@ interface KhataDao {
     @Query("DELETE FROM khata_entries WHERE id = :id")
     suspend fun deleteEntry(id: String)
 
-    @Query("DELETE FROM khata_entries WHERE partyId = :partyId")
+    @Query("DELETE FROM khata_entries WHERE party_id = :partyId")
     suspend fun deleteEntriesForParty(partyId: String)
 }

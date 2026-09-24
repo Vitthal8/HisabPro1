@@ -99,11 +99,12 @@ object IndianAccountingFormat {
      * - Customer positive balance: Dr (Debit = Money to Receive)
      * - Supplier positive balance: Cr (Credit = Money to Pay)
      */
-    fun getDrCrIndicator(balance: Double, isCustomer: Boolean): String {
-        return when {
-            balance > 0 -> if (isCustomer) "Dr" else "Cr"
-            balance < 0 -> if (isCustomer) "Cr" else "Dr"
-            else -> "-"
+    fun getDrCrIndicator(balance: Double, isCustomer: Boolean = true): String {
+        if (kotlin.math.abs(balance) < 0.01) return "-"
+        return if (isCustomer) {
+            if (balance > 0) "Dr" else "Cr"
+        } else {
+            if (balance > 0) "Cr" else "Dr"
         }
     }
 

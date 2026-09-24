@@ -2,18 +2,16 @@ package com.hisabpro.app.data.local
 
 import android.content.Context
 import com.hisabpro.app.data.local.entity.BusinessEntity
-import com.hisabpro.app.data.local.entity.ExpenseEntity
 import com.hisabpro.app.data.local.entity.InvoiceEntity
 import com.hisabpro.app.data.local.entity.InvoiceItemEntity
 import com.hisabpro.app.data.local.entity.ItemEntity
 import com.hisabpro.app.data.local.entity.KhataEntryEntity
 import com.hisabpro.app.data.local.entity.PartyEntity
-import com.hisabpro.app.data.local.entity.PaymentEntity
+import com.hisabpro.app.util.toPaise
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONArray
-import org.json.JSONObject
 
 object DatabaseMigrationHelper {
 
@@ -68,6 +66,7 @@ object DatabaseMigrationHelper {
                                     gstin = obj.optString("gstin", ""),
                                     type = obj.optString("type", "CUSTOMER"),
                                     tag = obj.optString("tag", "REGULAR"),
+                                    openingBalance = obj.optDouble("openingBalance", 0.0).toPaise(),
                                     createdAt = obj.optLong("createdAt", System.currentTimeMillis())
                                 )
                             )
@@ -82,9 +81,9 @@ object DatabaseMigrationHelper {
                                 KhataEntryEntity(
                                     id = obj.getString("id"),
                                     partyId = obj.getString("partyId"),
-                                    amount = obj.getDouble("amount"),
+                                    amount = obj.getDouble("amount").toPaise(),
                                     type = obj.getString("type"),
-                                    dateMillis = obj.getLong("dateMillis"),
+                                    date = obj.getLong("dateMillis"),
                                     billNumber = obj.optString("billNumber", ""),
                                     note = obj.optString("note", "")
                                 )
@@ -118,12 +117,12 @@ object DatabaseMigrationHelper {
                                     itemCode = obj.optString("itemCode", ""),
                                     category = obj.optString("category", "General"),
                                     unit = obj.optString("unit", "Pcs"),
-                                    sellPrice = obj.optDouble("salePrice", 0.0),
-                                    purchasePrice = obj.optDouble("purchasePrice", 0.0),
+                                    sellPrice = obj.optDouble("salePrice", 0.0).toPaise(),
+                                    purchasePrice = obj.optDouble("purchasePrice", 0.0).toPaise(),
                                     gstRate = obj.optDouble("gstRate", 18.0),
                                     hsnCode = obj.optString("hsnCode", ""),
                                     stockQty = obj.optDouble("currentStock", 0.0),
-                                    minStockAlert = obj.optDouble("minStockAlert", 5.0),
+                                    lowStockThreshold = obj.optDouble("minStockAlert", 5.0),
                                     createdAt = obj.optLong("updatedAtMillis", System.currentTimeMillis())
                                 )
                             )
@@ -149,17 +148,17 @@ object DatabaseMigrationHelper {
                                 id = invoiceId,
                                 businessId = "default_business",
                                 invoiceNo = obj.getString("invoiceNumber"),
-                                dateMillis = obj.optLong("dateMillis", System.currentTimeMillis()),
+                                date = obj.optLong("dateMillis", System.currentTimeMillis()),
                                 customerName = obj.optString("customerName", ""),
                                 customerPhone = obj.optString("customerPhone", ""),
                                 customerAddress = obj.optString("customerAddress", ""),
                                 customerGstin = obj.optString("customerGstin", ""),
                                 type = obj.optString("invoiceType", if (isGst) "TAX_INVOICE" else "NON_GST_BILL"),
                                 gstMode = obj.optString("gstMode", if (isGst) "INTRA_STATE" else "EXEMPT"),
-                                discountAmount = obj.optDouble("discountAmount", 0.0),
+                                discount = obj.optDouble("discountAmount", 0.0).toPaise(),
                                 notes = obj.optString("notes", ""),
                                 paymentStatus = obj.optString("paymentStatus", "PAID"),
-                                paidAmount = obj.optDouble("paidAmount", 0.0),
+                                paidAmount = obj.optDouble("paidAmount", 0.0).toPaise(),
                                 paymentMode = obj.optString("paymentMode", "Cash"),
                                 isGst = isGst,
                                 createdAt = obj.optLong("createdAt", System.currentTimeMillis())
@@ -180,8 +179,8 @@ object DatabaseMigrationHelper {
                                             hsnCode = itemObj.optString("hsnCode", ""),
                                             qty = qty,
                                             unit = itemObj.optString("unit", "Pcs"),
-                                            rate = rate,
-                                            amount = qty * rate
+                                            rate = rate.toPaise(),
+                                            amount = (qty * rate).toPaise()
                                         )
                                     )
                                 }

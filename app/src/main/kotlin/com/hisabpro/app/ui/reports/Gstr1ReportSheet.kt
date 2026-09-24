@@ -126,6 +126,33 @@ fun Gstr1ReportSheet(
                 }
             }
 
+            if (!businessProfile.isGstRegistered) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "GST Reporting Inactive",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color(0xFFB78103)
+                        )
+                        Text(
+                            text = "This business operates in Non-GST mode (gst_enabled = false). All sales are Non-GST / Exempt. No GST returns are required.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF5D4037)
+                        )
+                    }
+                }
+            }
+
             // Quick Actions: Share with CA & Export CSV
             Row(
                 modifier = Modifier.fillMaxWidth(),

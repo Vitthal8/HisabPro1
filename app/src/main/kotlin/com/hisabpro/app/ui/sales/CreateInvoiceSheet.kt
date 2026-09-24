@@ -1,6 +1,7 @@
 package com.hisabpro.app.ui.sales
 
 import android.content.Context
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -117,18 +118,26 @@ fun CreateInvoiceSheet(
     onSaveInvoice: (Invoice, saveAction: SaveAction) -> Unit
 ) {
     val context = LocalContext.current
-    var selectedType by remember { mutableStateOf(invoiceToEdit?.type ?: initialInvoiceType) }
+    val settingsRepo = remember { com.hisabpro.app.data.repository.SettingsRepository.getInstance(context) }
+    val businessProfile by settingsRepo.profile.collectAsStateWithLifecycle()
+    val isGstRegistered = businessProfile.isGstRegistered
+
+    var selectedType by remember {
+        mutableStateOf(
+            invoiceToEdit?.type ?: if (isGstRegistered) initialInvoiceType else InvoiceType.NON_GST_BILL
+        )
+    }
     var gstMode by remember { mutableStateOf(invoiceToEdit?.gstMode ?: GstMode.INTRA_STATE) }
 
     // Item picker state
     var showItemPickerDialog by remember { mutableStateOf(false) }
     var itemPickerSearch by remember { mutableStateOf("") }
 
-    // Quick cash mode shortcut
+    // Quick cash mode shortcut (OFF by default for new bills)
     var isQuickSaleMode by remember {
         mutableStateOf(
-            if (invoiceToEdit != null) invoiceToEdit.type == InvoiceType.NON_GST_BILL
-            else initialInvoiceType == InvoiceType.NON_GST_BILL
+            if (invoiceToEdit != null) invoiceToEdit.isQuickSale
+            else false
         )
     }
 
@@ -137,7 +146,7 @@ fun CreateInvoiceSheet(
     var showPartyDropdown by remember { mutableStateOf(false) }
     var customerName by remember {
         mutableStateOf(
-            invoiceToEdit?.customerName ?: if (isQuickSaleMode) "Cash Customer" else ""
+            invoiceToEdit?.customerName ?: ""
         )
     }
     var customerPhone by remember { mutableStateOf(invoiceToEdit?.customerPhone ?: "") }
@@ -175,23 +184,11 @@ fun CreateInvoiceSheet(
     val commonUnits = listOf("Pcs", "Nos", "Kg", "Box", "Mtr", "Ltr", "Pkt", "Set")
     val gstSlabs = listOf(0.0, 5.0, 12.0, 18.0, 28.0)
 
-    // Prepopulate items
+    // Prepopulate items when editing an existing invoice
     LaunchedEffect(invoiceToEdit) {
         if (invoiceToEdit != null) {
             items.clear()
             items.addAll(invoiceToEdit.items)
-        } else if (items.isEmpty()) {
-            items.add(
-                InvoiceItem(
-                    id = UUID.randomUUID().toString(),
-                    description = if (isQuickSaleMode) "Retail Counter Sale" else "Goods / Services",
-                    hsnCode = "9983",
-                    quantity = 1.0,
-                    unit = "Pcs",
-                    unitPrice = 1000.0,
-                    gstRate = if (selectedType == InvoiceType.TAX_INVOICE) 18.0 else 0.0
-                )
-            )
         }
     }
 
@@ -545,7 +542,7 @@ fun CreateInvoiceSheet(
                             shape = RoundedCornerShape(10.dp)
                         )
 
-                        if (selectedType == InvoiceType.TAX_INVOICE) {
+                        if (isGstRegistered && selectedType == InvoiceType.TAX_INVOICE) {
                             OutlinedTextField(
                                 value = customerGstin,
                                 onValueChange = { customerGstin = it.uppercase() },
@@ -586,46 +583,69 @@ fun CreateInvoiceSheet(
                 }
 
                 // Existing items cards
-                items.forEachIndexed { index, item ->
+                if (items.isEmpty()) {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = Slate100),
+                        colors = CardDefaults.cardColors(containerColor = Slate50),
+                        border = BorderStroke(1.dp, Slate200),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(vertical = 16.dp, horizontal = 12.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "${index + 1}. ${item.description}",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "${item.quantity} ${item.unit} @ ₹${item.unitPrice} | GST: ${item.gstRate}%",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "Total: ₹${String.format(Locale.ENGLISH, "%.2f", item.getTotal(gstMode))}",
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp,
-                                    color = Emerald800
-                                )
-                            }
-                            IconButton(
-                                onClick = { items.removeAt(index) }
+                            Text(
+                                text = "No items added yet. Pick from inventory or use '+ Add Item' below.",
+                                fontSize = 12.sp,
+                                color = Slate500,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    items.forEachIndexed { index, item ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Slate100),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Remove item",
-                                    tint = ExpenseRed
-                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "${index + 1}. ${item.description}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${item.quantity} ${item.unit} @ ₹${item.unitPrice} | GST: ${item.gstRate}%",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "Total: ₹${String.format(Locale.ENGLISH, "%.2f", item.getTotal(gstMode))}",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp,
+                                        color = Emerald800
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { items.removeAt(index) }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Remove item",
+                                        tint = ExpenseRed
+                                    )
+                                }
                             }
                         }
                     }
@@ -748,12 +768,12 @@ fun CreateInvoiceSheet(
                             )
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (selectedType == InvoiceType.TAX_INVOICE) {
+                        if (isGstRegistered && selectedType == InvoiceType.TAX_INVOICE) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 OutlinedTextField(
                                     value = itemHsn,
                                     onValueChange = { itemHsn = it },
@@ -762,26 +782,26 @@ fun CreateInvoiceSheet(
                                     singleLine = true,
                                     shape = RoundedCornerShape(8.dp)
                                 )
-                            }
 
-                            // GST Slab chips
-                            if (selectedType == InvoiceType.TAX_INVOICE && gstMode != GstMode.EXEMPT) {
-                                Column(modifier = Modifier.weight(2f)) {
-                                    Text("GST Rate", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Row(
-                                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        gstSlabs.forEach { slab ->
-                                            FilterChip(
-                                                selected = itemGstRate == slab,
-                                                onClick = { itemGstRate = slab },
-                                                label = { Text("${slab.toInt()}%", fontSize = 11.sp) },
-                                                colors = FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = Emerald700,
-                                                    selectedLabelColor = PureWhite
+                                // GST Slab chips
+                                if (gstMode != GstMode.EXEMPT) {
+                                    Column(modifier = Modifier.weight(2f)) {
+                                        Text("GST Rate", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Row(
+                                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            gstSlabs.forEach { slab ->
+                                                FilterChip(
+                                                    selected = itemGstRate == slab,
+                                                    onClick = { itemGstRate = slab },
+                                                    label = { Text("${slab.toInt()}%", fontSize = 11.sp) },
+                                                    colors = FilterChipDefaults.filterChipColors(
+                                                        selectedContainerColor = Emerald700,
+                                                        selectedLabelColor = PureWhite
+                                                    )
                                                 )
-                                            )
+                                            }
                                         }
                                     }
                                 }
@@ -811,7 +831,7 @@ fun CreateInvoiceSheet(
                                         quantity = qty,
                                         unit = itemUnit,
                                         unitPrice = price,
-                                        gstRate = if (selectedType == InvoiceType.TAX_INVOICE && gstMode != GstMode.EXEMPT) itemGstRate else 0.0
+                                        gstRate = if (isGstRegistered && selectedType == InvoiceType.TAX_INVOICE && gstMode != GstMode.EXEMPT) itemGstRate else 0.0
                                     )
                                 )
 
@@ -935,7 +955,7 @@ fun CreateInvoiceSheet(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Subtotal (Taxable):", color = Slate600, fontSize = 13.sp)
+                            Text(if (isGstRegistered && selectedType == InvoiceType.TAX_INVOICE) "Subtotal (Taxable):" else "Subtotal:", color = Slate600, fontSize = 13.sp)
                             Text(
                                 "₹${String.format(Locale.ENGLISH, "%.2f", subtotal)}",
                                 color = Slate900,
@@ -944,7 +964,7 @@ fun CreateInvoiceSheet(
                             )
                         }
 
-                        if (selectedType == InvoiceType.TAX_INVOICE && gstMode != GstMode.EXEMPT) {
+                        if (isGstRegistered && selectedType == InvoiceType.TAX_INVOICE && gstMode != GstMode.EXEMPT) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween

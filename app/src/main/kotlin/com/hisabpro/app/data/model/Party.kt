@@ -2,7 +2,8 @@ package com.hisabpro.app.data.model
 
 enum class PartyType(val label: String) {
     CUSTOMER("Customer"),
-    SUPPLIER("Supplier");
+    SUPPLIER("Supplier"),
+    BOTH("Both (Customer & Supplier)");
 
     companion object {
         fun fromString(value: String): PartyType {
@@ -72,18 +73,20 @@ data class PartyWithBalance(
         get() = when (party.type) {
             PartyType.CUSTOMER -> netBalance > 0.009
             PartyType.SUPPLIER -> netBalance > 0.009
+            PartyType.BOTH -> netBalance > 0.009
         }
 
     val isPayable: Boolean
         get() = when (party.type) {
             PartyType.CUSTOMER -> netBalance < -0.009
             PartyType.SUPPLIER -> netBalance < -0.009
+            PartyType.BOTH -> netBalance < -0.009
         }
 
     fun getStatusLabel(): String {
         return when {
             isSettled -> "Settled"
-            party.type == PartyType.CUSTOMER -> {
+            party.type == PartyType.CUSTOMER || party.type == PartyType.BOTH -> {
                 if (netBalance > 0) "You'll Get" else "Advance (You'll Give)"
             }
             else -> { // SUPPLIER

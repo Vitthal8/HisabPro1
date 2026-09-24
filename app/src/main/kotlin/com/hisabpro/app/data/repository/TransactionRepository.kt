@@ -9,6 +9,7 @@ import com.hisabpro.app.data.model.Category
 import com.hisabpro.app.data.model.PaymentMode
 import com.hisabpro.app.data.model.Transaction
 import com.hisabpro.app.data.model.TransactionType
+import com.hisabpro.app.util.toPaise
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -94,9 +95,9 @@ class TransactionRepository(context: Context) {
                             ExpenseEntity(
                                 id = item.id,
                                 businessId = "default_business",
-                                dateMillis = item.dateMillis,
+                                date = item.dateMillis,
                                 category = item.category.name,
-                                amount = item.amount,
+                                amount = item.amount.toPaise(),
                                 description = item.title + (if (item.note.isNotBlank()) " - ${item.note}" else ""),
                                 mode = item.paymentMode.name,
                                 receiptPath = ""
@@ -107,9 +108,9 @@ class TransactionRepository(context: Context) {
                             PaymentEntity(
                                 id = item.id,
                                 businessId = "default_business",
-                                partyId = "",
-                                dateMillis = item.dateMillis,
-                                amount = item.amount,
+                                partyId = null,
+                                date = item.dateMillis,
+                                amount = item.amount.toPaise(),
                                 mode = item.paymentMode.name,
                                 referenceNo = item.title,
                                 notes = item.note,

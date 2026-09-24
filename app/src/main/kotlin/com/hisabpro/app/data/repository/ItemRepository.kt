@@ -7,6 +7,7 @@ import com.hisabpro.app.data.local.entity.ItemEntity
 import com.hisabpro.app.data.model.Item
 import com.hisabpro.app.data.model.StockHistoryEntry
 import com.hisabpro.app.data.model.StockReason
+import com.hisabpro.app.util.toPaise
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -303,12 +304,12 @@ class ItemRepository(context: Context) {
                         itemCode = item.itemCode,
                         category = item.category,
                         unit = item.unit,
-                        sellPrice = item.salePrice,
-                        purchasePrice = item.purchasePrice,
+                        sellPrice = item.salePrice.toPaise(),
+                        purchasePrice = item.purchasePrice.toPaise(),
                         gstRate = item.gstRate,
                         hsnCode = item.hsnCode,
                         stockQty = item.currentStock,
-                        minStockAlert = item.minStockAlert,
+                        lowStockThreshold = item.minStockAlert,
                         createdAt = item.updatedAtMillis
                     )
                 }

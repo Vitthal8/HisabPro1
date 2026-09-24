@@ -1,14 +1,35 @@
 package com.hisabpro.app.domain.accounting
 
 import com.hisabpro.app.data.model.GstMode
+import com.hisabpro.app.data.model.InvoiceItem
 import com.hisabpro.app.data.model.InvoiceType
 import java.math.BigDecimal
 import java.math.RoundingMode
 
+data class LineItemCalculation(
+    val taxableAmount: Double,
+    val taxAmount: Double,
+    val cgst: Double,
+    val sgst: Double,
+    val igst: Double,
+    val totalAmount: Double
+)
+
+data class InvoiceCalculationResult(
+    val subtotal: Double,
+    val totalTax: Double,
+    val cgstTotal: Double,
+    val sgstTotal: Double,
+    val igstTotal: Double,
+    val discountAmount: Double,
+    val grandTotal: Double,
+    val dueAmount: Double
+)
+
 /**
  * HisabPro Accounting Engine
  * Centralized, double-entry and precision monetary calculation rules.
- * Uses BigDecimal with RoundingMode.HALF_UP to avoid IEEE 754 floating-point drift.
+ * Supports both GST and Non-GST architecture explicitly.
  */
 object AccountingEngine {
 
@@ -64,6 +85,142 @@ object AccountingEngine {
     fun calculateIgst(taxAmount: Double, gstMode: GstMode, isGst: Boolean): Double {
         if (!isGst || gstMode != GstMode.INTER_STATE || taxAmount <= 0.0) return 0.0
         return roundToTwoDecimals(taxAmount)
+    }
+
+    /**
+     * Reusable Non-GST calculation logic for a single line item.
+     * Item Total = Quantity * Unit Rate
+     */
+    fun calculateNonGstItem(quantity: Double, unitPrice: Double): LineItemCalculation {
+        val taxable = calculateLineItemTaxable(quantity, unitPrice)
+        return LineItemCalculation(
+            taxableAmount = taxable,
+            taxAmount = 0.0,
+            cgst = 0.0,
+            sgst = 0.0,
+            igst = 0.0,
+            totalAmount = taxable
+        )
+    }
+
+    /**
+     * Reusable GST calculation logic for a single line item.
+     */
+    fun calculateGstItem(
+        quantity: Double,
+        unitPrice: Double,
+        gstRate: Double,
+        gstMode: GstMode,
+        isGstBusinessEnabled: Boolean
+    ): LineItemCalculation {
+        val taxable = calculateLineItemTaxable(quantity, unitPrice)
+        if (!isGstBusinessEnabled || gstMode == GstMode.EXEMPT || gstRate <= 0.0) {
+            return LineItemCalculation(
+                taxableAmount = taxable,
+                taxAmount = 0.0,
+                cgst = 0.0,
+                sgst = 0.0,
+                igst = 0.0,
+                totalAmount = taxable
+            )
+        }
+
+        val taxAmount = calculateTaxAmount(taxable, gstRate, isGst = true)
+        val cgst = calculateCgst(taxAmount, gstMode, isGst = true)
+        val sgst = calculateSgst(taxAmount, gstMode, isGst = true)
+        val igst = calculateIgst(taxAmount, gstMode, isGst = true)
+        val total = roundToTwoDecimals(taxable + taxAmount)
+
+        return LineItemCalculation(
+            taxableAmount = taxable,
+            taxAmount = taxAmount,
+            cgst = cgst,
+            sgst = sgst,
+            igst = igst,
+            totalAmount = total
+        )
+    }
+
+    /**
+     * Reusable Non-GST calculation logic for an entire invoice.
+     * Format: Item | Qty | Rate | Amount
+     */
+    fun calculateNonGstInvoice(
+        items: List<InvoiceItem>,
+        discountAmount: Double,
+        paidAmount: Double
+    ): InvoiceCalculationResult {
+        val subtotal = roundToTwoDecimals(items.sumOf { calculateNonGstItem(it.quantity, it.unitPrice).totalAmount })
+        val grandTotal = calculateGrandTotal(subtotal, 0.0, discountAmount)
+        val due = calculateBalanceDue(grandTotal, paidAmount)
+
+        return InvoiceCalculationResult(
+            subtotal = subtotal,
+            totalTax = 0.0,
+            cgstTotal = 0.0,
+            sgstTotal = 0.0,
+            igstTotal = 0.0,
+            discountAmount = roundToTwoDecimals(discountAmount),
+            grandTotal = grandTotal,
+            dueAmount = due
+        )
+    }
+
+    /**
+     * Reusable GST calculation logic for an entire invoice.
+     */
+    fun calculateGstInvoice(
+        items: List<InvoiceItem>,
+        discountAmount: Double,
+        paidAmount: Double,
+        gstMode: GstMode
+    ): InvoiceCalculationResult {
+        val lineCalcs = items.map {
+            calculateGstItem(it.quantity, it.unitPrice, it.gstRate, gstMode, isGstBusinessEnabled = true)
+        }
+        val subtotal = roundToTwoDecimals(lineCalcs.sumOf { it.taxableAmount })
+        val totalTax = roundToTwoDecimals(lineCalcs.sumOf { it.taxAmount })
+        val cgstTotal = roundToTwoDecimals(lineCalcs.sumOf { it.cgst })
+        val sgstTotal = roundToTwoDecimals(lineCalcs.sumOf { it.sgst })
+        val igstTotal = roundToTwoDecimals(lineCalcs.sumOf { it.igst })
+
+        val grandTotal = calculateGrandTotal(subtotal, totalTax, discountAmount)
+        val due = calculateBalanceDue(grandTotal, paidAmount)
+
+        return InvoiceCalculationResult(
+            subtotal = subtotal,
+            totalTax = totalTax,
+            cgstTotal = cgstTotal,
+            sgstTotal = sgstTotal,
+            igstTotal = igstTotal,
+            discountAmount = roundToTwoDecimals(discountAmount),
+            grandTotal = grandTotal,
+            dueAmount = due
+        )
+    }
+
+    /**
+     * Master calculation function that automatically determines whether to execute
+     * Non-GST or GST calculation logic based on business setting (isGstBusinessEnabled)
+     * and invoice document type.
+     */
+    fun calculateInvoiceTotals(
+        items: List<InvoiceItem>,
+        discountAmount: Double,
+        paidAmount: Double,
+        gstMode: GstMode,
+        isGstBusinessEnabled: Boolean,
+        invoiceType: InvoiceType = InvoiceType.TAX_INVOICE
+    ): InvoiceCalculationResult {
+        val isEffectiveGst = isGstBusinessEnabled &&
+                invoiceType == InvoiceType.TAX_INVOICE &&
+                gstMode != GstMode.EXEMPT
+
+        return if (isEffectiveGst) {
+            calculateGstInvoice(items, discountAmount, paidAmount, gstMode)
+        } else {
+            calculateNonGstInvoice(items, discountAmount, paidAmount)
+        }
     }
 
     /**

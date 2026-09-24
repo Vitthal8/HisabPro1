@@ -10,17 +10,23 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PartyDao {
-    @Query("SELECT * FROM parties WHERE businessId = :businessId ORDER BY name ASC")
+    @Query("SELECT * FROM parties WHERE business_id = :businessId ORDER BY name ASC")
     fun getAllParties(businessId: String = "default_business"): Flow<List<PartyEntity>>
 
-    @Query("SELECT * FROM parties WHERE businessId = :businessId ORDER BY name ASC")
+    @Query("SELECT * FROM parties WHERE business_id = :businessId ORDER BY name ASC")
     suspend fun getAllPartiesSync(businessId: String = "default_business"): List<PartyEntity>
+
+    @Query("SELECT * FROM parties WHERE business_id = :businessId AND type = :type ORDER BY name ASC")
+    fun getPartiesByType(businessId: String = "default_business", type: String): Flow<List<PartyEntity>>
 
     @Query("SELECT * FROM parties WHERE id = :id LIMIT 1")
     fun getPartyById(id: String): Flow<PartyEntity?>
 
     @Query("SELECT * FROM parties WHERE id = :id LIMIT 1")
     suspend fun getPartyByIdSync(id: String): PartyEntity?
+
+    @Query("SELECT * FROM parties WHERE business_id = :businessId AND (name LIKE '%' || :query || '%' OR phone LIKE '%' || :query || '%') ORDER BY name ASC")
+    fun searchParties(businessId: String = "default_business", query: String): Flow<List<PartyEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertParty(party: PartyEntity)

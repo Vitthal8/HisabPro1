@@ -147,7 +147,12 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
 
         // Filtering
         val filtered = partiesWithBalance.filter { item ->
-            val matchesType = typeFilter == null || item.party.type == typeFilter
+            val matchesType = when (typeFilter) {
+                null -> true
+                PartyType.CUSTOMER -> item.party.type == PartyType.CUSTOMER || item.party.type == PartyType.BOTH
+                PartyType.SUPPLIER -> item.party.type == PartyType.SUPPLIER || item.party.type == PartyType.BOTH
+                PartyType.BOTH -> item.party.type == PartyType.BOTH
+            }
             val matchesTag = tagFilter == null || item.party.tag == tagFilter
             val matchesQuery = if (query.isBlank()) true else {
                 item.party.name.contains(query, ignoreCase = true) ||
@@ -282,7 +287,8 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
         direction: PaymentDirection,
         paymentMode: PaymentMode,
         referenceNo: String,
-        notes: String
+        notes: String,
+        linkedInvoiceId: String? = null
     ) {
         recordPaymentUseCase.execute(
             partyId = partyId,
@@ -290,7 +296,8 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
             direction = direction,
             paymentMode = paymentMode,
             referenceNo = referenceNo,
-            notes = notes
+            notes = notes,
+            linkedInvoiceId = linkedInvoiceId
         )
     }
 

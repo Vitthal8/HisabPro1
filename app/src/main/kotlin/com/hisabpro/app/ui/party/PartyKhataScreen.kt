@@ -17,7 +17,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.CircleShape
+import com.hisabpro.app.ui.theme.Slate100
+import com.hisabpro.app.ui.theme.Slate200
+import com.hisabpro.app.ui.theme.Slate800
+import com.hisabpro.app.util.IndianAccountingFormat
+import com.hisabpro.app.util.toPaise
+import com.hisabpro.app.util.toRupees
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -40,6 +47,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -102,7 +112,7 @@ fun PartyKhataScreen(
     onDeleteEntry: (String) -> Unit,
     onDeleteParty: (String) -> Unit,
     onUpdateParty: (Party) -> Unit = {},
-    onRecordPayment: ((PaymentDirection, Double, PaymentMode, String, String) -> Unit)? = null,
+    onRecordPayment: ((PaymentDirection, Double, PaymentMode, String, String, String?) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val party = partyWithBalance.party
@@ -115,6 +125,7 @@ fun PartyKhataScreen(
     var showDeletePartyDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showUpiQrSheet by remember { mutableStateOf(false) }
+    var isTableView by remember { mutableStateOf(false) }
 
     val settingsRepo = remember { SettingsRepository.getInstance(context) }
     val businessProfile by settingsRepo.profile.collectAsStateWithLifecycle()
@@ -426,7 +437,7 @@ fun PartyKhataScreen(
                 )
             }
 
-            // Ledger Entries Header
+            // Ledger Entries Header & View Toggle
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -434,19 +445,44 @@ fun PartyKhataScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Khata Ledger (${entries.size} entries)",
+                        text = "Khata Ledger (${entries.size})",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold
                         ),
                         color = MaterialTheme.colorScheme.onSurface
                     )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(
+                            selected = !isTableView,
+                            onClick = { isTableView = false },
+                            label = { Text("Cards", fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Emerald700,
+                                selectedLabelColor = PureWhite
+                            )
+                        )
+                        FilterChip(
+                            selected = isTableView,
+                            onClick = { isTableView = true },
+                            label = { Text("Table (Dr/Cr)", fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Emerald700,
+                                selectedLabelColor = PureWhite
+                            )
+                        )
+                    }
                 }
             }
 
-            // Ledger Entries List
+            // Ledger Entries List or Accounting Table View
             if (entries.isEmpty()) {
                 item {
                     EmptyKhataPlaceholder()
+                }
+            } else if (isTableView) {
+                item {
+                    PartyLedgerTableView(party = party, entries = entries)
                 }
             } else {
                 items(
@@ -552,7 +588,8 @@ fun PartyKhataScreen(
                     data.amount,
                     data.paymentMode,
                     data.referenceNo,
-                    data.notes
+                    data.notes,
+                    data.linkedInvoiceId
                 )
                 showRecordPaymentSheet = false
             }
@@ -927,6 +964,80 @@ private fun KhataEntryCard(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun PartyLedgerTableView(
+    party: Party,
+    entries: List<KhataEntry>
+) {
+    val sortedEntries = remember(entries) { entries.sortedBy { it.dateMillis } }
+    val dateFormat = remember { SimpleDateFormat("dd/MM/yy", Locale.ENGLISH) }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, Slate200),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Table Header Row
+            Surface(
+                color = Slate100,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Date", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(0.9f))
+                    Text("Particulars", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(1.5f))
+                    Text("Debit (Dr)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ExpenseRed, modifier = Modifier.weight(1.1f))
+                    Text("Credit (Cr)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = IncomeGreen, modifier = Modifier.weight(1.1f))
+                    Text("Balance", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate800, modifier = Modifier.weight(1.2f))
+                }
+            }
+
+            HorizontalDivider(color = Slate200)
+
+            var runningPaise = 0L
+            sortedEntries.forEachIndexed { index, entry ->
+                val amountPaise = entry.amount.toPaise()
+                val isGave = entry.type == KhataEntryType.YOU_GAVE
+                if (isGave) {
+                    runningPaise += amountPaise
+                } else {
+                    runningPaise -= amountPaise
+                }
+
+                val runningRupees = runningPaise.toRupees()
+                val drCr = IndianAccountingFormat.getDrCrIndicator(runningRupees, party.type == PartyType.CUSTOMER)
+
+                val debitStr = if (isGave) "₹${entry.amount.toInt()}" else "-"
+                val creditStr = if (!isGave) "₹${entry.amount.toInt()}" else "-"
+
+                val particulars = if (entry.billNumber.isNotBlank()) "Bill #${entry.billNumber}" else if (entry.note.isNotBlank()) entry.note else if (isGave) "Goods / Debit" else "Payment Received"
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(if (index % 2 == 1) com.hisabpro.app.ui.theme.Slate50 else MaterialTheme.colorScheme.surface)
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(dateFormat.format(Date(entry.dateMillis)), fontSize = 11.sp, color = Slate700, modifier = Modifier.weight(0.9f))
+                    Text(particulars, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Slate800, modifier = Modifier.weight(1.5f), maxLines = 1)
+                    Text(debitStr, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ExpenseRed, modifier = Modifier.weight(1.1f))
+                    Text(creditStr, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = IncomeGreen, modifier = Modifier.weight(1.1f))
+                    Text("₹${kotlin.math.abs(runningRupees).toInt()} $drCr", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate800, modifier = Modifier.weight(1.2f))
+                }
+                HorizontalDivider(color = Slate100)
+            }
+        }
     }
 }
 

@@ -10,6 +10,7 @@ import com.hisabpro.app.data.model.Invoice
 import com.hisabpro.app.data.model.InvoiceItem
 import com.hisabpro.app.data.model.InvoiceStatus
 import com.hisabpro.app.data.model.InvoiceType
+import com.hisabpro.app.util.toPaise
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -140,7 +141,7 @@ class InvoiceRepository(context: Context) {
                         id = inv.id,
                         businessId = "default_business",
                         invoiceNo = inv.invoiceNumber,
-                        dateMillis = inv.dateMillis,
+                        date = inv.dateMillis,
                         partyId = inv.customerId,
                         customerName = inv.customerName,
                         customerPhone = inv.customerPhone,
@@ -148,13 +149,14 @@ class InvoiceRepository(context: Context) {
                         customerGstin = inv.customerGstin,
                         type = inv.type.name,
                         gstMode = inv.gstMode.name,
-                        subtotal = inv.subtotal,
-                        cgst = inv.cgstTotal,
-                        sgst = inv.sgstTotal,
-                        igst = inv.igstTotal,
-                        discountAmount = inv.discountAmount,
-                        total = inv.grandTotal,
-                        paidAmount = inv.paidAmount,
+                        subtotal = inv.subtotal.toPaise(),
+                        cgst = inv.cgstTotal.toPaise(),
+                        sgst = inv.sgstTotal.toPaise(),
+                        igst = inv.igstTotal.toPaise(),
+                        discount = inv.discountAmount.toPaise(),
+                        taxableAmount = kotlin.math.max(0.0, inv.subtotal - inv.discountAmount).toPaise(),
+                        total = inv.grandTotal.toPaise(),
+                        paidAmount = inv.paidAmount.toPaise(),
                         paymentStatus = inv.paymentStatus.name,
                         paymentMode = if (inv.paidAmount > 0) "CASH" else "UNPAID",
                         notes = inv.notes,
@@ -169,10 +171,10 @@ class InvoiceRepository(context: Context) {
                             hsnCode = item.hsnCode,
                             qty = item.quantity,
                             unit = item.unit,
-                            rate = item.unitPrice,
+                            rate = item.unitPrice.toPaise(),
                             cgstRate = if (inv.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0,
                             sgstRate = if (inv.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0,
-                            amount = item.getTotal(inv.gstMode)
+                            amount = item.getTotal(inv.gstMode).toPaise()
                         )
                     }
                     db.invoiceDao().insertInvoiceWithItems(invoiceEntity, itemEntities)

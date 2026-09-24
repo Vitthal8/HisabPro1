@@ -11,6 +11,7 @@ import com.hisabpro.app.data.model.Party
 import com.hisabpro.app.data.model.PartyTag
 import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.data.model.PartyWithBalance
+import com.hisabpro.app.util.toPaise
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -163,9 +164,9 @@ class PartyRepository(context: Context) {
                     KhataEntryEntity(
                         id = e.id,
                         partyId = e.partyId,
-                        amount = e.amount,
+                        amount = e.amount.toPaise(),
                         type = e.type.name,
-                        dateMillis = e.dateMillis,
+                        date = e.dateMillis,
                         billNumber = e.billNumber,
                         note = e.note
                     )

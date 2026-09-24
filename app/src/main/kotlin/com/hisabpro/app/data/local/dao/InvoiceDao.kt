@@ -12,11 +12,17 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface InvoiceDao {
-    @Query("SELECT * FROM invoices WHERE businessId = :businessId ORDER BY dateMillis DESC")
+    @Query("SELECT * FROM invoices WHERE business_id = :businessId ORDER BY date DESC")
     fun getAllInvoices(businessId: String = "default_business"): Flow<List<InvoiceEntity>>
 
-    @Query("SELECT * FROM invoices WHERE businessId = :businessId ORDER BY dateMillis DESC")
+    @Query("SELECT * FROM invoices WHERE business_id = :businessId ORDER BY date DESC")
     suspend fun getAllInvoicesSync(businessId: String = "default_business"): List<InvoiceEntity>
+
+    @Query("SELECT * FROM invoices WHERE business_id = :businessId AND date BETWEEN :startDate AND :endDate ORDER BY date DESC")
+    fun getInvoicesByDateRange(businessId: String = "default_business", startDate: Long, endDate: Long): Flow<List<InvoiceEntity>>
+
+    @Query("SELECT * FROM invoices WHERE business_id = :businessId AND party_id = :partyId ORDER BY date DESC")
+    fun getInvoicesForParty(businessId: String = "default_business", partyId: String): Flow<List<InvoiceEntity>>
 
     @Query("SELECT * FROM invoices WHERE id = :id LIMIT 1")
     fun getInvoiceById(id: String): Flow<InvoiceEntity?>
@@ -24,11 +30,14 @@ interface InvoiceDao {
     @Query("SELECT * FROM invoices WHERE id = :id LIMIT 1")
     suspend fun getInvoiceByIdSync(id: String): InvoiceEntity?
 
-    @Query("SELECT * FROM invoice_items WHERE invoiceId = :invoiceId")
+    @Query("SELECT * FROM invoice_items WHERE invoice_id = :invoiceId")
     fun getItemsForInvoice(invoiceId: String): Flow<List<InvoiceItemEntity>>
 
-    @Query("SELECT * FROM invoice_items WHERE invoiceId = :invoiceId")
+    @Query("SELECT * FROM invoice_items WHERE invoice_id = :invoiceId")
     suspend fun getItemsForInvoiceSync(invoiceId: String): List<InvoiceItemEntity>
+
+    @Query("SELECT COALESCE(SUM(total), 0) FROM invoices WHERE business_id = :businessId AND date BETWEEN :startDate AND :endDate")
+    fun getTotalSalesByDateRange(businessId: String = "default_business", startDate: Long, endDate: Long): Flow<Long>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertInvoice(invoice: InvoiceEntity)
@@ -39,7 +48,7 @@ interface InvoiceDao {
     @Update
     suspend fun updateInvoice(invoice: InvoiceEntity)
 
-    @Query("DELETE FROM invoice_items WHERE invoiceId = :invoiceId")
+    @Query("DELETE FROM invoice_items WHERE invoice_id = :invoiceId")
     suspend fun deleteItemsForInvoice(invoiceId: String)
 
     @Query("DELETE FROM invoices WHERE id = :id")

@@ -49,6 +49,7 @@ import com.hisabpro.app.data.model.Party
 import com.hisabpro.app.data.model.PartyTag
 import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.ui.theme.Emerald700
+import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.ExpenseRed
 import com.hisabpro.app.ui.theme.PureWhite
 import com.hisabpro.app.ui.theme.Slate700
@@ -116,7 +117,7 @@ fun AddPartyDialog(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Party Type Toggle (Customer vs Supplier)
+            // Party Type Toggle (Customer vs Supplier vs Both)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -132,12 +133,12 @@ fun AddPartyDialog(
                             if (partyType == PartyType.CUSTOMER) Emerald700 else Color.Transparent
                         )
                         .clickable { partyType = PartyType.CUSTOMER }
-                        .padding(vertical = 12.dp)
+                        .padding(vertical = 10.dp)
                         .testTag("select_party_customer"),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Customer (Client)",
+                        text = "Customer",
                         fontWeight = FontWeight.Bold,
                         color = if (partyType == PartyType.CUSTOMER) PureWhite else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -151,14 +152,33 @@ fun AddPartyDialog(
                             if (partyType == PartyType.SUPPLIER) Slate700 else Color.Transparent
                         )
                         .clickable { partyType = PartyType.SUPPLIER }
-                        .padding(vertical = 12.dp)
+                        .padding(vertical = 10.dp)
                         .testTag("select_party_supplier"),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Supplier (Vendor)",
+                        text = "Supplier",
                         fontWeight = FontWeight.Bold,
                         color = if (partyType == PartyType.SUPPLIER) PureWhite else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            if (partyType == PartyType.BOTH) Emerald800 else Color.Transparent
+                        )
+                        .clickable { partyType = PartyType.BOTH }
+                        .padding(vertical = 10.dp)
+                        .testTag("select_party_both"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Both (Cust & Supp)",
+                        fontWeight = FontWeight.Bold,
+                        color = if (partyType == PartyType.BOTH) PureWhite else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

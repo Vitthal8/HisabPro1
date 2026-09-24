@@ -10,8 +10,14 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AccountDao {
-    @Query("SELECT * FROM accounts WHERE businessId = :businessId ORDER BY name ASC")
+    @Query("SELECT * FROM accounts WHERE business_id = :businessId ORDER BY name ASC")
     fun getAllAccounts(businessId: String = "default_business"): Flow<List<AccountEntity>>
+
+    @Query("SELECT * FROM accounts WHERE business_id = :businessId AND type = :type ORDER BY name ASC")
+    fun getAccountsByType(businessId: String = "default_business", type: String): Flow<List<AccountEntity>>
+
+    @Query("SELECT * FROM accounts WHERE id = :id LIMIT 1")
+    suspend fun getAccountByIdSync(id: String): AccountEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAccount(account: AccountEntity)

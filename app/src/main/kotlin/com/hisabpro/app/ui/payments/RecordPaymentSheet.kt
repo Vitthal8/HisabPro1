@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.Money
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.Receipt
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -94,7 +96,8 @@ data class PaymentRecordData(
     val amount: Double,
     val paymentMode: PaymentMode,
     val referenceNo: String,
-    val notes: String
+    val notes: String,
+    val linkedInvoiceId: String? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -114,8 +117,8 @@ fun RecordPaymentSheet(
 
     val filteredParties = remember(direction, parties) {
         when (direction) {
-            PaymentDirection.RECEIPT_IN -> parties.filter { it.type == PartyType.CUSTOMER }
-            PaymentDirection.PAYMENT_OUT -> parties.filter { it.type == PartyType.SUPPLIER }
+            PaymentDirection.RECEIPT_IN -> parties.filter { it.type == PartyType.CUSTOMER || it.type == PartyType.BOTH }
+            PaymentDirection.PAYMENT_OUT -> parties.filter { it.type == PartyType.SUPPLIER || it.type == PartyType.BOTH }
         }
     }
 
@@ -126,11 +129,38 @@ fun RecordPaymentSheet(
         )
     }
 
+    val invoiceRepo = remember { com.hisabpro.app.data.repository.InvoiceRepository.getInstance(context) }
+    val allInvoices by invoiceRepo.invoices.collectAsStateWithLifecycle()
+
+    val openInvoicesForParty = remember(selectedParty, direction, allInvoices) {
+        if (selectedParty == null) emptyList()
+        else allInvoices.filter { inv ->
+            inv.customerId == selectedParty?.id &&
+            inv.dueAmount > 0.01 &&
+            inv.paymentStatus != com.hisabpro.app.data.model.InvoiceStatus.PAID
+        }.sortedByDescending { it.dateMillis }
+    }
+
+    var selectedInvoice by remember { mutableStateOf<com.hisabpro.app.data.model.Invoice?>(null) }
+    var showInvoiceDropdown by remember { mutableStateOf(false) }
+
     var amountText by remember { mutableStateOf("") }
     var selectedMode by remember { mutableStateOf(PaymentMode.CASH) }
     var referenceNo by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var showPartyDropdown by remember { mutableStateOf(false) }
+
+    // Auto populate reference invoice & due amount when party or direction changes
+    androidx.compose.runtime.LaunchedEffect(selectedParty, direction, openInvoicesForParty) {
+        if (direction == PaymentDirection.RECEIPT_IN && openInvoicesForParty.isNotEmpty()) {
+            val autoInv = openInvoicesForParty.first()
+            selectedInvoice = autoInv
+            referenceNo = autoInv.invoiceNumber
+            if (amountText.isBlank()) {
+                amountText = if (autoInv.dueAmount % 1.0 == 0.0) autoInv.dueAmount.toInt().toString() else autoInv.dueAmount.toString()
+            }
+        }
+    }
 
     // Instant UPI QR dialog trigger
     var showUpiQrSheet by remember { mutableStateOf(false) }
@@ -310,6 +340,58 @@ fun RecordPaymentSheet(
                     }
                 }
 
+                // Reference Invoice Selection (Auto-populated for unpaid invoices)
+                if (direction == PaymentDirection.RECEIPT_IN && openInvoicesForParty.isNotEmpty()) {
+                    ExposedDropdownMenuBox(
+                        expanded = showInvoiceDropdown,
+                        onExpandedChange = { showInvoiceDropdown = it }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedInvoice?.let { "${it.invoiceNumber} (Due: ₹${String.format(Locale.ENGLISH, "%.2f", it.dueAmount)})" } ?: "General Credit / Custom Ref",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Against Reference Invoice *") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showInvoiceDropdown) },
+                            leadingIcon = { Icon(Icons.Default.Receipt, contentDescription = null, tint = Emerald700) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                .testTag("input_payment_invoice_ref"),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = showInvoiceDropdown,
+                            onDismissRequest = { showInvoiceDropdown = false }
+                        ) {
+                            openInvoicesForParty.forEach { inv ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(inv.invoiceNumber, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            Text("Due Amount: ₹${String.format(Locale.ENGLISH, "%.2f", inv.dueAmount)}", fontSize = 12.sp, color = ExpenseRed)
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedInvoice = inv
+                                        referenceNo = inv.invoiceNumber
+                                        amountText = if (inv.dueAmount % 1.0 == 0.0) inv.dueAmount.toInt().toString() else inv.dueAmount.toString()
+                                        showInvoiceDropdown = false
+                                    }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("None / Custom Ref (General Credit)", fontWeight = FontWeight.Medium) },
+                                onClick = {
+                                    selectedInvoice = null
+                                    referenceNo = ""
+                                    showInvoiceDropdown = false
+                                }
+                            )
+                        }
+                    }
+                }
+
                 // Amount Input
                 OutlinedTextField(
                     value = amountText,
@@ -454,7 +536,8 @@ fun RecordPaymentSheet(
                                 amount = amt,
                                 paymentMode = selectedMode,
                                 referenceNo = referenceNo.trim(),
-                                notes = notes.trim()
+                                notes = notes.trim(),
+                                linkedInvoiceId = selectedInvoice?.id
                             )
                         )
                         Toast.makeText(context, "Payment recorded successfully!", Toast.LENGTH_SHORT).show()

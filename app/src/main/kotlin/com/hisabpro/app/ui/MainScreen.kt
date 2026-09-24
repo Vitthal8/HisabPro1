@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hisabpro.app.R
 import com.hisabpro.app.data.repository.SettingsRepository
+import com.hisabpro.app.ui.backup.BackupScreen
+import com.hisabpro.app.ui.backup.BackupViewModel
 import com.hisabpro.app.ui.dashboard.DashboardScreen
 import com.hisabpro.app.ui.items.ItemViewModel
 import com.hisabpro.app.ui.items.ItemsScreen
@@ -60,6 +62,7 @@ fun MainScreen(
     itemViewModel: ItemViewModel,
     reportsViewModel: ReportsViewModel,
     purchaseViewModel: PurchaseViewModel? = null,
+    backupViewModel: BackupViewModel? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -98,6 +101,8 @@ fun MainScreen(
             itemViewModel = itemViewModel,
             reportsViewModel = reportsViewModel,
             purchaseViewModel = purchaseViewModel,
+            backupViewModel = backupViewModel,
+            onReloadProfile = { settingsRepo.reloadProfile() },
             onSaveProfile = { updated -> settingsRepo.saveProfile(updated) },
             modifier = modifier
         )
@@ -113,6 +118,8 @@ private fun MainScreenContent(
     itemViewModel: ItemViewModel,
     reportsViewModel: ReportsViewModel,
     purchaseViewModel: PurchaseViewModel?,
+    backupViewModel: BackupViewModel?,
+    onReloadProfile: () -> Unit,
     onSaveProfile: (com.hisabpro.app.data.model.BusinessProfile) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -123,7 +130,7 @@ private fun MainScreenContent(
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showBusinessSetup by rememberSaveable { mutableStateOf(!businessProfile.hasCompletedOnboarding) }
-    var activeSubScreen by rememberSaveable { mutableStateOf<String?>(null) } // "items", "cashbook"
+    var activeSubScreen by rememberSaveable { mutableStateOf<String?>(null) } // "items", "cashbook", "backup"
 
     if (showBusinessSetup) {
         BusinessSetupScreen(
@@ -156,6 +163,19 @@ private fun MainScreenContent(
             HisabApp(
                 viewModel = hisabViewModel,
                 onBack = { activeSubScreen = null }
+            )
+        }
+        return
+    }
+
+    if (activeSubScreen == "backup" && backupViewModel != null) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            BackupScreen(
+                viewModel = backupViewModel,
+                onBack = {
+                    activeSubScreen = null
+                    onReloadProfile()
+                }
             )
         }
         return
@@ -386,6 +406,7 @@ private fun MainScreenContent(
                     onOpenBusinessSetup = { showBusinessSetup = true },
                     onOpenItems = { activeSubScreen = "items" },
                     onOpenCashbook = { activeSubScreen = "cashbook" },
+                    onOpenBackup = { activeSubScreen = "backup" },
                     onUpdateProfile = { updated -> onSaveProfile(updated) }
                 )
             }

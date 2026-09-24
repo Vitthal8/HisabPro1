@@ -81,11 +81,11 @@ fun MoreScreen(
     onOpenBusinessSetup: () -> Unit,
     onOpenItems: () -> Unit,
     onOpenCashbook: () -> Unit,
+    onOpenBackup: () -> Unit,
     onUpdateProfile: (BusinessProfile) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showPricingModal by remember { mutableStateOf(false) }
-    var showBackupRestoreModal by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = modifier
@@ -458,7 +458,7 @@ fun MoreScreen(
                 title = "Local Backup & Restore",
                 subtitle = "Create versioned backup, share via WhatsApp/Drive, or restore safely",
                 tag = "more_item_backup_restore",
-                onClick = { showBackupRestoreModal = true }
+                onClick = onOpenBackup
             )
         }
 
@@ -497,11 +497,6 @@ fun MoreScreen(
     // Pricing & Plans Modal
     if (showPricingModal) {
         PricingPlansSheet(onDismiss = { showPricingModal = false })
-    }
-
-    // Local Backup & Restore Modal
-    if (showBackupRestoreModal) {
-        BackupRestoreSheet(onDismiss = { showBackupRestoreModal = false })
     }
 }
 

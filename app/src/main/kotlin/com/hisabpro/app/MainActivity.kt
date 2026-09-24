@@ -18,6 +18,7 @@ class MainActivity : ComponentActivity() {
     private val itemViewModel: com.hisabpro.app.ui.items.ItemViewModel by viewModels()
     private val reportsViewModel: com.hisabpro.app.ui.reports.ReportsViewModel by viewModels()
     private val purchaseViewModel: com.hisabpro.app.ui.purchases.PurchaseViewModel by viewModels()
+    private val backupViewModel: com.hisabpro.app.ui.backup.BackupViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,7 +31,8 @@ class MainActivity : ComponentActivity() {
                     invoiceViewModel = invoiceViewModel,
                     itemViewModel = itemViewModel,
                     reportsViewModel = reportsViewModel,
-                    purchaseViewModel = purchaseViewModel
+                    purchaseViewModel = purchaseViewModel,
+                    backupViewModel = backupViewModel
                 )
             }
         }

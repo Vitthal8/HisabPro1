@@ -88,6 +88,10 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    fun reloadProfile() {
+        loadProfile()
+    }
+
     fun saveProfile(profile: BusinessProfile) {
         val obj = JSONObject().apply {
             put("shopName", profile.shopName)

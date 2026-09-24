@@ -18,9 +18,18 @@ interface BusinessDao {
     @Query("SELECT * FROM businesses ORDER BY name ASC")
     fun getAllBusinesses(): Flow<List<BusinessEntity>>
 
+    @Query("SELECT * FROM businesses ORDER BY name ASC")
+    suspend fun getAllBusinessesSync(): List<BusinessEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(business: BusinessEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllBusinesses(businesses: List<BusinessEntity>)
+
     @Query("DELETE FROM businesses WHERE id = :id")
     suspend fun deleteBusiness(id: String)
+
+    @Query("DELETE FROM businesses")
+    suspend fun deleteAllBusinesses()
 }

@@ -32,4 +32,7 @@ interface KhataDao {
 
     @Query("DELETE FROM khata_entries WHERE party_id = :partyId")
     suspend fun deleteEntriesForParty(partyId: String)
+
+    @Query("DELETE FROM khata_entries")
+    suspend fun deleteAllEntries()
 }

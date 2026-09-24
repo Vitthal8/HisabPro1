@@ -45,4 +45,10 @@ interface ItemDao {
 
     @Query("DELETE FROM items WHERE id = :id")
     suspend fun deleteItem(id: String)
+
+    @Query("SELECT * FROM items ORDER BY name ASC")
+    suspend fun getAllItemsGlobalSync(): List<ItemEntity>
+
+    @Query("DELETE FROM items")
+    suspend fun deleteAllItems()
 }

@@ -23,4 +23,13 @@ interface PaymentDao {
 
     @Query("DELETE FROM payments WHERE id = :id")
     suspend fun deletePayment(id: String)
+
+    @Query("SELECT * FROM payments ORDER BY date DESC")
+    suspend fun getAllPaymentsGlobalSync(): List<PaymentEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllPayments(payments: List<PaymentEntity>)
+
+    @Query("DELETE FROM payments")
+    suspend fun deleteAllPayments()
 }

@@ -38,4 +38,19 @@ interface JournalDao {
         deleteLinesForJournalEntry(entry.id)
         insertJournalLines(lines)
     }
+
+    @Query("SELECT * FROM journal_entries ORDER BY date DESC")
+    suspend fun getAllJournalEntriesGlobalSync(): List<JournalEntryEntity>
+
+    @Query("SELECT * FROM journal_entry_lines")
+    suspend fun getAllJournalEntryLinesGlobalSync(): List<JournalEntryLineEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllJournalEntries(entries: List<JournalEntryEntity>)
+
+    @Query("DELETE FROM journal_entry_lines")
+    suspend fun deleteAllJournalLines()
+
+    @Query("DELETE FROM journal_entries")
+    suspend fun deleteAllJournalEntries()
 }

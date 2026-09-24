@@ -27,4 +27,13 @@ interface AccountDao {
 
     @Query("DELETE FROM accounts WHERE id = :id")
     suspend fun deleteAccount(id: String)
+
+    @Query("SELECT * FROM accounts ORDER BY name ASC")
+    suspend fun getAllAccountsGlobalSync(): List<AccountEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllAccounts(accounts: List<AccountEntity>)
+
+    @Query("DELETE FROM accounts")
+    suspend fun deleteAllAccounts()
 }

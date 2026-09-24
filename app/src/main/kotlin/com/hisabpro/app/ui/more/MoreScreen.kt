@@ -72,6 +72,7 @@ import com.hisabpro.app.ui.theme.SaffronOrange
 import com.hisabpro.app.ui.theme.Slate200
 import com.hisabpro.app.ui.theme.Slate700
 import com.hisabpro.app.ui.theme.Slate800
+import com.hisabpro.app.ui.backup.BackupRestoreSheet
 import com.hisabpro.app.util.IndianAccountingFormat
 
 @Composable
@@ -84,6 +85,7 @@ fun MoreScreen(
     modifier: Modifier = Modifier
 ) {
     var showPricingModal by remember { mutableStateOf(false) }
+    var showBackupRestoreModal by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = modifier
@@ -450,6 +452,14 @@ fun MoreScreen(
                     }
                 }
             }
+
+            SettingsItemRow(
+                icon = Icons.Default.Security,
+                title = "Local Backup & Restore",
+                subtitle = "Create versioned backup, share via WhatsApp/Drive, or restore safely",
+                tag = "more_item_backup_restore",
+                onClick = { showBackupRestoreModal = true }
+            )
         }
 
         // Indian Accounting Standards Info
@@ -487,6 +497,11 @@ fun MoreScreen(
     // Pricing & Plans Modal
     if (showPricingModal) {
         PricingPlansSheet(onDismiss = { showPricingModal = false })
+    }
+
+    // Local Backup & Restore Modal
+    if (showBackupRestoreModal) {
+        BackupRestoreSheet(onDismiss = { showBackupRestoreModal = false })
     }
 }
 

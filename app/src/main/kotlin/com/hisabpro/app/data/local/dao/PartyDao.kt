@@ -39,4 +39,10 @@ interface PartyDao {
 
     @Query("DELETE FROM parties WHERE id = :id")
     suspend fun deleteParty(id: String)
+
+    @Query("SELECT * FROM parties ORDER BY name ASC")
+    suspend fun getAllPartiesGlobalSync(): List<PartyEntity>
+
+    @Query("DELETE FROM parties")
+    suspend fun deleteAllParties()
 }

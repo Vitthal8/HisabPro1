@@ -4,4 +4,6 @@
     <files-path name="invoice_files" path="invoices/" />
     <cache-path name="reports_cache" path="reports/" />
     <files-path name="reports_files" path="reports/" />
+    <cache-path name="backup_cache" path="backups/" />
+    <files-path name="backup_files" path="backups/" />
 </paths>

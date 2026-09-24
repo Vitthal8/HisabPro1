@@ -373,4 +373,235 @@ class IndianAccountingTest {
         assertTrue(!text.contains("SGST"))
         assertTrue(!text.contains("IGST"))
     }
+
+    @Test
+    fun testBackupValidationSuccess() {
+        val json = """
+        {
+            "backup_version": 1,
+            "app_name": "HisabPro",
+            "app_version": "1.0.0",
+            "created_at_millis": 1727188800000,
+            "created_at_formatted": "24/09/2026 10:30:00",
+            "business_info": {
+                "shop_name": "Ganesh Kirana Stores",
+                "owner_name": "Ganesh Patil",
+                "phone": "9822012345",
+                "is_gst_registered": false
+            },
+            "counts": {
+                "businesses": 1,
+                "parties": 5,
+                "items": 10,
+                "invoices": 8,
+                "invoice_items": 16,
+                "payments": 4,
+                "expenses": 3,
+                "accounts": 2,
+                "journal_entries": 1,
+                "journal_lines": 2,
+                "khata_entries": 6
+            },
+            "data": {
+                "businesses": [{"id": "default_business", "name": "Ganesh Kirana Stores"}],
+                "parties": [],
+                "items": [],
+                "invoices": [],
+                "invoice_items": [],
+                "payments": [],
+                "expenses": [],
+                "accounts": [],
+                "journal_entries": [],
+                "journal_lines": [],
+                "khata_entries": []
+            }
+        }
+        """.trimIndent()
+
+        val result = com.hisabpro.app.data.backup.BackupManager.validateBackupJson(
+            json,
+            "backup_test.hisabpro",
+            json.length.toLong()
+        )
+
+        assertTrue(result is com.hisabpro.app.data.backup.BackupValidationResult.Valid)
+        val valid = result as com.hisabpro.app.data.backup.BackupValidationResult.Valid
+        assertEquals("Ganesh Kirana Stores", valid.summary.businessName)
+        assertEquals(8, valid.summary.counts.invoices)
+        assertEquals(5, valid.summary.counts.parties)
+        assertEquals(1, valid.summary.backupVersion)
+        assertTrue(valid.summary.isCompatible)
+    }
+
+    @Test
+    fun testBackupValidationIncompatibleVersion() {
+        val futureJson = """
+        {
+            "backup_version": 99,
+            "app_name": "HisabPro",
+            "data": {}
+        }
+        """.trimIndent()
+
+        val result = com.hisabpro.app.data.backup.BackupManager.validateBackupJson(
+            futureJson,
+            "future.hisabpro",
+            futureJson.length.toLong()
+        )
+
+        assertTrue(result is com.hisabpro.app.data.backup.BackupValidationResult.IncompatibleVersion)
+        val incomp = result as com.hisabpro.app.data.backup.BackupValidationResult.IncompatibleVersion
+        assertEquals(99, incomp.foundVersion)
+        assertTrue(incomp.message.contains("newer version"))
+    }
+
+    @Test
+    fun testBackupValidationCorruptedJson() {
+        val malformedJson = "{ invalid json content: 123"
+
+        val result = com.hisabpro.app.data.backup.BackupManager.validateBackupJson(
+            malformedJson,
+            "broken.hisabpro",
+            malformedJson.length.toLong()
+        )
+
+        assertTrue(result is com.hisabpro.app.data.backup.BackupValidationResult.Corrupted)
+    }
+
+    @Test
+    fun testBackupValidationMissingIdentifier() {
+        val jsonWithoutApp = """
+        {
+            "backup_version": 1,
+            "some_other_app": true
+        }
+        """.trimIndent()
+
+        val result = com.hisabpro.app.data.backup.BackupManager.validateBackupJson(
+            jsonWithoutApp,
+            "foreign.json",
+            jsonWithoutApp.length.toLong()
+        )
+
+        assertTrue(result is com.hisabpro.app.data.backup.BackupValidationResult.InvalidFormat)
+    }
+
+    @Test
+    fun testBackupValidationMissingVersion() {
+        val jsonNoVersion = """
+        {
+            "app_name": "HisabPro",
+            "data": {}
+        }
+        """.trimIndent()
+
+        val result = com.hisabpro.app.data.backup.BackupManager.validateBackupJson(
+            jsonNoVersion,
+            "no_version.hisabpro",
+            jsonNoVersion.length.toLong()
+        )
+
+        assertTrue(result is com.hisabpro.app.data.backup.BackupValidationResult.InvalidFormat)
+    }
+
+    @Test
+    fun testBackupValidationNonGstPayloadRestoration() {
+        val nonGstBackupJson = """
+        {
+            "backup_version": 1,
+            "app_name": "HisabPro",
+            "app_version": "1.0.0",
+            "business_info": {
+                "shop_name": "Shivaji General Stores",
+                "is_gst_registered": false,
+                "city": "Pune"
+            },
+            "settings": {
+                "profile": {
+                    "shopName": "Shivaji General Stores",
+                    "isGstRegistered": false
+                }
+            },
+            "data": {
+                "businesses": [],
+                "parties": [
+                    {
+                        "id": "p1",
+                        "business_id": "b1",
+                        "name": "Ramesh Kumar",
+                        "phone": "9876543210",
+                        "type": "CUSTOMER",
+                        "opening_balance": 50000
+                    }
+                ],
+                "items": [
+                    {
+                        "id": "i1",
+                        "business_id": "b1",
+                        "name": "Basmati Rice 1kg",
+                        "purchase_price": 8000,
+                        "sell_price": 10000,
+                        "gst_rate": 0.0,
+                        "stock_qty": 50.0
+                    }
+                ],
+                "invoices": [
+                    {
+                        "id": "inv1",
+                        "business_id": "b1",
+                        "invoice_no": "2025-26/INV/001",
+                        "date": 1727188800000,
+                        "party_id": "p1",
+                        "customer_name": "Ramesh Kumar",
+                        "type": "NON_GST_BILL",
+                        "is_gst": false,
+                        "total_amount": 10000,
+                        "paid_amount": 10000
+                    }
+                ],
+                "invoice_items": [
+                    {
+                        "id": "item1",
+                        "invoice_id": "inv1",
+                        "item_id": "i1",
+                        "item_name": "Basmati Rice 1kg",
+                        "quantity": 1.0,
+                        "rate": 100.0,
+                        "amount": 100.0
+                    }
+                ],
+                "payments": [],
+                "expenses": [],
+                "accounts": [],
+                "journal_entries": [],
+                "journal_lines": [],
+                "khata_entries": []
+            }
+        }
+        """.trimIndent()
+
+        val result = com.hisabpro.app.data.backup.BackupManager.validateBackupJson(
+            nonGstBackupJson,
+            "shivaji_backup.hisabpro",
+            nonGstBackupJson.length.toLong()
+        )
+
+        assertTrue(result is com.hisabpro.app.data.backup.BackupValidationResult.Valid)
+        val valid = result as com.hisabpro.app.data.backup.BackupValidationResult.Valid
+        assertEquals("Shivaji General Stores", valid.summary.businessName)
+        assertEquals(false, valid.summary.isGst)
+        assertEquals(1, valid.summary.counts.parties)
+        assertEquals(1, valid.summary.counts.items)
+        assertEquals(1, valid.summary.counts.invoices)
+
+        // Verify deserialized entities
+        val payload = valid.payload
+        assertEquals(1, payload.data.parties.size)
+        assertEquals("Ramesh Kumar", payload.data.parties[0].name)
+        assertEquals(1, payload.data.items.size)
+        assertEquals("Basmati Rice 1kg", payload.data.items[0].name)
+        assertEquals(1, payload.data.invoices.size)
+        assertEquals("NON_GST_BILL", payload.data.invoices[0].type)
+        assertEquals(false, payload.data.invoices[0].isGst)
+    }
 }

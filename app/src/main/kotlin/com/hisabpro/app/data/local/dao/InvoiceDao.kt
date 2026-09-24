@@ -66,4 +66,19 @@ interface InvoiceDao {
         deleteItemsForInvoice(invoiceId)
         deleteInvoice(invoiceId)
     }
+
+    @Query("SELECT * FROM invoices ORDER BY date DESC")
+    suspend fun getAllInvoicesGlobalSync(): List<InvoiceEntity>
+
+    @Query("SELECT * FROM invoice_items")
+    suspend fun getAllInvoiceItemsGlobalSync(): List<InvoiceItemEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllInvoices(invoices: List<InvoiceEntity>)
+
+    @Query("DELETE FROM invoice_items")
+    suspend fun deleteAllInvoiceItems()
+
+    @Query("DELETE FROM invoices")
+    suspend fun deleteAllInvoices()
 }

@@ -234,6 +234,233 @@ object ReportExporter {
         shareTextMessage(context, message, "Purchases Register - $businessName")
     }
 
+    fun shareDailySalesReport(
+        context: Context,
+        report: DailySalesReport,
+        isGst: Boolean,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ) {
+        val dateStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianDate(report.dateMillis)
+        val totalSalesStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.totalSales)
+        val cashSalesStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.cashSales)
+        val upiSalesStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.upiSales)
+        val creditSalesStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.creditSales)
+
+        val sb = StringBuilder()
+        sb.append("📊 *DAILY SALES REPORT (दैनिक विक्री)*\n")
+        sb.append("🏢 Business: $businessName\n")
+        sb.append("📅 Date: $dateStr\n")
+        sb.append("🕒 Generated: ${timeFormat.format(Date())}\n\n")
+
+        sb.append("💰 *TOTAL SALES: $totalSalesStr*\n")
+        sb.append("• Total Bills Created: ${report.invoiceCount}\n")
+        sb.append("• Cash Sales: $cashSalesStr\n")
+        sb.append("• UPI / Online Sales: $upiSalesStr\n")
+        sb.append("• Credit (Udhar) Sales: $creditSalesStr\n")
+
+        if (isGst && report.totalTax > 0) {
+            val taxStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.totalTax)
+            val taxableStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.taxableAmount)
+            sb.append("• Taxable Turnover: $taxableStr\n")
+            sb.append("• GST Tax Collected: $taxStr\n")
+        }
+
+        if (report.invoices.isNotEmpty()) {
+            sb.append("\n🧾 *INVOICES SUMMARY*\n")
+            report.invoices.take(8).forEach { inv ->
+                sb.append("• #${inv.invoiceNumber} - ${inv.customerName}: ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(inv.grandTotal)} (${inv.paymentStatus.label})\n")
+            }
+            if (report.invoices.size > 8) {
+                sb.append("• ... and ${report.invoices.size - 8} more bills\n")
+            }
+        }
+
+        sb.append("\n✅ Generated via HisabPro Accounting Suite")
+        shareTextMessage(context, sb.toString(), "Daily Sales Report ($dateStr) - $businessName")
+    }
+
+    fun shareSalesDateRangeReport(
+        context: Context,
+        report: SalesDateRangeReport,
+        isGst: Boolean,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ) {
+        val totalSalesStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.totalSales)
+        val paidStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.paidAmount)
+        val unpaidStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.unpaidAmount)
+
+        val sb = StringBuilder()
+        sb.append("📈 *SALES REGISTER REPORT (विक्री अहवाल)*\n")
+        sb.append("🏢 Business: $businessName\n")
+        sb.append("📅 Period: ${report.period.label}\n")
+        sb.append("🕒 Generated: ${timeFormat.format(Date())}\n\n")
+
+        sb.append("💰 *TURNOVER & COLLECTIONS*\n")
+        sb.append("• Gross Sales Turnover: $totalSalesStr\n")
+        sb.append("• Total Invoices Billed: ${report.invoiceCount}\n")
+        sb.append("• Amount Collected: $paidStr\n")
+        sb.append("• Outstanding / Credit: $unpaidStr\n")
+
+        if (isGst && report.totalTax > 0) {
+            val taxStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.totalTax)
+            sb.append("• Total GST Collected: $taxStr\n")
+        }
+
+        sb.append("\n✅ Generated via HisabPro Accounting Suite")
+        shareTextMessage(context, sb.toString(), "Sales Report (${report.period.label}) - $businessName")
+    }
+
+    fun shareOutstandingReport(
+        context: Context,
+        report: OutstandingReport,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ) {
+        val recStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.totalReceivable)
+        val payStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.totalPayable)
+
+        val sb = StringBuilder()
+        sb.append("⚠️ *OUTSTANDING DUES SUMMARY (उधारी अहवाल)*\n")
+        sb.append("🏢 Business: $businessName\n")
+        sb.append("🕒 As of: ${timeFormat.format(Date())}\n\n")
+
+        sb.append("📥 *CUSTOMER OUTSTANDING (You'll Get / येणे): $recStr*\n")
+        sb.append("• Total Debtors: ${report.customerCount}\n")
+        sb.append("• 0-15 Days (Current): ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.aging0to15)}\n")
+        sb.append("• 16-30 Days (Due Soon): ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.aging16to30)}\n")
+        sb.append("• 31-60 Days (Overdue): ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.aging31to60)}\n")
+        sb.append("• 60+ Days (Critical): ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.aging60Plus)}\n\n")
+
+        sb.append("📤 *SUPPLIER OUTSTANDING (You'll Pay / देणे): $payStr*\n")
+        sb.append("• Total Creditors: ${report.supplierCount}\n\n")
+
+        if (report.customerList.isNotEmpty()) {
+            sb.append("👥 *TOP CUSTOMER DUES*\n")
+            report.customerList.take(6).forEach { cust ->
+                sb.append("• ${cust.party.name}: ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(cust.netBalance)}\n")
+            }
+            sb.append("\n")
+        }
+
+        sb.append("✅ Generated via HisabPro Accounting Suite")
+        shareTextMessage(context, sb.toString(), "Outstanding Dues Report - $businessName")
+    }
+
+    fun sharePartyLedgerReport(
+        context: Context,
+        report: PartyLedgerReport,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ) {
+        val partyName = report.party?.name ?: "Party"
+        val partyPhone = report.party?.phone ?: ""
+        val isCustomer = report.partyType == com.hisabpro.app.data.model.PartyType.CUSTOMER
+
+        val sb = StringBuilder()
+        val title = if (isCustomer) "CUSTOMER LEDGER (ग्राहक खाते)" else "SUPPLIER LEDGER (व्यापारी खाते)"
+        sb.append("📖 *$title*\n")
+        sb.append("🏢 Business: $businessName\n")
+        sb.append("👤 Party: $partyName ($partyPhone)\n")
+        sb.append("🕒 Generated: ${timeFormat.format(Date())}\n\n")
+
+        sb.append("📊 *ACCOUNT SUMMARY*\n")
+        sb.append("• Opening Balance: ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.openingBalance)} ${report.openingBalanceType}\n")
+        sb.append("• Total Debit (Dr): ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.totalDebit)}\n")
+        sb.append("• Total Credit (Cr): ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.totalCredit)}\n")
+        sb.append("• *Closing Balance: ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.closingBalance)} ${report.closingBalanceType}*\n\n")
+
+        if (report.entries.isNotEmpty()) {
+            sb.append("📑 *TRANSACTION STATEMENT*\n")
+            report.entries.take(10).forEach { entry ->
+                val date = com.hisabpro.app.util.IndianAccountingFormat.formatIndianDate(entry.dateMillis)
+                val amt = if (entry.debitAmount > 0) "Dr ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(entry.debitAmount)}" else "Cr ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(entry.creditAmount)}"
+                sb.append("• $date: ${entry.narration.ifBlank { entry.voucherType }} - $amt (Bal: ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(entry.runningBalance)} ${entry.balanceType})\n")
+            }
+            if (report.entries.size > 10) {
+                sb.append("• ... and ${report.entries.size - 10} more transactions\n")
+            }
+            sb.append("\n")
+        }
+
+        sb.append("✅ Generated via HisabPro Accounting Suite")
+        shareTextMessage(context, sb.toString(), "$partyName Ledger Statement - $businessName")
+    }
+
+    fun shareExpenseReport(
+        context: Context,
+        report: ExpenseReportSummary,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ) {
+        val totalExpStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.totalExpenses)
+
+        val sb = StringBuilder()
+        sb.append("🧾 *BUSINESS EXPENSE REPORT (खर्च अहवाल)*\n")
+        sb.append("🏢 Business: $businessName\n")
+        sb.append("📅 Period: ${report.period.label}\n")
+        sb.append("🕒 Generated: ${timeFormat.format(Date())}\n\n")
+
+        sb.append("💰 *TOTAL EXPENSES: $totalExpStr*\n")
+        sb.append("• Total Expense Vouchers: ${report.expenseCount}\n\n")
+
+        if (report.categoryBreakdown.isNotEmpty()) {
+            sb.append("📂 *CATEGORY BREAKDOWN*\n")
+            report.categoryBreakdown.forEach { (cat, amt) ->
+                val pct = if (report.totalExpenses > 0) (amt / report.totalExpenses) * 100 else 0.0
+                sb.append("• $cat: ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(amt)} (${String.format(Locale.ENGLISH, "%.1f", pct)}%)\n")
+            }
+            sb.append("\n")
+        }
+
+        if (report.modeBreakdown.isNotEmpty()) {
+            sb.append("💳 *PAYMENT MODE BREAKDOWN*\n")
+            report.modeBreakdown.forEach { (mode, amt) ->
+                sb.append("• $mode: ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(amt)}\n")
+            }
+            sb.append("\n")
+        }
+
+        sb.append("✅ Generated via HisabPro Accounting Suite")
+        shareTextMessage(context, sb.toString(), "Expense Report (${report.period.label}) - $businessName")
+    }
+
+    fun shareCashBookReport(
+        context: Context,
+        report: CashBookReportSummary,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+    ) {
+        val bookTitle = if (report.isBankMode) "BANK & UPI BOOK (बँक वही)" else "CASH BOOK (रोकड वही)"
+        val openStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.openingBalance)
+        val inStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.totalInflow)
+        val outStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.totalOutflow)
+        val closeStr = com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(report.closingBalance)
+
+        val sb = StringBuilder()
+        sb.append("💵 *$bookTitle*\n")
+        sb.append("🏢 Business: $businessName\n")
+        sb.append("📅 Period: ${report.period.label}\n")
+        sb.append("🕒 Generated: ${timeFormat.format(Date())}\n\n")
+
+        sb.append("📊 *BALANCE & MOVEMENT*\n")
+        sb.append("• Opening Balance: $openStr\n")
+        sb.append("• Total Inflow (Dr / Receipts): (+) $inStr\n")
+        sb.append("• Total Outflow (Cr / Payments): (-) $outStr\n")
+        sb.append("• *Closing Balance in Hand: $closeStr*\n\n")
+
+        if (report.entries.isNotEmpty()) {
+            sb.append("📑 *RECENT CASH/BANK TRANSACTIONS*\n")
+            report.entries.take(10).forEach { entry ->
+                val date = com.hisabpro.app.util.IndianAccountingFormat.formatIndianDate(entry.dateMillis)
+                val flow = if (entry.inAmount > 0) "(+) ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(entry.inAmount)}" else "(-) ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(entry.outAmount)}"
+                sb.append("• $date: ${entry.particulars} - $flow (Bal: ${com.hisabpro.app.util.IndianAccountingFormat.formatIndianCurrency(entry.runningBalance)})\n")
+            }
+            if (report.entries.size > 10) {
+                sb.append("• ... and ${report.entries.size - 10} more vouchers\n")
+            }
+            sb.append("\n")
+        }
+
+        sb.append("✅ Generated via HisabPro Accounting Suite")
+        shareTextMessage(context, sb.toString(), "$bookTitle (${report.period.label}) - $businessName")
+    }
+
     fun exportGstr1Csv(
         context: Context,
         gstr: Gstr1Summary,

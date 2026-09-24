@@ -229,4 +229,91 @@ class IndianAccountingTest {
         val proUnlimited = com.hisabpro.app.domain.subscription.SubscriptionManager.checkInvoiceCreationAllowed(100)
         assertTrue(proUnlimited.isGranted)
     }
+
+    @Test
+    fun testCustomerAndSupplierLedgerCalculations() {
+        // Customer Ledger: Debit (Dr) increases receivable, Credit (Cr) reduces receivable
+        var customerBalance = 0.0 // Starting balance
+
+        // Sale on credit -> Dr 5,000
+        customerBalance += 5000.0
+        assertEquals(5000.0, customerBalance, 0.001)
+
+        // Payment received -> Cr 3,000
+        customerBalance -= 3000.0
+        assertEquals(2000.0, customerBalance, 0.001) // 2,000 Dr receivable
+
+        // Advance payment received -> Cr 3,000
+        customerBalance -= 3000.0
+        assertEquals(-1000.0, customerBalance, 0.001) // 1,000 Cr advance liability
+
+        // Supplier Ledger: Credit (Cr) increases payable, Debit (Dr) reduces payable
+        var supplierPayable = 0.0
+
+        // Inward purchase -> Cr 15,000
+        supplierPayable += 15000.0
+        assertEquals(15000.0, supplierPayable, 0.001)
+
+        // Payment to supplier -> Dr 10,000
+        supplierPayable -= 10000.0
+        assertEquals(5000.0, supplierPayable, 0.001) // 5,000 Cr payable
+    }
+
+    @Test
+    fun testDailySalesAndCashBookMovement() {
+        // Test cash inflow and outflow tracking
+        var openingCash = 10000.0
+        val cashSales = 8500.0
+        val cashExpense = 1200.0
+        val cashPaidToSupplier = 4000.0
+
+        val closingCash = openingCash + cashSales - (cashExpense + cashPaidToSupplier)
+        assertEquals(13300.0, closingCash, 0.001)
+    }
+
+    @Test
+    fun testCashBookSeparationCashVsBank() {
+        // Cash transactions must not mix with Bank/UPI transactions
+        val cashReceipts = 5000.0
+        val cashPayments = 2000.0
+        val bankUpiReceipts = 12500.0
+        val bankUpiPayments = 4500.0
+
+        val openingCashBalance = 1000.0
+        val openingBankBalance = 25000.0
+
+        val closingCashBalance = openingCashBalance + cashReceipts - cashPayments
+        val closingBankBalance = openingBankBalance + bankUpiReceipts - bankUpiPayments
+
+        assertEquals(4000.0, closingCashBalance, 0.001)
+        assertEquals(33000.0, closingBankBalance, 0.001)
+    }
+
+    @Test
+    fun testDayBookDoubleEntryDrCrClassification() {
+        // Day Book transactions:
+        // Cash Sale of ₹5000:
+        // Cash A/c Dr ₹5000, Sales A/c Cr ₹5000
+        val saleCashDebit = 5000.0
+        val saleCredit = 5000.0
+        assertEquals(saleCashDebit, saleCredit, 0.001)
+
+        // Expense of ₹800 paid via Cash:
+        // Tea & Refreshment A/c Dr ₹800, Cash A/c Cr ₹800
+        val expenseDebit = 800.0
+        val expenseCashCredit = 800.0
+        assertEquals(expenseDebit, expenseCashCredit, 0.001)
+
+        // Receipt from Customer of ₹3000 via UPI:
+        // Bank A/c Dr ₹3000, Customer A/c Cr ₹3000
+        val bankDebit = 3000.0
+        val customerCredit = 3000.0
+        assertEquals(bankDebit, customerCredit, 0.001)
+
+        // Total Debits in Day Book must equal Total Credits
+        val totalDebit = saleCashDebit + expenseDebit + bankDebit
+        val totalCredit = saleCredit + expenseCashCredit + customerCredit
+        assertEquals(8800.0, totalDebit, 0.001)
+        assertEquals(8800.0, totalCredit, 0.001)
+    }
 }

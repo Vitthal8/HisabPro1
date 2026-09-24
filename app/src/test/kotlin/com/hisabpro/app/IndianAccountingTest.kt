@@ -316,4 +316,61 @@ class IndianAccountingTest {
         assertEquals(8800.0, totalDebit, 0.001)
         assertEquals(8800.0, totalCredit, 0.001)
     }
+
+    @Test
+    fun testIndianRupeesAmountInWords() {
+        assertEquals("Rupees Zero Only", IndianAccountingFormat.numberToWordsIndian(0.0))
+        assertEquals("Rupees One Thousand Only", IndianAccountingFormat.numberToWordsIndian(1000.0))
+        assertEquals("Rupees Ten Thousand Only", IndianAccountingFormat.numberToWordsIndian(10000.0))
+        assertEquals("Rupees One Lakh Twenty-Five Thousand Only", IndianAccountingFormat.numberToWordsIndian(125000.0))
+        assertEquals("Rupees One Lakh Twenty-Three Thousand Four Hundred Fifty-Six Only", IndianAccountingFormat.numberToWordsIndian(123456.0))
+        assertEquals("Rupees One Crore Only", IndianAccountingFormat.numberToWordsIndian(10000000.0))
+        assertEquals("Rupees Two Thousand Five Hundred and Fifty Paise Only", IndianAccountingFormat.numberToWordsIndian(2500.50))
+    }
+
+    @Test
+    fun testDateFormattingDDMMYYYY() {
+        val cal = Calendar.getInstance()
+        cal.set(2026, Calendar.SEPTEMBER, 24)
+        val formatted = IndianAccountingFormat.formatIndianDate(cal.timeInMillis)
+        assertEquals("24/09/2026", formatted)
+    }
+
+    @Test
+    fun testInvoicePdfWhatsAppTextGenerationNonGst() {
+        val invoice = Invoice(
+            id = "inv_101",
+            invoiceNumber = "2025-26/BILL/001",
+            type = InvoiceType.NON_GST_BILL,
+            gstMode = GstMode.EXEMPT,
+            customerName = "Rahul Sharma",
+            items = listOf(
+                InvoiceItem(
+                    id = "it_1",
+                    description = "Cotton Shirt",
+                    quantity = 2.0,
+                    unit = "Pcs",
+                    unitPrice = 800.0,
+                    gstRate = 0.0
+                )
+            ),
+            paidAmount = 1600.0
+        )
+
+        val profile = com.hisabpro.app.data.model.BusinessProfile(
+            shopName = "Shree Ganesh Garments",
+            isGstRegistered = false
+        )
+
+        val text = com.hisabpro.app.util.InvoicePdfGenerator.generateInvoiceWhatsAppText(invoice, profile)
+        assertTrue(text.contains("BILL OF SUPPLY"))
+        assertTrue(text.contains("Shree Ganesh Garments"))
+        assertTrue(text.contains("Rahul Sharma"))
+        assertTrue(text.contains("₹1,600"))
+        assertTrue(text.contains("PAID IN FULL"))
+        // Non-GST invoice text must not have GST or tax references
+        assertTrue(!text.contains("CGST"))
+        assertTrue(!text.contains("SGST"))
+        assertTrue(!text.contains("IGST"))
+    }
 }

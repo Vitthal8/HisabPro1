@@ -43,10 +43,11 @@ data class InvoiceItem(
     val quantity: Double = 1.0,
     val unit: String = "Pcs",
     val unitPrice: Double = 0.0,
-    val gstRate: Double = 18.0 // 0, 5, 12, 18, 28
+    val gstRate: Double = 18.0, // 0, 5, 12, 18, 28
+    val discount: Double = 0.0
 ) {
     val taxableAmount: Double
-        get() = quantity * unitPrice
+        get() = kotlin.math.max(0.0, (quantity * unitPrice) - discount)
 
     fun getTaxAmount(gstMode: GstMode): Double {
         if (gstMode == GstMode.EXEMPT || gstRate <= 0.0) return 0.0
@@ -89,6 +90,7 @@ data class Invoice(
     val notes: String = "",
     val paymentStatus: InvoiceStatus = InvoiceStatus.PAID,
     val paidAmount: Double = 0.0,
+    val paymentMode: String = "Cash",
     val createdAt: Long = System.currentTimeMillis()
 ) {
     val subtotal: Double

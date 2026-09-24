@@ -22,6 +22,7 @@ data class BusinessProfile(
     val invoicePrefix: String = "INV",
     val purchasePrefix: String = "PUR",
     val termsAndConditions: String = "1. Goods once sold cannot be returned without original invoice.\n2. Payment terms: Due within 15 days of invoice date.\n3. Subject to local jurisdiction only.",
+    val logoPath: String = "",
     val isThermalPrinterMode: Boolean = false,
     val showUpiQrOnInvoice: Boolean = true,
     val appLanguage: String = "en", // "en", "hi", "mr"

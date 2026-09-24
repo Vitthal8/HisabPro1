@@ -122,6 +122,76 @@ object IndianAccountingFormat {
     }
 
     /**
+     * Converts a numeric rupee amount to words according to the Indian numbering system
+     * e.g. 125000.0 -> "Rupees One Lakh Twenty-Five Thousand Only"
+     */
+    fun numberToWordsIndian(amount: Double): String {
+        if (amount < 0.01) return "Rupees Zero Only"
+
+        val absAmount = kotlin.math.abs(amount)
+        val rupees = absAmount.toLong()
+        val paise = kotlin.math.round((absAmount - rupees) * 100).toInt()
+
+        val units = arrayOf(
+            "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+            "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"
+        )
+        val tens = arrayOf(
+            "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"
+        )
+
+        fun convertLessThanThousand(number: Int): String {
+            var n = number
+            var result = ""
+            if (n >= 100) {
+                result += "${units[n / 100]} Hundred "
+                n %= 100
+            }
+            if (n in 1..19) {
+                result += units[n]
+            } else if (n >= 20) {
+                val t = tens[n / 10]
+                val u = units[n % 10]
+                result += if (u.isNotBlank()) "$t-$u" else t
+            }
+            return result.trim()
+        }
+
+        var num = rupees
+        var words = ""
+
+        val crore = (num / 10000000L).toInt()
+        num %= 10000000L
+        val lakh = (num / 100000L).toInt()
+        num %= 100000L
+        val thousand = (num / 1000L).toInt()
+        num %= 1000L
+        val hundredRemainder = num.toInt()
+
+        if (crore > 0) {
+            words += "${convertLessThanThousand(crore)} Crore "
+        }
+        if (lakh > 0) {
+            words += "${convertLessThanThousand(lakh)} Lakh "
+        }
+        if (thousand > 0) {
+            words += "${convertLessThanThousand(thousand)} Thousand "
+        }
+        if (hundredRemainder > 0) {
+            words += "${convertLessThanThousand(hundredRemainder)} "
+        }
+
+        words = words.trim()
+        val paiseWords = if (paise > 0) " and ${convertLessThanThousand(paise)} Paise" else ""
+
+        return if (words.isBlank() && paise > 0) {
+            "${convertLessThanThousand(paise)} Paise Only"
+        } else {
+            "Rupees $words$paiseWords Only"
+        }
+    }
+
+    /**
      * Multi-language dictionary for Indian SMB accounting terms (English, Hindi, Marathi)
      */
     fun t(key: String, lang: String = "en"): String {

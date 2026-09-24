@@ -74,6 +74,7 @@ class SettingsRepository(context: Context) {
                         "termsAndConditions",
                         "1. Goods once sold cannot be returned without original invoice.\n2. Payment terms: Due within 15 days of invoice date."
                     ),
+                    logoPath = obj.optString("logoPath", ""),
                     isThermalPrinterMode = obj.optBoolean("isThermalPrinterMode", false),
                     showUpiQrOnInvoice = obj.optBoolean("showUpiQrOnInvoice", true),
                     appLanguage = obj.optString("appLanguage", "en"),
@@ -110,6 +111,7 @@ class SettingsRepository(context: Context) {
             put("invoicePrefix", profile.invoicePrefix)
             put("purchasePrefix", profile.purchasePrefix)
             put("termsAndConditions", profile.termsAndConditions)
+            put("logoPath", profile.logoPath)
             put("isThermalPrinterMode", profile.isThermalPrinterMode)
             put("showUpiQrOnInvoice", profile.showUpiQrOnInvoice)
             put("appLanguage", profile.appLanguage)

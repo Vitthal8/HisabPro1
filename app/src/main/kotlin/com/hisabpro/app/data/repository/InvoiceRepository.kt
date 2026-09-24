@@ -60,7 +60,8 @@ class InvoiceRepository(context: Context) {
                                 quantity = itemObj.getDouble("quantity"),
                                 unit = itemObj.optString("unit", "Pcs"),
                                 unitPrice = itemObj.getDouble("unitPrice"),
-                                gstRate = itemObj.optDouble("gstRate", 18.0)
+                                gstRate = itemObj.optDouble("gstRate", 18.0),
+                                discount = itemObj.optDouble("discount", 0.0)
                             )
                         )
                     }
@@ -82,6 +83,7 @@ class InvoiceRepository(context: Context) {
                             notes = obj.optString("notes", ""),
                             paymentStatus = InvoiceStatus.fromString(obj.optString("paymentStatus", "PAID")),
                             paidAmount = obj.optDouble("paidAmount", 0.0),
+                            paymentMode = obj.optString("paymentMode", "Cash"),
                             createdAt = obj.optLong("createdAt", System.currentTimeMillis())
                         )
                     )
@@ -112,6 +114,7 @@ class InvoiceRepository(context: Context) {
                 put("notes", inv.notes)
                 put("paymentStatus", inv.paymentStatus.name)
                 put("paidAmount", inv.paidAmount)
+                put("paymentMode", inv.paymentMode)
                 put("createdAt", inv.createdAt)
 
                 val itemsArray = JSONArray()
@@ -124,6 +127,7 @@ class InvoiceRepository(context: Context) {
                         put("unit", item.unit)
                         put("unitPrice", item.unitPrice)
                         put("gstRate", item.gstRate)
+                        put("discount", item.discount)
                     }
                     itemsArray.put(itemObj)
                 }

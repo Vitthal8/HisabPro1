@@ -81,6 +81,7 @@ import com.hisabpro.app.ui.theme.Slate600
 import com.hisabpro.app.ui.theme.Slate700
 import com.hisabpro.app.ui.theme.Slate800
 import com.hisabpro.app.ui.theme.Slate900
+import com.hisabpro.app.util.InvoicePdfGenerator
 import com.hisabpro.app.util.InvoiceUpiQrSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import java.text.SimpleDateFormat
@@ -535,25 +536,45 @@ fun InvoiceDetailSheet(
                         }
                     }
 
-                    // Thermal POS Receipt Slip Button
-                    OutlinedButton(
-                        onClick = {
-                            com.hisabpro.app.util.ThermalSlipGenerator.shareThermalSlip(context, invoice, businessProfile)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .testTag("btn_detail_thermal_slip"),
-                        shape = RoundedCornerShape(10.dp)
+                    // Printing Row: Print A4 PDF & Thermal POS Receipt Slip
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Print, contentDescription = null, tint = Emerald800, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (businessProfile.isThermalPrinterMode) "🖨️ Thermal POS Slip (Bluetooth Mode)" else "Thermal / POS 58mm Slip",
-                            color = Emerald800,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp
-                        )
+                        OutlinedButton(
+                            onClick = {
+                                InvoicePdfGenerator.printPdf(context, invoice, businessProfile)
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .testTag("btn_detail_print_a4"),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Print, contentDescription = null, tint = Emerald800, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Print A4 Bill", color = Emerald800, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                com.hisabpro.app.util.ThermalSlipGenerator.shareThermalSlip(context, invoice, businessProfile)
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .testTag("btn_detail_thermal_slip"),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Receipt, contentDescription = null, tint = Emerald800, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (businessProfile.isThermalPrinterMode) "POS (BT)" else "POS 58mm",
+                                color = Emerald800,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
+                        }
                     }
 
                     // Row 2: Edit, Duplicate & Mark Paid

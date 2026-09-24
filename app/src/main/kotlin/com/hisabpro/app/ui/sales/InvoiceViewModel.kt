@@ -180,6 +180,11 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
         InvoicePdfGenerator.sharePdf(context, invoice, targetWhatsApp, profile)
     }
 
+    fun printPdf(context: Context, invoice: Invoice) {
+        val profile = SettingsRepository.getInstance(context).profile.value
+        InvoicePdfGenerator.printPdf(context, invoice, profile)
+    }
+
     fun shareWhatsAppSummary(context: Context, invoice: Invoice) {
         val profile = SettingsRepository.getInstance(context).profile.value
         InvoicePdfGenerator.sharePdf(context, invoice, targetWhatsApp = true, profile)

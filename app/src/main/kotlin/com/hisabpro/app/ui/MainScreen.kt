@@ -308,17 +308,71 @@ private fun MainScreenContent(
                     cashInHand = hisabUiState.totalCashBalance,
                     bankBalance = hisabUiState.totalBankBalance,
                     items = items,
+                    transactions = hisabUiState.allTransactions,
+                    parties = partyUiState.parties.map { it.party },
                     onNewSaleClick = { selectedTab = 1 },
                     onRecordPaymentClick = { selectedTab = 2 },
                     onAddExpenseClick = { activeSubScreen = "cashbook" },
                     onAddPartyClick = { selectedTab = 2 },
+                    onAddPurchaseClick = { selectedTab = 1 },
                     onDaybookClick = { selectedTab = 3 },
                     onCashbookClick = { activeSubScreen = "cashbook" },
                     onViewAllSalesClick = { selectedTab = 1 },
                     onViewAllPartiesClick = { selectedTab = 2 },
-                    onInvoiceClick = { selectedTab = 1 },
+                    onInvoiceClick = { invoice ->
+                        invoiceViewModel.selectInvoice(invoice)
+                        selectedTab = 1
+                    },
                     onItemClick = { activeSubScreen = "items" },
-                    onSetupBusinessClick = { showBusinessSetup = true }
+                    onSetupBusinessClick = { showBusinessSetup = true },
+                    onSaveInvoice = { invoice, action ->
+                        val nextNum = invoiceViewModel.getNextInvoiceNumber(invoice.type)
+                        val toSave = invoice.copy(invoiceNumber = nextNum)
+                        val saved = invoiceViewModel.createInvoice(toSave)
+                        toSave.items.forEach { lineItem ->
+                            itemViewModel.deductStockForInvoiceItem(
+                                itemNameOrId = lineItem.description,
+                                quantity = lineItem.quantity,
+                                invoiceNumber = saved.invoiceNumber
+                            )
+                        }
+                    },
+                    onSavePayment = { record ->
+                        partyViewModel.recordPartyPayment(
+                            partyId = record.partyId,
+                            amount = record.amount,
+                            direction = record.direction,
+                            paymentMode = record.paymentMode,
+                            referenceNo = record.referenceNo,
+                            notes = record.notes,
+                            linkedInvoiceId = record.linkedInvoiceId
+                        )
+                    },
+                    onSaveParty = { name, phone, address, gstin, type, tag ->
+                        partyViewModel.addParty(
+                            name = name,
+                            phone = phone,
+                            address = address,
+                            gstin = gstin,
+                            type = type,
+                            tag = tag
+                        )
+                    },
+                    onSaveExpense = { tx ->
+                        hisabViewModel.addTransaction(
+                            title = tx.title,
+                            amount = tx.amount,
+                            type = tx.type,
+                            category = tx.category,
+                            dateMillis = tx.dateMillis,
+                            paymentMode = tx.paymentMode,
+                            note = tx.note
+                        )
+                    },
+                    onSavePurchase = { bill ->
+                        purchaseViewModel?.savePurchaseBill(bill)
+                    },
+                    nextPurchaseNumber = purchaseViewModel?.generateNextNumber() ?: "PUR-001"
                 )
                 1 -> SalesScreen(
                     viewModel = invoiceViewModel,

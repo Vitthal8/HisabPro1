@@ -87,7 +87,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import com.hisabpro.app.R
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -179,7 +181,7 @@ fun SalesScreen(
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    text = if (selectedBillingTab == 0) "Sales & Invoicing" else "Inward Purchases",
+                                    text = if (selectedBillingTab == 0) stringResource(R.string.sales_invoices) else stringResource(R.string.purchases),
                                     color = Slate900,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 17.sp

@@ -10,6 +10,17 @@
     <string name="nav_more">अधिक</string>
 
     <!-- Dashboard & Quick Actions -->
+    <string name="todays_overview">आजचे विश्लेषण</string>
+    <string name="todays_sales">आजची विक्री</string>
+    <string name="todays_collections">आजची वसुली</string>
+    <string name="todays_expenses">आजचे खर्च</string>
+    <string name="bills_generated">%1$d बिले तयार केली</string>
+    <string name="no_bills_today">आज एकही बिल नाही</string>
+    <string name="payments_in">%1$d जमा रकमा</string>
+    <string name="no_collections_yet">अद्याप कोणतीही वसुली नाही</string>
+    <string name="vouchers_count">%1$d पावत्या</string>
+    <string name="zero_spent_today">आज ₹0 खर्च</string>
+    <string name="quick_actions">जलद कृती</string>
     <string name="add_sale">विक्री नोंदवा</string>
     <string name="add_purchase">खरेदी नोंदवा</string>
     <string name="add_customer">ग्राहक जोडा</string>
@@ -19,6 +30,14 @@
     <string name="make_payment">रक्कम अदा करा</string>
     <string name="view_ledger">खातावही पाहा</string>
     <string name="quick_billing">जलद बिल</string>
+    <string name="recent_transactions">अलिकडील व्यवहार</string>
+    <string name="view_all">सर्व पाहा</string>
+    <string name="no_recent_transactions">अद्याप कोणताही व्यवहार नोंदवलेला नाही</string>
+    <string name="pending_invoices">बाकी बिले</string>
+    <string name="total_pending_due">एकूण बाकी देय</string>
+    <string name="low_stock_alert">कमी साठा इशारा</string>
+    <string name="items_low_stock">%1$d वस्तूंचा साठा कमी आहे</string>
+    <string name="reorder_now">आता पुनर्ऑर्डर करा</string>
 
     <!-- Financial Metrics & Double-Entry -->
     <string name="receivables_dr">एकूण येणे (नावे / Dr)</string>
@@ -30,11 +49,19 @@
     <string name="to_pay">व्यापाऱ्यांना देणे (Cr)</string>
 
     <!-- Invoicing & Billing -->
+    <string name="sales_invoices">विक्री आणि बिले</string>
+    <string name="create_invoice">नवीन बिल तयार करा</string>
+    <string name="invoice_details">बिल तपशील</string>
+    <string name="sale_invoice">विक्री बिल</string>
     <string name="invoice_number">बिल क्रमांक</string>
     <string name="purchase_bill_no">खरेदी पावती क्र.</string>
     <string name="bill_date">तारीख</string>
     <string name="customer_details">ग्राहक तपशील</string>
     <string name="supplier_details">व्यापारी तपशील</string>
+    <string name="customer_name">ग्राहकाचे नाव</string>
+    <string name="customer_phone">फोन नंबर</string>
+    <string name="customer_gstin">ग्राहकाचा जीएसटी क्र.</string>
+    <string name="add_item">वस्तू जोडा</string>
     <string name="item_name">मालाचे नाव</string>
     <string name="quantity">नग / प्रमाण</string>
     <string name="rate">दर</string>
@@ -47,14 +74,79 @@
     <string name="tax_total">एकूण जीएसटी</string>
     <string name="grand_total">एकूण देय रक्कम</string>
     <string name="amount_paid">जमा रक्कम</string>
+    <string name="amount_received">जमा झालेले पैसे</string>
     <string name="balance_due">शिल्लक बाकी</string>
     <string name="payment_mode">पेमेंट पद्धत</string>
+    <string name="payment_status">पेमेंट स्थिती</string>
+    <string name="paid">पूर्ण भरलेले (Paid)</string>
+    <string name="unpaid">बाकी (Unpaid)</string>
+    <string name="partial">अंशात: भरलेले (Partial)</string>
+    <string name="due_date">देय तारीख</string>
+    <string name="terms_conditions">अटी व शर्ती</string>
+    <string name="save_and_print">जतन करा व प्रिंट करा</string>
+    <string name="save_and_share">जतन करा व पाठवा</string>
+    <string name="delete_invoice">बिल हटवा</string>
+    <string name="delete_invoice_confirm">आपण नक्की हे बिल हटवू इच्छिता?</string>
     <string name="cash">रोख (Cash)</string>
     <string name="upi">यूपीआय (UPI)</string>
     <string name="bank_transfer">बँक ट्रान्सफर</string>
     <string name="cheque">धनादेश (Cheque)</string>
 
+    <!-- Purchases & Suppliers -->
+    <string name="purchases">खरेदी</string>
+    <string name="create_purchase">नवीन खरेदी पावती नोंदवा</string>
+    <string name="purchase_bill_details">खरेदी पावती तपशील</string>
+    <string name="purchase_no">खरेदी पावती क्र.</string>
+    <string name="supplier_name">व्यापाऱ्याचे नाव</string>
+    <string name="supplier_phone">व्यापाऱ्याचा फोन</string>
+    <string name="supplier_gstin">व्यापाऱ्याचा जीएसटी क्र.</string>
+
+    <!-- Parties & Khata -->
+    <string name="parties">पार्ट्या</string>
+    <string name="customers">ग्राहक</string>
+    <string name="suppliers">व्यापारी</string>
+    <string name="add_party">नवीन पार्टी जोडा</string>
+    <string name="party_name">पार्टीचे नाव</string>
+    <string name="opening_balance">सुरुवातीची शिल्लक</string>
+    <string name="you_will_give">आपण देणे (Cr)</string>
+    <string name="you_will_get">आपण येणे (Dr)</string>
+    <string name="party_ledger">पार्टी खातावही</string>
+    <string name="add_khata_entry">नोंद जोडा</string>
+    <string name="gave_credit">दिले (Dr)</string>
+    <string name="got_payment">मिळाले (Cr)</string>
+
+    <!-- Inventory & Stock -->
+    <string name="inventory_stock">साठा आणि वस्तू</string>
+    <string name="items">वस्तू</string>
+    <string name="add_item_title">नवीन वस्तू जोडा</string>
+    <string name="edit_item">वस्तू बदला</string>
+    <string name="item_name_label">मालाचे नाव</string>
+    <string name="unit">एकक (उदा. नग, किलो, लिटर)</string>
+    <string name="selling_price">विक्री दर (₹)</string>
+    <string name="purchase_price">खरेदी दर (₹)</string>
+    <string name="current_stock">सध्याचा साठा</string>
+    <string name="min_stock_alert">किमान साठा मर्यादा</string>
+    <string name="hsn_sac">एचएसएन कोड</string>
+    <string name="tax_rate">जीएसटी दर (%)</string>
+    <string name="adjust_stock">साठा दुरुस्त करा</string>
+    <string name="add_stock">साठा वाढवा</string>
+    <string name="reduce_stock">साठा कमी करा</string>
+    <string name="out_of_stock">साठा संपला</string>
+    <string name="low_stock">कमी साठा</string>
+
+    <!-- Payments & Expenses -->
+    <string name="record_payment">जमा/अदा नोंदवा</string>
+    <string name="payment_type">पेमेंट प्रकार</string>
+    <string name="received_from">ग्राहकाकडून मिळाले (जमा)</string>
+    <string name="paid_to">व्यापाऱ्याला दिले (अदा)</string>
+    <string name="add_expense_title">खर्च नोंदवा</string>
+    <string name="expense_category">खर्चाचा प्रकार</string>
+    <string name="expense_amount">खर्चाची रक्कम (₹)</string>
+    <string name="expense_note">खर्चाचा तपशील</string>
+
     <!-- Reports & Accounting -->
+    <string name="reports">अहवाल आणि ताळेबंद</string>
+    <string name="financial_reports">आर्थिक आणि जीएसटी अहवाल</string>
     <string name="day_book">रोजकीर्द (Day Book)</string>
     <string name="cash_book">रोकड वही (Cash Book)</string>
     <string name="trial_balance">कच्चा ताळेबंद (Trial Balance)</string>
@@ -64,6 +156,44 @@
     <string name="gstr3b_report">जीएसटीआर-३B इनपुट क्रेडिट</string>
     <string name="purchases_register">खरेदी वही व आयटीसी</string>
     <string name="aging_report">उधारी वय विश्लेषण</string>
+    <string name="net_profit">निव्वळ नफा</string>
+    <string name="gross_profit">एकूण नफा</string>
+    <string name="download_pdf">पीडीएफ डाउनलोड करा</string>
+    <string name="export_excel">एक्सेल/CSV प्रत</string>
+
+    <!-- Settings & Profile -->
+    <string name="settings">सेटिंग्ज</string>
+    <string name="business_setup">व्यवसाय माहिती</string>
+    <string name="business_profile">व्यवसाय प्रोफाइल व सेटिंग्ज</string>
+    <string name="setup_your_business">तुमच्या व्यवसायाची माहिती भरा</string>
+    <string name="shop_name">दुकानाचे नाव</string>
+    <string name="owner_name">मालकाचे नाव</string>
+    <string name="phone_number">फोन नंबर</string>
+    <string name="email_address">ईमेल पत्ता</string>
+    <string name="address">पत्ता</string>
+    <string name="city">शहर</string>
+    <string name="state">राज्य</string>
+    <string name="pincode">पिन कोड</string>
+    <string name="gstin_number">जीएसटी नंबर</string>
+    <string name="pan_number">पॅन नंबर</string>
+    <string name="upi_id">यूपीआय आयडी</string>
+    <string name="bank_name">बँकेचे नाव</string>
+    <string name="account_number">खाते क्रमांक</string>
+    <string name="ifsc_code">आयएफएससी कोड</string>
+    <string name="gst_registered">जीएसटी नोंदणीकृत व्यापार</string>
+    <string name="non_gst_shop">जीएसटी नसलेले दुकान</string>
+    <string name="app_language">अ‍ॅपची भाषा</string>
+    <string name="select_language">भाषा निवडा</string>
+    <string name="english">English</string>
+    <string name="hindi">हिंदी (Hindi)</string>
+    <string name="marathi">मराठी (Marathi)</string>
+    <string name="save_settings">जतन करा</string>
+
+    <!-- Backup & Restore -->
+    <string name="backup_restore">बैकअप व रिस्टोर</string>
+    <string name="local_backup_restore">लोकल बैकअप व रिस्टोर</string>
+    <string name="export_backup">बैकअप प्रत घ्या</string>
+    <string name="import_restore">पुनर्प्राप्त करा (Restore)</string>
 
     <!-- Common UI Actions -->
     <string name="save">जतन करा</string>
@@ -71,15 +201,30 @@
     <string name="edit">बदला</string>
     <string name="delete">हटवा</string>
     <string name="confirm">नक्की करा</string>
+    <string name="close">बंद करा</string>
+    <string name="back">मागे</string>
+    <string name="search">शोधा</string>
     <string name="search_hint">नाव, फोन किंवा बिलाने शोधा...</string>
     <string name="share_whatsapp">व्हॉट्सअ‍ॅपवर पाठवा</string>
     <string name="export_pdf">पीडीएफ डाउनलोड करा</string>
     <string name="export_csv">एक्सेल/CSV प्रत</string>
     <string name="thermal_print">थर्मल प्रिंट</string>
+    <string name="no_data_found">कोणतीही माहिती आढळली नाही</string>
+    <string name="no_items_found">कोणतीही वस्तू आढळली नाही</string>
+    <string name="no_parties_found">कोणतीही पार्टी आढळली नाही</string>
+    <string name="no_invoices_found">कोणतीही बिले आढळली नाहीत</string>
+    <string name="required_field">ही माहिती आवश्यक आहे</string>
 
-    <!-- Settings & Modes -->
-    <string name="business_setup">व्यवसाय माहिती</string>
-    <string name="gst_registered">जीएसटी नोंदणीकृत व्यापार</string>
-    <string name="non_gst_shop">जीएसटी नसलेले दुकान</string>
-    <string name="app_language">अ‍ॅपची भाषा</string>
+    <!-- Validation Messages -->
+    <string name="err_shop_name_empty">कृपया दुकानाचे किंवा व्यवसायाचे नाव टाका</string>
+    <string name="err_party_name_empty">पार्टीचे नाव रिकामे असू शकत नाही.</string>
+    <string name="err_product_name_empty">मालाचे नाव रिकामे असू शकत नाही.</string>
+    <string name="err_invalid_gstin">अमान्य जीएसटी क्रमांक (15 अंक/अक्षरे आवश्यक)</string>
+    <string name="err_invalid_pan">अमान्य पॅन क्रमांक (10 अंक/अक्षरे आवश्यक)</string>
+    <string name="err_invalid_phone">अमान्य फोन नंबर. 10 अंकी मोबाईल नंबर टाका.</string>
+    <string name="err_selling_price_negative">विक्री दर उणे असू शकत नाही.</string>
+    <string name="err_purchase_price_negative">खरेदी दर उणे असू शकत नाही.</string>
+    <string name="err_customer_name_required">ग्राहकाचे नाव आवश्यक आहे.</string>
+    <string name="err_add_at_least_one_item">कृपया किमान एक वस्तू जोडा.</string>
+    <string name="err_payment_amount_positive">रक्कम ₹0 पेक्षा जास्त असावी.</string>
 </resources>

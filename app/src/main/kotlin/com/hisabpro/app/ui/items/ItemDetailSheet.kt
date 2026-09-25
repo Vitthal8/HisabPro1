@@ -367,7 +367,7 @@ fun ItemDetailSheet(
                         .fillMaxWidth()
                         .weight(1f, fill = false)
                 ) {
-                    items(stockHistory) { entry ->
+                    items(stockHistory, key = { it.id }) { entry ->
                         StockHistoryRow(entry = entry, unit = item.unit, dateFormat = dateFormat)
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     }

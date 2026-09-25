@@ -69,59 +69,69 @@ class TransactionRepository(context: Context) {
         }
     }
 
-    private fun saveTransactions(list: List<Transaction>) {
-        val jsonArray = JSONArray()
-        for (item in list) {
-            val obj = JSONObject().apply {
-                put("id", item.id)
-                put("title", item.title)
-                put("amount", item.amount)
-                put("type", item.type.name)
-                put("category", item.category.name)
-                put("dateMillis", item.dateMillis)
-                put("paymentMode", item.paymentMode.name)
-                put("note", item.note)
-            }
-            jsonArray.put(obj)
-        }
-        prefs.edit().putString(KEY_TRANSACTIONS, jsonArray.toString()).apply()
+    private fun saveTransactions(list: List<Transaction>, syncAllRoom: Boolean = false) {
         _transactions.value = list
-
         scope.launch {
             try {
+                val jsonArray = JSONArray()
                 for (item in list) {
-                    if (item.type == TransactionType.EXPENSE) {
-                        db.expenseDao().insertExpense(
-                            ExpenseEntity(
-                                id = item.id,
-                                businessId = "default_business",
-                                date = item.dateMillis,
-                                category = item.category.name,
-                                amount = item.amount.toPaise(),
-                                description = item.title + (if (item.note.isNotBlank()) " - ${item.note}" else ""),
-                                mode = item.paymentMode.name,
-                                receiptPath = ""
-                            )
-                        )
-                    } else {
-                        db.paymentDao().insertPayment(
-                            PaymentEntity(
-                                id = item.id,
-                                businessId = "default_business",
-                                partyId = null,
-                                date = item.dateMillis,
-                                amount = item.amount.toPaise(),
-                                mode = item.paymentMode.name,
-                                referenceNo = item.title,
-                                notes = item.note,
-                                linkedInvoiceId = null
-                            )
-                        )
+                    val obj = JSONObject().apply {
+                        put("id", item.id)
+                        put("title", item.title)
+                        put("amount", item.amount)
+                        put("type", item.type.name)
+                        put("category", item.category.name)
+                        put("dateMillis", item.dateMillis)
+                        put("paymentMode", item.paymentMode.name)
+                        put("note", item.note)
+                    }
+                    jsonArray.put(obj)
+                }
+                prefs.edit().putString(KEY_TRANSACTIONS, jsonArray.toString()).apply()
+
+                if (syncAllRoom) {
+                    for (item in list) {
+                        saveSingleTransactionDbInternal(item)
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    private suspend fun saveSingleTransactionDbInternal(item: Transaction) {
+        try {
+            if (item.type == TransactionType.EXPENSE) {
+                db.expenseDao().insertExpense(
+                    ExpenseEntity(
+                        id = item.id,
+                        businessId = "default_business",
+                        date = item.dateMillis,
+                        category = item.category.name,
+                        amount = item.amount.toPaise(),
+                        description = item.title + (if (item.note.isNotBlank()) " - ${item.note}" else ""),
+                        mode = item.paymentMode.name,
+                        receiptPath = ""
+                    )
+                )
+            } else {
+                db.paymentDao().insertPayment(
+                    PaymentEntity(
+                        id = item.id,
+                        businessId = "default_business",
+                        partyId = null,
+                        date = item.dateMillis,
+                        amount = item.amount.toPaise(),
+                        mode = item.paymentMode.name,
+                        referenceNo = item.title,
+                        notes = item.note,
+                        linkedInvoiceId = null
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -145,19 +155,25 @@ class TransactionRepository(context: Context) {
             note = note.trim()
         )
         val updated = listOf(newTx) + _transactions.value
-        saveTransactions(updated)
+        saveTransactions(updated, syncAllRoom = false)
+        scope.launch {
+            saveSingleTransactionDbInternal(newTx)
+        }
     }
 
     fun updateTransaction(transaction: Transaction) {
         val updated = _transactions.value.map {
             if (it.id == transaction.id) transaction else it
         }
-        saveTransactions(updated)
+        saveTransactions(updated, syncAllRoom = false)
+        scope.launch {
+            saveSingleTransactionDbInternal(transaction)
+        }
     }
 
     fun deleteTransaction(id: String) {
         val updated = _transactions.value.filterNot { it.id == id }
-        saveTransactions(updated)
+        saveTransactions(updated, syncAllRoom = false)
         scope.launch {
             try {
                 db.expenseDao().deleteExpense(id)
@@ -170,7 +186,7 @@ class TransactionRepository(context: Context) {
 
     fun resetToDemo() {
         val demo = getInitialTransactions()
-        saveTransactions(demo)
+        saveTransactions(demo, syncAllRoom = true)
     }
 
     private fun getInitialTransactions(): List<Transaction> {

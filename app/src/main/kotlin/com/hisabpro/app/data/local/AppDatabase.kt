@@ -473,17 +473,14 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
+                INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "hisabpro_database"
                 )
                     .addMigrations(MIGRATION_1_2)
                     .fallbackToDestructiveMigrationOnDowngrade()
-                    .build()
-                INSTANCE = instance
-                DatabaseMigrationHelper.migrateIfNecessary(context.applicationContext, instance)
-                instance
+                    .build().also { INSTANCE = it }
             }
         }
     }

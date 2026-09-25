@@ -14,9 +14,9 @@ enum class StockReason(val label: String, val isAddition: Boolean) {
 
     companion object {
         fun fromString(value: String): StockReason {
+            if (value.equals("RETURN_IN", ignoreCase = true)) return SALES_RETURN
             return entries.find { it.name.equals(value, ignoreCase = true) }
-                ?: if (value.equals("RETURN_IN", ignoreCase = true)) SALES_RETURN
-                else MANUAL_ADJUSTMENT
+                ?: MANUAL_ADJUSTMENT
         }
     }
 }

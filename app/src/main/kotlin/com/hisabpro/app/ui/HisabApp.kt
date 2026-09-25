@@ -1,5 +1,6 @@
 package com.hisabpro.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -104,6 +105,10 @@ fun HisabApp(
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+
+    BackHandler(enabled = onBack != null) {
+        onBack?.invoke()
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),

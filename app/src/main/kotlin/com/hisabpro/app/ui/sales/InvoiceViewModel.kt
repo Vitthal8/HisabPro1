@@ -3,6 +3,7 @@ package com.hisabpro.app.ui.sales
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.hisabpro.app.data.model.GstMode
 import com.hisabpro.app.data.model.Invoice
@@ -39,7 +40,14 @@ data class SalesUiState(
     val selectedInvoice: Invoice? = null
 )
 
-class InvoiceViewModel(application: Application) : AndroidViewModel(application) {
+class InvoiceViewModel @JvmOverloads constructor(
+    application: Application,
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle()
+) : AndroidViewModel(application) {
+
+    companion object {
+        private const val KEY_SELECTED_INVOICE_ID = "key_selected_invoice_id"
+    }
 
     private val repository = InvoiceRepository.getInstance(application.applicationContext)
     private val partyRepository = PartyRepository.getInstance(application.applicationContext)
@@ -65,7 +73,7 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
     private val _searchQuery = MutableStateFlow("")
     private val _typeFilter = MutableStateFlow<InvoiceType?>(null)
     private val _statusFilter = MutableStateFlow<InvoiceStatus?>(null)
-    private val _selectedInvoiceId = MutableStateFlow<String?>(null)
+    private val _selectedInvoiceId = savedStateHandle.getStateFlow<String?>(KEY_SELECTED_INVOICE_ID, null)
 
     val parties = partyRepository.parties
 
@@ -138,7 +146,7 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun selectInvoice(invoice: Invoice?) {
-        _selectedInvoiceId.value = invoice?.id
+        savedStateHandle[KEY_SELECTED_INVOICE_ID] = invoice?.id
     }
 
     fun getNextInvoiceNumber(type: InvoiceType, prefixOverride: String? = null): String {
@@ -153,13 +161,13 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
 
     fun updateInvoice(invoice: Invoice) {
         updateInvoiceUseCase.execute(invoice)
-        _selectedInvoiceId.value = invoice.id
+        savedStateHandle[KEY_SELECTED_INVOICE_ID] = invoice.id
     }
 
     fun duplicateInvoice(invoiceId: String): Invoice? {
         val dup = repository.duplicateInvoice(invoiceId)
         if (dup != null) {
-            _selectedInvoiceId.value = dup.id
+            savedStateHandle[KEY_SELECTED_INVOICE_ID] = dup.id
         }
         return dup
     }
@@ -170,13 +178,13 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
             paymentStatus = InvoiceStatus.PAID
         )
         repository.updateInvoice(updated)
-        _selectedInvoiceId.value = updated.id
+        savedStateHandle[KEY_SELECTED_INVOICE_ID] = updated.id
     }
 
     fun deleteInvoice(invoiceId: String) {
         deleteInvoiceUseCase.execute(invoiceId)
-        if (_selectedInvoiceId.value == invoiceId) {
-            _selectedInvoiceId.value = null
+        if (savedStateHandle.get<String?>(KEY_SELECTED_INVOICE_ID) == invoiceId) {
+            savedStateHandle[KEY_SELECTED_INVOICE_ID] = null
         }
     }
 

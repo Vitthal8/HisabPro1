@@ -768,7 +768,7 @@ internal fun validateBackupJsonInternal(jsonString: String, fileName: String, fi
         val root = JSONObject(jsonString)
 
         val appName = root.optString("app_name", "")
-        if (appName != BackupConstants.APP_NAME && !root.has("data")) {
+        if (appName != BackupConstants.APP_NAME) {
             return BackupValidationResult.InvalidFormat("Not a valid HisabPro backup file (missing identifier)")
         }
 

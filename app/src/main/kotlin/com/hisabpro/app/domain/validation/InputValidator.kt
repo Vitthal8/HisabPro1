@@ -1,11 +1,24 @@
 package com.hisabpro.app.domain.validation
 
+import android.content.Context
+import androidx.annotation.StringRes
+import com.hisabpro.app.R
+
 sealed class ValidationResult {
     object Success : ValidationResult()
-    data class Error(val message: String) : ValidationResult()
+    data class Error(
+        val message: String? = null,
+        @param:StringRes @get:StringRes val resId: Int? = null
+    ) : ValidationResult() {
+        fun getLocalizedMessage(context: Context): String {
+            return resId?.let { context.getString(it) } ?: message ?: ""
+        }
+    }
 
     val isSuccess: Boolean get() = this is Success
-    val errorMessage: String? get() = (this as? Error)?.message
+    val errorMessage: String? get() = (this as? Error)?.let { err ->
+        err.message ?: err.resId?.let { id -> "Validation error code $id" }
+    }
 }
 
 /**
@@ -27,7 +40,10 @@ object InputValidator {
         val trimmed = gstin.trim().uppercase()
         if (trimmed.isBlank()) return ValidationResult.Success // GSTIN is optional unless in GST mode
         if (!GSTIN_REGEX.matches(trimmed)) {
-            return ValidationResult.Error("Invalid GSTIN format. Expected 15 characters (e.g., 27ABCDE1234F1Z5)")
+            return ValidationResult.Error(
+                message = "Invalid GSTIN format. Expected 15 characters (e.g., 27ABCDE1234F1Z5)",
+                resId = R.string.err_invalid_gstin
+            )
         }
         return ValidationResult.Success
     }
@@ -36,7 +52,10 @@ object InputValidator {
         val trimmed = pan.trim().uppercase()
         if (trimmed.isBlank()) return ValidationResult.Success
         if (!PAN_REGEX.matches(trimmed)) {
-            return ValidationResult.Error("Invalid PAN format. Expected 10 alphanumeric characters (e.g., ABCDE1234F)")
+            return ValidationResult.Error(
+                message = "Invalid PAN format. Expected 10 alphanumeric characters (e.g., ABCDE1234F)",
+                resId = R.string.err_invalid_pan
+            )
         }
         return ValidationResult.Success
     }
@@ -50,14 +69,20 @@ object InputValidator {
         }
         if (normalized.isBlank()) return ValidationResult.Success
         if (!PHONE_REGEX.matches(normalized)) {
-            return ValidationResult.Error("Invalid phone number. Enter a valid 10-digit Indian mobile number.")
+            return ValidationResult.Error(
+                message = "Invalid phone number. Enter a valid 10-digit Indian mobile number.",
+                resId = R.string.err_invalid_phone
+            )
         }
         return ValidationResult.Success
     }
 
     fun validateParty(name: String, phone: String, gstin: String, isGst: Boolean): ValidationResult {
         if (name.trim().isBlank()) {
-            return ValidationResult.Error("Party name cannot be empty.")
+            return ValidationResult.Error(
+                message = "Party name cannot be empty.",
+                resId = R.string.err_party_name_empty
+            )
         }
         val phoneResult = validatePhone(phone)
         if (!phoneResult.isSuccess) return phoneResult
@@ -71,30 +96,48 @@ object InputValidator {
 
     fun validateItem(name: String, salePrice: Double, purchasePrice: Double): ValidationResult {
         if (name.trim().isBlank()) {
-            return ValidationResult.Error("Product name cannot be empty.")
+            return ValidationResult.Error(
+                message = "Product name cannot be empty.",
+                resId = R.string.err_product_name_empty
+            )
         }
         if (salePrice < 0.0) {
-            return ValidationResult.Error("Selling price cannot be negative.")
+            return ValidationResult.Error(
+                message = "Selling price cannot be negative.",
+                resId = R.string.err_selling_price_negative
+            )
         }
         if (purchasePrice < 0.0) {
-            return ValidationResult.Error("Purchase price cannot be negative.")
+            return ValidationResult.Error(
+                message = "Purchase price cannot be negative.",
+                resId = R.string.err_purchase_price_negative
+            )
         }
         return ValidationResult.Success
     }
 
     fun validateInvoice(customerName: String, itemCount: Int): ValidationResult {
         if (customerName.trim().isBlank()) {
-            return ValidationResult.Error("Customer name is required.")
+            return ValidationResult.Error(
+                message = "Customer name is required.",
+                resId = R.string.err_customer_name_required
+            )
         }
         if (itemCount <= 0) {
-            return ValidationResult.Error("Please add at least one line item to the bill.")
+            return ValidationResult.Error(
+                message = "Please add at least one line item to the bill.",
+                resId = R.string.err_add_at_least_one_item
+            )
         }
         return ValidationResult.Success
     }
 
     fun validatePaymentAmount(amount: Double): ValidationResult {
         if (amount <= 0.0) {
-            return ValidationResult.Error("Payment amount must be greater than ₹0.")
+            return ValidationResult.Error(
+                message = "Payment amount must be greater than ₹0.",
+                resId = R.string.err_payment_amount_positive
+            )
         }
         return ValidationResult.Success
     }

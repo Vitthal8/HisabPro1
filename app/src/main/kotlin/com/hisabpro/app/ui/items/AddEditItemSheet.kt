@@ -1,5 +1,6 @@
 package com.hisabpro.app.ui.items
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -42,6 +44,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -108,8 +111,61 @@ fun AddEditItemSheet(
 
     val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
 
+    val hasUnsavedChanges = remember(
+        name, itemCode, category, unit, salePriceText, purchasePriceText, hsnCode, openingStockText, minStockAlertText
+    ) {
+        if (itemToEdit == null) {
+            name.isNotBlank() || itemCode.isNotBlank() || salePriceText.isNotBlank() || purchasePriceText.isNotBlank() || hsnCode.isNotBlank()
+        } else {
+            name != itemToEdit.name ||
+                    itemCode != itemToEdit.itemCode ||
+                    category != itemToEdit.category ||
+                    unit != itemToEdit.unit ||
+                    salePrice != itemToEdit.salePrice ||
+                    purchasePrice != itemToEdit.purchasePrice ||
+                    hsnCode != itemToEdit.hsnCode
+        }
+    }
+
+    var showDiscardConfirmDialog by remember { mutableStateOf(false) }
+
+    fun handleDismissAttempt() {
+        if (hasUnsavedChanges) {
+            showDiscardConfirmDialog = true
+        } else {
+            onDismiss()
+        }
+    }
+
+    BackHandler(enabled = true) {
+        handleDismissAttempt()
+    }
+
+    if (showDiscardConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirmDialog = false },
+            title = { Text("Discard changes?") },
+            text = { Text("You have unsaved changes in this product item form. Are you sure you want to discard them?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirmDialog = false
+                        onDismiss()
+                    }
+                ) {
+                    Text("Discard", color = Color.Red, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirmDialog = false }) {
+                    Text("Cancel", fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { handleDismissAttempt() },
         sheetState = sheetState,
         modifier = Modifier.imePadding(),
         dragHandle = null,
@@ -157,7 +213,7 @@ fun AddEditItemSheet(
                     }
                 }
 
-                IconButton(onClick = onDismiss) {
+                IconButton(onClick = { handleDismissAttempt() }) {
                     Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
                 }
             }
@@ -480,7 +536,7 @@ fun AddEditItemSheet(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedButton(
-                    onClick = onDismiss,
+                    onClick = { handleDismissAttempt() },
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Cancel")

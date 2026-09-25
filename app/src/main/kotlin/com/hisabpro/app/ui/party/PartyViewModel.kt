@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.hisabpro.app.data.model.Category
 import com.hisabpro.app.data.model.KhataEntry
@@ -49,7 +50,14 @@ data class PartyUiState(
     val selectedPartyEntries: List<KhataEntry> = emptyList()
 )
 
-class PartyViewModel(application: Application) : AndroidViewModel(application) {
+class PartyViewModel @JvmOverloads constructor(
+    application: Application,
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle()
+) : AndroidViewModel(application) {
+
+    companion object {
+        private const val KEY_SELECTED_PARTY_ID = "key_selected_party_id"
+    }
 
     private val repository = PartyRepository.getInstance(application.applicationContext)
     private val invoiceRepository = InvoiceRepository.getInstance(application.applicationContext)
@@ -67,7 +75,7 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
     private val _typeFilter = MutableStateFlow<PartyType?>(null)
     private val _tagFilter = MutableStateFlow<PartyTag?>(null)
     private val _sortOption = MutableStateFlow(PartySortOption.MOST_DUE)
-    private val _selectedPartyId = MutableStateFlow<String?>(null)
+    private val _selectedPartyId = savedStateHandle.getStateFlow<String?>(KEY_SELECTED_PARTY_ID, null)
 
     private data class FilterParams(
         val query: String,
@@ -216,7 +224,7 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectParty(partyId: String?) {
-        _selectedPartyId.value = partyId
+        savedStateHandle[KEY_SELECTED_PARTY_ID] = partyId
     }
 
     fun addParty(
@@ -235,7 +243,7 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
             type = type,
             tag = tag
         )
-        _selectedPartyId.value = created.id
+        savedStateHandle[KEY_SELECTED_PARTY_ID] = created.id
     }
 
     fun updateParty(party: Party) {
@@ -257,8 +265,8 @@ class PartyViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteParty(partyId: String) {
-        if (_selectedPartyId.value == partyId) {
-            _selectedPartyId.value = null
+        if (savedStateHandle.get<String?>(KEY_SELECTED_PARTY_ID) == partyId) {
+            savedStateHandle[KEY_SELECTED_PARTY_ID] = null
         }
         repository.deleteParty(partyId)
     }

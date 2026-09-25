@@ -77,6 +77,8 @@ import com.hisabpro.app.ui.theme.DeepNavyLight
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.ExpenseRed
+import androidx.compose.ui.res.stringResource
+import com.hisabpro.app.R
 import com.hisabpro.app.ui.theme.PureWhite
 import com.hisabpro.app.ui.theme.SaffronOrange
 import com.hisabpro.app.ui.theme.Slate200
@@ -113,7 +115,7 @@ fun BackupScreen(
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "Local Backup & Restore",
+                            text = stringResource(R.string.local_backup_restore),
                             fontWeight = FontWeight.Bold,
                             fontSize = 17.sp,
                             color = Slate900
@@ -565,7 +567,7 @@ private fun CreateBackupTabContent(
                 }
             }
         } else {
-            items(uiState.localBackups) { backupFile ->
+            items(uiState.localBackups, key = { it.file.absolutePath }) { backupFile ->
                 BackupFileItemCard(
                     backup = backupFile,
                     onShare = { onShareFile(backupFile.file) },
@@ -692,7 +694,7 @@ private fun RestoreBackupTabContent(
                 )
             }
 
-            items(uiState.localBackups) { backupFile ->
+            items(uiState.localBackups, key = { it.file.absolutePath }) { backupFile ->
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(10.dp),

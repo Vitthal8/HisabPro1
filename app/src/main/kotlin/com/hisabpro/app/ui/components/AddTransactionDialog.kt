@@ -1,5 +1,6 @@
 package com.hisabpro.app.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -18,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +34,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -85,8 +88,55 @@ fun AddTransactionDialog(
 
     val isEditing = initialTransaction != null
 
+    val hasUnsavedChanges = remember(titleText, amountText, noteText) {
+        if (initialTransaction == null) {
+            titleText.isNotBlank() || amountText.isNotBlank() || noteText.isNotBlank()
+        } else {
+            titleText != initialTransaction.title ||
+                    amountText != (if (initialTransaction.amount % 1.0 == 0.0) initialTransaction.amount.toLong().toString() else initialTransaction.amount.toString()) ||
+                    noteText != initialTransaction.note
+        }
+    }
+
+    var showDiscardConfirmDialog by remember { mutableStateOf(false) }
+
+    fun handleDismissAttempt() {
+        if (hasUnsavedChanges) {
+            showDiscardConfirmDialog = true
+        } else {
+            onDismiss()
+        }
+    }
+
+    BackHandler(enabled = true) {
+        handleDismissAttempt()
+    }
+
+    if (showDiscardConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirmDialog = false },
+            title = { Text("Discard changes?") },
+            text = { Text("You have unsaved changes in this entry form. Are you sure you want to discard them?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirmDialog = false
+                        onDismiss()
+                    }
+                ) {
+                    Text("Discard", color = ExpenseRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirmDialog = false }) {
+                    Text("Cancel", fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { handleDismissAttempt() },
         sheetState = sheetState,
         modifier = Modifier.imePadding(),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
@@ -113,7 +163,7 @@ fun AddTransactionDialog(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 IconButton(
-                    onClick = onDismiss,
+                    onClick = { handleDismissAttempt() },
                     modifier = Modifier.testTag("close_sheet_btn")
                 ) {
                     Icon(

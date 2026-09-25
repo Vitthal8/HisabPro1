@@ -1,6 +1,7 @@
 package com.hisabpro.app.ui.payments
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Receipt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -47,6 +49,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -77,6 +80,8 @@ import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.ExpenseRed
 import com.hisabpro.app.ui.theme.IncomeGreen
 import com.hisabpro.app.ui.theme.PureWhite
+import androidx.compose.ui.res.stringResource
+import com.hisabpro.app.R
 import com.hisabpro.app.ui.theme.Slate100
 import com.hisabpro.app.ui.theme.Slate200
 import com.hisabpro.app.ui.theme.Slate700
@@ -166,8 +171,51 @@ fun RecordPaymentSheet(
     var showUpiQrSheet by remember { mutableStateOf(false) }
     val upiQrSheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    var isUserEdited by remember { mutableStateOf(false) }
+
+    val hasUnsavedChanges = remember(isUserEdited, notes) {
+        isUserEdited || notes.isNotBlank()
+    }
+
+    var showDiscardConfirmDialog by remember { mutableStateOf(false) }
+
+    fun handleDismissAttempt() {
+        if (hasUnsavedChanges) {
+            showDiscardConfirmDialog = true
+        } else {
+            onDismiss()
+        }
+    }
+
+    BackHandler(enabled = true) {
+        handleDismissAttempt()
+    }
+
+    if (showDiscardConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirmDialog = false },
+            title = { Text("Discard changes?") },
+            text = { Text("You have unsaved changes in this payment form. Are you sure you want to discard them?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirmDialog = false
+                        onDismiss()
+                    }
+                ) {
+                    Text("Discard", color = ExpenseRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirmDialog = false }) {
+                    Text("Cancel", fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { handleDismissAttempt() },
         sheetState = sheetState,
         dragHandle = null,
         containerColor = MaterialTheme.colorScheme.surface
@@ -212,7 +260,7 @@ fun RecordPaymentSheet(
                         Column {
                             Text(
                                 text = if (direction == PaymentDirection.RECEIPT_IN)
-                                    "Record Payment Received" else "Record Payment Made",
+                                    stringResource(R.string.receive_payment) else stringResource(R.string.make_payment),
                                 color = PureWhite,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 17.sp
@@ -227,7 +275,7 @@ fun RecordPaymentSheet(
                     }
 
                     IconButton(
-                        onClick = onDismiss,
+                        onClick = { handleDismissAttempt() },
                         modifier = Modifier.testTag("btn_close_record_payment")
                     ) {
                         Icon(
@@ -398,6 +446,7 @@ fun RecordPaymentSheet(
                     onValueChange = { input ->
                         if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d{0,2}$"""))) {
                             amountText = input
+                            isUserEdited = true
                         }
                     },
                     label = { Text("Amount Paid (₹) *") },

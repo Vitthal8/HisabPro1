@@ -1,5 +1,6 @@
 package com.hisabpro.app.ui.onboarding
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,22 +20,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Business
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -50,7 +46,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
@@ -66,26 +61,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.hisabpro.app.R
 import com.hisabpro.app.data.model.BusinessProfile
 import com.hisabpro.app.ui.theme.DeepNavyBlue
 import com.hisabpro.app.ui.theme.DeepNavyLight
-import com.hisabpro.app.ui.theme.Emerald700
-import com.hisabpro.app.ui.theme.IncomeGreen
+import com.hisabpro.app.ui.theme.ExpenseRed
 import com.hisabpro.app.ui.theme.PureWhite
 import com.hisabpro.app.ui.theme.SaffronLight
 import com.hisabpro.app.ui.theme.SaffronOrange
-import com.hisabpro.app.ui.theme.Slate100
-import com.hisabpro.app.ui.theme.Slate700
 import com.hisabpro.app.ui.theme.Slate800
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -149,6 +139,65 @@ fun BusinessSetupScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val scrollState = rememberScrollState()
 
+    val errShopNameEmpty = stringResource(R.string.err_shop_name_empty)
+    val errInvalidGstin = stringResource(R.string.err_invalid_gstin)
+
+    val hasUnsavedChanges = remember(
+        shopName, ownerName, phone, email, isGstRegistered, gstin, city, address, upiId, bankName
+    ) {
+        if (!currentProfile.hasCompletedOnboarding) {
+            shopName.isNotBlank() || phone.isNotBlank() || ownerName.isNotBlank()
+        } else {
+            shopName != currentProfile.shopName ||
+                    ownerName != currentProfile.ownerName ||
+                    phone != currentProfile.phone ||
+                    email != currentProfile.email ||
+                    isGstRegistered != currentProfile.isGstRegistered ||
+                    gstin != currentProfile.gstin ||
+                    city != currentProfile.city ||
+                    address != currentProfile.address ||
+                    upiId != currentProfile.upiId
+        }
+    }
+
+    var showDiscardConfirmDialog by remember { mutableStateOf(false) }
+
+    fun handleDismissAttempt() {
+        if (onDismiss == null) return
+        if (hasUnsavedChanges) {
+            showDiscardConfirmDialog = true
+        } else {
+            onDismiss()
+        }
+    }
+
+    BackHandler(enabled = onDismiss != null) {
+        handleDismissAttempt()
+    }
+
+    if (showDiscardConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirmDialog = false },
+            title = { Text("Discard changes?") },
+            text = { Text("You have unsaved changes in your business profile form. Are you sure you want to discard them?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirmDialog = false
+                        onDismiss?.invoke()
+                    }
+                ) {
+                    Text("Discard", color = ExpenseRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirmDialog = false }) {
+                    Text("Cancel", fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
@@ -176,12 +225,12 @@ fun BusinessSetupScreen(
                         ) {
                             if (onDismiss != null) {
                                 IconButton(
-                                    onClick = onDismiss,
+                                    onClick = { handleDismissAttempt() },
                                     modifier = Modifier.size(36.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = "Back",
+                                        contentDescription = stringResource(R.string.back),
                                         tint = PureWhite
                                     )
                                 }
@@ -204,7 +253,7 @@ fun BusinessSetupScreen(
 
                             Column {
                                 Text(
-                                    text = if (isInitialOnboarding) "Setup Your Business" else "Business Profile & Settings",
+                                    text = if (isInitialOnboarding) stringResource(R.string.setup_your_business) else stringResource(R.string.business_profile),
                                     color = PureWhite,
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold
@@ -218,9 +267,9 @@ fun BusinessSetupScreen(
                         }
 
                         if (onDismiss != null && !isInitialOnboarding) {
-                            TextButton(onClick = onDismiss) {
+                            TextButton(onClick = { handleDismissAttempt() }) {
                                 Text(
-                                    text = "Close",
+                                    text = stringResource(R.string.close),
                                     color = PureWhite.copy(alpha = 0.9f),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -240,15 +289,24 @@ fun BusinessSetupScreen(
                 shadowElevation = 8.dp,
                 color = MaterialTheme.colorScheme.surface
             ) {
-                Box(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    errorMessage?.let { err ->
+                        Text(
+                            text = err,
+                            color = ExpenseRed,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
                     Button(
                         onClick = {
                             if (shopName.isBlank()) {
-                                errorMessage = "Please enter your Shop or Business Name"
+                                errorMessage = errShopNameEmpty
                                 return@Button
                             }
                             if (isGstRegistered && gstin.length < 15) {
-                                errorMessage = "GSTIN must be 15 alphanumeric characters"
+                                errorMessage = errInvalidGstin
                                 return@Button
                             }
 
@@ -289,7 +347,7 @@ fun BusinessSetupScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
                     ) {
                         Text(
-                            text = if (isInitialOnboarding) "Complete Setup & Launch HisabPro" else "Save Business Profile",
+                            text = if (isInitialOnboarding) stringResource(R.string.save) else stringResource(R.string.save_settings),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = PureWhite
@@ -331,14 +389,18 @@ fun BusinessSetupScreen(
                             modifier = Modifier.size(18.dp)
                         )
                         Text(
-                            text = "Language:",
+                            text = stringResource(R.string.app_language),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = Slate800
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("en" to "English", "hi" to "हिंदी", "mr" to "मराठी").forEach { (code, label) ->
+                        listOf(
+                            "en" to stringResource(R.string.english),
+                            "hi" to stringResource(R.string.hindi),
+                            "mr" to stringResource(R.string.marathi)
+                        ).forEach { (code, label) ->
                             FilterChip(
                                 selected = selectedLanguage == code,
                                 onClick = { selectedLanguage = code },
@@ -354,466 +416,265 @@ fun BusinessSetupScreen(
                     }
                 }
             }
-                // CORE REQUIREMENT: GST vs Non-GST Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isGstRegistered) DeepNavyLight.copy(alpha = 0.5f) else SaffronLight.copy(alpha = 0.5f)
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "GST Registered Business?",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isGstRegistered) DeepNavyBlue else SaffronOrange
-                                )
-                                Text(
-                                    text = if (isGstRegistered) "Yes — Enable CGST/SGST/IGST & HSN" else "No — Simple Non-GST Billing Mode",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Slate700
-                                )
-                            }
-                            Switch(
-                                checked = isGstRegistered,
-                                onCheckedChange = { isGstRegistered = it },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = PureWhite,
-                                    checkedTrackColor = DeepNavyBlue,
-                                    uncheckedThumbColor = PureWhite,
-                                    uncheckedTrackColor = SaffronOrange
-                                ),
-                                modifier = Modifier.testTag("gst_registered_toggle")
-                            )
-                        }
-
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-                        if (!isGstRegistered) {
-                            Row(
-                                verticalAlignment = Alignment.Top,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = IncomeGreen,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Text(
-                                    text = "Non-GST Mode Activated: Invoices show only Item, Qty, Rate, and Amount. All tax columns, HSN code fields, and GST returns are cleanly hidden for simpler billing.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Slate700,
-                                    lineHeight = 16.sp
-                                )
-                            }
-                        } else {
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Row(
-                                    verticalAlignment = Alignment.Top,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Info,
-                                        contentDescription = null,
-                                        tint = DeepNavyBlue,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        text = "GST Registered Mode Activated: Invoices show CGST, SGST, IGST columns, HSN codes, and auto-tax calculation based on state codes.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Slate700,
-                                        lineHeight = 16.sp
-                                    )
-                                }
-
-                                OutlinedTextField(
-                                    value = gstin,
-                                    onValueChange = { input ->
-                                        val cleaned = input.uppercase().trim().take(15)
-                                        gstin = cleaned
-                                        if (cleaned.length >= 10 && pan.isBlank()) {
-                                            pan = cleaned.substring(2, kotlin.math.min(12, cleaned.length))
-                                        }
-                                    },
-                                    label = { Text("GSTIN (15 characters) *") },
-                                    placeholder = { Text("e.g. 27AAAAA0000A1Z5") },
-                                    singleLine = true,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("input_gstin"),
-                                    keyboardOptions = KeyboardOptions(
-                                        capitalization = KeyboardCapitalization.Characters
-                                    ),
-                                    supportingText = {
-                                        Text(
-                                            text = if (gstin.length == 15) "Valid length (15-digits)" else "${gstin.length}/15 characters",
-                                            color = if (gstin.length == 15) IncomeGreen else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                )
-
-                                OutlinedTextField(
-                                    value = pan,
-                                    onValueChange = { pan = it.uppercase().take(10) },
-                                    label = { Text("PAN Number (Optional)") },
-                                    placeholder = { Text("e.g. AAAAA0000A") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters)
-                                )
-
-                                // Composition Scheme Option
-                                Card(
-                                    colors = CardDefaults.cardColors(containerColor = PureWhite),
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    Column(modifier = Modifier.padding(12.dp)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = "Composition Scheme?",
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 14.sp
-                                                )
-                                                Text(
-                                                    text = "Pay flat turnover tax (1% trader / 6% service) without ITC",
-                                                    fontSize = 11.sp,
-                                                    color = Slate700
-                                                )
-                                            }
-                                            Switch(
-                                                checked = isCompositionScheme,
-                                                onCheckedChange = { isCompositionScheme = it }
-                                            )
-                                        }
-
-                                        if (isCompositionScheme) {
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                            ) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    modifier = Modifier.clickable { compositionType = "TRADER" }
-                                                ) {
-                                                    RadioButton(
-                                                        selected = compositionType == "TRADER",
-                                                        onClick = { compositionType = "TRADER" },
-                                                        colors = RadioButtonDefaults.colors(selectedColor = Emerald700)
-                                                    )
-                                                    Text("Trader (1%)", fontSize = 12.sp)
-                                                }
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    modifier = Modifier.clickable { compositionType = "SERVICE" }
-                                                ) {
-                                                    RadioButton(
-                                                        selected = compositionType == "SERVICE",
-                                                        onClick = { compositionType = "SERVICE" },
-                                                        colors = RadioButtonDefaults.colors(selectedColor = Emerald700)
-                                                    )
-                                                    Text("Services (6%)", fontSize = 12.sp)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Business Details Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+            // CORE REQUIREMENT: GST vs Non-GST Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isGstRegistered) DeepNavyLight.copy(alpha = 0.5f) else SaffronLight.copy(alpha = 0.5f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Business Information",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        OutlinedTextField(
-                            value = shopName,
-                            onValueChange = { shopName = it },
-                            label = { Text("Shop / Business Name *") },
-                            placeholder = { Text("e.g. Mali Kirana & General Stores") },
-                            leadingIcon = { Icon(Icons.Default.Business, contentDescription = null) },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("input_shop_name")
-                        )
-
-                        OutlinedTextField(
-                            value = ownerName,
-                            onValueChange = { ownerName = it },
-                            label = { Text("Owner / Proprietor Name") },
-                            placeholder = { Text("e.g. Vittal Mali") },
-                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        OutlinedTextField(
-                            value = phone,
-                            onValueChange = { phone = it },
-                            label = { Text("Phone Number (+91) *") },
-                            placeholder = { Text("e.g. 9876543210") },
-                            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("input_phone")
-                        )
-
-                        OutlinedTextField(
-                            value = email,
-                            onValueChange = { email = it },
-                            label = { Text("Email (Optional)") },
-                            placeholder = { Text("e.g. business@gmail.com") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                // Location Details Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = "Location & Jurisdiction",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        // State Dropdown (Defaults to Maharashtra 27)
-                        ExposedDropdownMenuBox(
-                            expanded = isStateExpanded,
-                            onExpandedChange = { isStateExpanded = it },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            OutlinedTextField(
-                                value = selectedStateWithCode,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("State & GST State Code *") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isStateExpanded) },
-                                modifier = Modifier
-                                    .menuAnchor()
-                                    .fillMaxWidth()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = isStateExpanded,
-                                onDismissRequest = { isStateExpanded = false }
-                            ) {
-                                indianStates.forEach { stateItem ->
-                                    DropdownMenuItem(
-                                        text = { Text(stateItem) },
-                                        onClick = {
-                                            selectedStateWithCode = stateItem
-                                            isStateExpanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = city,
-                                onValueChange = { city = it },
-                                label = { Text("City / Town *") },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f)
-                            )
-                            OutlinedTextField(
-                                value = pincode,
-                                onValueChange = { pincode = it.take(6) },
-                                label = { Text("PIN Code") },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        OutlinedTextField(
-                            value = address,
-                            onValueChange = { address = it },
-                            label = { Text("Address / Shop Address") },
-                            placeholder = { Text("e.g. Shop No. 12, Main Market") },
-                            maxLines = 2,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                // Bank & UPI Details Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AccountBalance,
-                                contentDescription = null,
-                                tint = DeepNavyBlue,
-                                modifier = Modifier.size(20.dp)
-                            )
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Payment & Bank Details",
+                                text = if (isGstRegistered) stringResource(R.string.gst_registered) else stringResource(R.string.non_gst_shop),
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                color = if (isGstRegistered) DeepNavyBlue else SaffronOrange
                             )
                         }
-                        Text(
-                            text = "Prints dynamic UPI QR on invoices for instant payment collection via PhonePe, GPay, Paytm",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Slate700
+                        Switch(
+                            checked = isGstRegistered,
+                            onCheckedChange = { isGstRegistered = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = PureWhite,
+                                checkedTrackColor = DeepNavyBlue,
+                                uncheckedThumbColor = PureWhite,
+                                uncheckedTrackColor = SaffronOrange
+                            ),
+                            modifier = Modifier.testTag("gst_registered_toggle")
                         )
+                    }
 
-                        OutlinedTextField(
-                            value = upiId,
-                            onValueChange = { upiId = it.trim() },
-                            label = { Text("UPI ID / VPA") },
-                            placeholder = { Text("e.g. yourshop@okhdfcbank") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Email,
-                                imeAction = ImeAction.Next
-                            ),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("setup_upi_id_input")
-                        )
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
-                        OutlinedTextField(
-                            value = bankName,
-                            onValueChange = { bankName = it },
-                            label = { Text("Bank Name") },
-                            placeholder = { Text("e.g. State Bank of India") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(
-                                capitalization = KeyboardCapitalization.Words,
-                                imeAction = ImeAction.Next
-                            ),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("setup_bank_name_input")
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
+                    if (isGstRegistered) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             OutlinedTextField(
-                                value = accountNumber,
-                                onValueChange = { accountNumber = it.trim() },
-                                label = { Text("Account No.") },
-                                placeholder = { Text("e.g. 1234567890") },
+                                value = gstin,
+                                onValueChange = { input ->
+                                    val cleaned = input.uppercase().trim().take(15)
+                                    gstin = cleaned
+                                    if (cleaned.length >= 10 && pan.isBlank()) {
+                                        pan = cleaned.substring(2, kotlin.math.min(12, cleaned.length))
+                                    }
+                                },
+                                label = { Text(stringResource(R.string.gstin_number)) },
                                 singleLine = true,
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Number,
-                                    imeAction = ImeAction.Next
-                                ),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                                ),
                                 modifier = Modifier
-                                    .weight(1.2f)
-                                    .testTag("setup_account_number_input")
+                                    .fillMaxWidth()
+                                    .testTag("input_gstin"),
+                                keyboardOptions = KeyboardOptions(
+                                    capitalization = KeyboardCapitalization.Characters
+                                )
                             )
+
                             OutlinedTextField(
-                                value = ifscCode,
-                                onValueChange = { ifscCode = it.uppercase().trim().take(11) },
-                                label = { Text("IFSC Code") },
-                                placeholder = { Text("SBIN0001234") },
+                                value = pan,
+                                onValueChange = { pan = it.uppercase().take(10) },
+                                label = { Text(stringResource(R.string.pan_number)) },
                                 singleLine = true,
-                                keyboardOptions = KeyboardOptions(
-                                    capitalization = KeyboardCapitalization.Characters,
-                                    imeAction = ImeAction.Done
-                                ),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("setup_ifsc_code_input")
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters)
                             )
                         }
                     }
                 }
+            }
 
-                // Error Message if any
-                if (errorMessage != null) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        shape = RoundedCornerShape(8.dp),
+            // Business Details Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.business_setup),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    OutlinedTextField(
+                        value = shopName,
+                        onValueChange = { shopName = it },
+                        label = { Text(stringResource(R.string.shop_name)) },
+                        leadingIcon = { Icon(Icons.Default.Business, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_shop_name")
+                    )
+
+                    OutlinedTextField(
+                        value = ownerName,
+                        onValueChange = { ownerName = it },
+                        label = { Text(stringResource(R.string.owner_name)) },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = phone,
+                        onValueChange = { phone = it },
+                        label = { Text(stringResource(R.string.phone_number)) },
+                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_phone")
+                    )
+
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text(stringResource(R.string.email_address)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // Location Details Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.address),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    ExposedDropdownMenuBox(
+                        expanded = isStateExpanded,
+                        onExpandedChange = { isStateExpanded = it },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = errorMessage ?: "",
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(12.dp)
+                        OutlinedTextField(
+                            value = selectedStateWithCode,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.state)) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isStateExpanded) },
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = isStateExpanded,
+                            onDismissRequest = { isStateExpanded = false }
+                        ) {
+                            indianStates.forEach { stateItem ->
+                                DropdownMenuItem(
+                                    text = { Text(stateItem) },
+                                    onClick = {
+                                        selectedStateWithCode = stateItem
+                                        isStateExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = city,
+                            onValueChange = { city = it },
+                            label = { Text(stringResource(R.string.city)) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = pincode,
+                            onValueChange = { pincode = it.take(6) },
+                            label = { Text(stringResource(R.string.pincode)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = address,
+                        onValueChange = { address = it },
+                        label = { Text(stringResource(R.string.address)) },
+                        maxLines = 2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // Bank & UPI Details Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = upiId,
+                        onValueChange = { upiId = it },
+                        label = { Text(stringResource(R.string.upi_id)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = bankName,
+                        onValueChange = { bankName = it },
+                        label = { Text(stringResource(R.string.bank_name)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = accountNumber,
+                            onValueChange = { accountNumber = it },
+                            label = { Text(stringResource(R.string.account_number)) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = ifscCode,
+                            onValueChange = { ifscCode = it },
+                            label = { Text(stringResource(R.string.ifsc_code)) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(48.dp))
             }
         }
     }
+}

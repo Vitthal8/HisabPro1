@@ -77,6 +77,8 @@ import com.hisabpro.app.ui.theme.SaffronOrange
 import com.hisabpro.app.ui.theme.Slate100
 import com.hisabpro.app.ui.theme.Slate200
 import com.hisabpro.app.ui.theme.Slate500
+import androidx.compose.ui.res.stringResource
+import com.hisabpro.app.R
 import com.hisabpro.app.ui.theme.Slate600
 import com.hisabpro.app.ui.theme.Slate700
 import com.hisabpro.app.ui.theme.Slate800
@@ -147,7 +149,7 @@ fun ReportsScreen(
             ) {
                 Column {
                     Text(
-                        text = "Business Reports & Accounts",
+                        text = stringResource(R.string.reports),
                         color = PureWhite,
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp

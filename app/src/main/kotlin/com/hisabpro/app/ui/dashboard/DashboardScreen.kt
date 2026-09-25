@@ -56,7 +56,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import com.hisabpro.app.R
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -282,7 +284,7 @@ fun DashboardScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Today's Overview",
+                        text = stringResource(R.string.todays_overview),
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = Slate900
                     )
@@ -302,9 +304,9 @@ fun DashboardScreen(
                 ) {
                     // Today's Sales
                     TodayMetricCard(
-                        title = "Today's Sales",
+                        title = stringResource(R.string.todays_sales),
                         amountText = IndianAccountingFormat.formatIndianCurrency(todaySalesAmount),
-                        subtext = if (todaySalesCount > 0) "$todaySalesCount bills generated" else "0 bills today",
+                        subtext = if (todaySalesCount > 0) stringResource(R.string.bills_generated, todaySalesCount) else stringResource(R.string.no_bills_today),
                         icon = Icons.Default.ReceiptLong,
                         accentColor = SaffronOrange,
                         containerColor = SaffronLight,
@@ -314,9 +316,9 @@ fun DashboardScreen(
 
                     // Today's Collections
                     TodayMetricCard(
-                        title = "Today's Collections",
+                        title = stringResource(R.string.todays_collections),
                         amountText = IndianAccountingFormat.formatIndianCurrency(todayCollectionsAmount),
-                        subtext = if (todayCollectionsCount > 0) "$todayCollectionsCount payments in" else "No collections yet",
+                        subtext = if (todayCollectionsCount > 0) stringResource(R.string.payments_in, todayCollectionsCount) else stringResource(R.string.no_collections_yet),
                         icon = Icons.Default.Payments,
                         accentColor = IncomeGreen,
                         containerColor = IncomeGreenContainer,
@@ -333,9 +335,9 @@ fun DashboardScreen(
                 ) {
                     // Today's Expenses
                     TodayMetricCard(
-                        title = "Today's Expenses",
+                        title = stringResource(R.string.todays_expenses),
                         amountText = IndianAccountingFormat.formatIndianCurrency(todayExpensesAmount),
-                        subtext = if (todayExpensesCount > 0) "$todayExpensesCount vouchers" else "₹0 spent today",
+                        subtext = if (todayExpensesCount > 0) stringResource(R.string.vouchers_count, todayExpensesCount) else stringResource(R.string.zero_spent_today),
                         icon = Icons.Default.MoneyOff,
                         accentColor = ExpenseRed,
                         containerColor = ExpenseRedContainer,
@@ -368,7 +370,7 @@ fun DashboardScreen(
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
-                        text = "Quick Actions",
+                        text = stringResource(R.string.quick_actions),
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = Slate800
                     )
@@ -385,7 +387,7 @@ fun DashboardScreen(
                         // 1. Add Sale
                         QuickActionItem(
                             icon = Icons.Default.ReceiptLong,
-                            label = "Add Sale",
+                            label = stringResource(R.string.add_sale),
                             accentColor = SaffronOrange,
                             testTag = "btn_quick_add_sale",
                             onClick = {
@@ -397,7 +399,7 @@ fun DashboardScreen(
                         // 2. Receive Payment
                         QuickActionItem(
                             icon = Icons.Default.Payments,
-                            label = "Receive Payment",
+                            label = stringResource(R.string.receive_payment),
                             accentColor = IncomeGreen,
                             testTag = "btn_quick_receive_payment",
                             onClick = {
@@ -409,7 +411,7 @@ fun DashboardScreen(
                         // 3. Add Customer
                         QuickActionItem(
                             icon = Icons.Default.PersonAdd,
-                            label = "Add Customer",
+                            label = stringResource(R.string.add_customer),
                             accentColor = DeepNavyBlue,
                             testTag = "btn_quick_add_customer",
                             onClick = {
@@ -421,7 +423,7 @@ fun DashboardScreen(
                         // 4. Add Expense
                         QuickActionItem(
                             icon = Icons.Default.MoneyOff,
-                            label = "Add Expense",
+                            label = stringResource(R.string.add_expense),
                             accentColor = ExpenseRed,
                             testTag = "btn_quick_add_expense",
                             onClick = {
@@ -433,7 +435,7 @@ fun DashboardScreen(
                         // 5. Add Purchase
                         QuickActionItem(
                             icon = Icons.Default.ShoppingBag,
-                            label = "Add Purchase",
+                            label = stringResource(R.string.add_purchase),
                             accentColor = Emerald700,
                             testTag = "btn_quick_add_purchase",
                             onClick = {
@@ -885,7 +887,7 @@ private fun CashAndBankCard(
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "Cashbook",
+                        text = stringResource(R.string.cash_book),
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                         color = Emerald700
                     )
@@ -932,7 +934,7 @@ private fun CashAndBankCard(
                         }
                         Column {
                             Text(
-                                text = "Cash in Hand",
+                                text = stringResource(R.string.cash_in_hand),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Slate500
                             )
@@ -973,7 +975,7 @@ private fun CashAndBankCard(
                         }
                         Column {
                             Text(
-                                text = "Bank & UPI",
+                                text = stringResource(R.string.bank_balance),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Slate500
                             )
@@ -1018,7 +1020,7 @@ private fun PendingInvoicesSection(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "Pending Invoices",
+                        text = stringResource(R.string.pending_invoices),
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = Slate900
                     )
@@ -1027,7 +1029,7 @@ private fun PendingInvoicesSection(
                         color = if (pendingInvoices.isEmpty()) IncomeGreenContainer else ExpenseRedContainer
                     ) {
                         Text(
-                            text = if (pendingInvoices.isEmpty()) "All Settled" else "${pendingInvoices.size} Pending",
+                            text = if (pendingInvoices.isEmpty()) stringResource(R.string.paid) else "${pendingInvoices.size} ${stringResource(R.string.unpaid)}",
                             color = if (pendingInvoices.isEmpty()) IncomeGreen else ExpenseRed,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,

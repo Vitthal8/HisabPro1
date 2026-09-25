@@ -720,20 +720,44 @@ object InvoicePdfGenerator {
     private fun loadLogoBitmap(context: Context, logoPath: String): Bitmap? {
         if (logoPath.isBlank()) return null
         return try {
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
             if (logoPath.startsWith("content://") || logoPath.startsWith("file://")) {
                 val uri = Uri.parse(logoPath)
                 context.contentResolver.openInputStream(uri)?.use { stream ->
-                    BitmapFactory.decodeStream(stream)
+                    BitmapFactory.decodeStream(stream, null, options)
+                }
+                options.inSampleSize = calculateInSampleSize(options, 256, 256)
+                options.inJustDecodeBounds = false
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream, null, options)
                 }
             } else {
                 val file = File(logoPath)
                 if (file.exists() && file.canRead()) {
-                    BitmapFactory.decodeFile(file.absolutePath)
+                    BitmapFactory.decodeFile(file.absolutePath, options)
+                    options.inSampleSize = calculateInSampleSize(options, 256, 256)
+                    options.inJustDecodeBounds = false
+                    BitmapFactory.decodeFile(file.absolutePath, options)
                 } else null
             }
         } catch (e: Exception) {
             null
         }
+    }
+
+    private fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int = 256, reqHeight: Int = 256): Int {
+        val (height: Int, width: Int) = options.outHeight to options.outWidth
+        var inSampleSize = 1
+        if (height > reqHeight || width > reqWidth) {
+            val halfHeight: Int = height / 2
+            val halfWidth: Int = width / 2
+            while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
+                inSampleSize *= 2
+            }
+        }
+        return inSampleSize
     }
 
     /**

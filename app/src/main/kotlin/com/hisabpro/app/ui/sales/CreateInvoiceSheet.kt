@@ -1,6 +1,7 @@
 package com.hisabpro.app.ui.sales
 
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -208,8 +209,73 @@ fun CreateInvoiceSheet(
     }
     val dueAmount = AccountingEngine.calculateBalanceDue(grandTotal, autoPaid)
 
+    val initialDiscountText = invoiceToEdit?.discountAmount?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "0"
+    val initialNotes = invoiceToEdit?.notes ?: ""
+    val initialCustomerName = invoiceToEdit?.customerName ?: ""
+    val initialCustomerPhone = invoiceToEdit?.customerPhone ?: ""
+
+    val hasUnsavedChanges = remember(
+        items.size, items.toList(), customerName, customerPhone, customerAddress,
+        customerGstin, discountText, notes, itemDesc, itemPriceText
+    ) {
+        if (invoiceToEdit == null) {
+            items.isNotEmpty() ||
+                    customerName.isNotBlank() ||
+                    customerPhone.isNotBlank() ||
+                    customerAddress.isNotBlank() ||
+                    customerGstin.isNotBlank() ||
+                    notes.isNotBlank() ||
+                    itemDesc.isNotBlank() ||
+                    itemPriceText.isNotBlank() ||
+                    (discountText.isNotBlank() && discountText != "0")
+        } else {
+            items.toList() != invoiceToEdit.items ||
+                    customerName != initialCustomerName ||
+                    customerPhone != initialCustomerPhone ||
+                    notes != initialNotes ||
+                    discountText != initialDiscountText
+        }
+    }
+
+    var showDiscardConfirmDialog by remember { mutableStateOf(false) }
+
+    fun handleDismissAttempt() {
+        if (hasUnsavedChanges) {
+            showDiscardConfirmDialog = true
+        } else {
+            onDismiss()
+        }
+    }
+
+    BackHandler(enabled = true) {
+        handleDismissAttempt()
+    }
+
+    if (showDiscardConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirmDialog = false },
+            title = { Text("Discard changes?") },
+            text = { Text("You have unsaved changes in this invoice. Are you sure you want to discard them?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirmDialog = false
+                        onDismiss()
+                    }
+                ) {
+                    Text("Discard", color = ExpenseRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirmDialog = false }) {
+                    Text("Cancel", fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { handleDismissAttempt() },
         sheetState = sheetState,
         modifier = Modifier.imePadding(),
         dragHandle = null,
@@ -273,7 +339,7 @@ fun CreateInvoiceSheet(
                             )
                         }
                     }
-                    IconButton(onClick = onDismiss) {
+                    IconButton(onClick = { handleDismissAttempt() }) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",

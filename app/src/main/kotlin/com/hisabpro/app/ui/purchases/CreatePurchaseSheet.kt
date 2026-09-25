@@ -1,5 +1,6 @@
 package com.hisabpro.app.ui.purchases
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -37,6 +39,7 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -155,8 +158,58 @@ fun CreatePurchaseSheet(
     val enteredPaid = paidAmountInput.toDoubleOrNull() ?: grandTotal
     val dueAmount = (grandTotal - enteredPaid).coerceAtLeast(0.0)
 
+    val initialSupplierName = selectedSupplier?.name ?: ""
+    val hasUnsavedChanges = remember(
+        customSupplierName, supplierPhone, vendorBillNumber, notes, draftItems.size, discountInput, paidAmountInput
+    ) {
+        (customSupplierName.isNotBlank() && customSupplierName != initialSupplierName) ||
+                supplierPhone.isNotBlank() ||
+                vendorBillNumber.isNotBlank() ||
+                notes.isNotBlank() ||
+                discountInput.isNotBlank() ||
+                paidAmountInput.isNotBlank() ||
+                draftItems.size > 1
+    }
+
+    var showDiscardConfirmDialog by remember { mutableStateOf(false) }
+
+    fun handleDismissAttempt() {
+        if (hasUnsavedChanges) {
+            showDiscardConfirmDialog = true
+        } else {
+            onDismiss()
+        }
+    }
+
+    BackHandler(enabled = true) {
+        handleDismissAttempt()
+    }
+
+    if (showDiscardConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirmDialog = false },
+            title = { Text("Discard changes?") },
+            text = { Text("You have unsaved changes in this purchase bill form. Are you sure you want to discard them?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirmDialog = false
+                        onDismiss()
+                    }
+                ) {
+                    Text("Discard", color = ExpenseRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirmDialog = false }) {
+                    Text("Cancel", fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { handleDismissAttempt() },
         sheetState = sheetState,
         modifier = Modifier.imePadding(),
         containerColor = MaterialTheme.colorScheme.surface,
@@ -208,7 +261,7 @@ fun CreatePurchaseSheet(
                         )
                     }
                 }
-                IconButton(onClick = onDismiss) {
+                IconButton(onClick = { handleDismissAttempt() }) {
                     Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = Slate500)
                 }
             }

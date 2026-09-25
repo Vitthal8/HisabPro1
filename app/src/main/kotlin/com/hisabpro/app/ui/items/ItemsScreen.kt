@@ -1,5 +1,6 @@
 package com.hisabpro.app.ui.items
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -77,6 +78,8 @@ import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.PureWhite
 import com.hisabpro.app.ui.theme.Slate100
 import com.hisabpro.app.ui.theme.Slate200
+import androidx.compose.ui.res.stringResource
+import com.hisabpro.app.R
 import com.hisabpro.app.ui.theme.Slate500
 import com.hisabpro.app.ui.theme.Slate600
 import com.hisabpro.app.ui.theme.Slate700
@@ -120,6 +123,10 @@ fun ItemsScreen(
 
     val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
 
+    BackHandler(enabled = onBack != null) {
+        onBack?.invoke()
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
@@ -138,7 +145,7 @@ fun ItemsScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Items & Stock",
+                            text = stringResource(R.string.inventory_stock),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = PureWhite

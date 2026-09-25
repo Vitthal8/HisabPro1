@@ -77,6 +77,8 @@ import com.hisabpro.app.ui.theme.ExpenseRed
 import com.hisabpro.app.ui.theme.ExpenseRedContainer
 import com.hisabpro.app.ui.theme.IncomeGreen
 import com.hisabpro.app.ui.theme.IncomeGreenContainer
+import androidx.compose.ui.res.stringResource
+import com.hisabpro.app.R
 import com.hisabpro.app.ui.theme.PureWhite
 import com.hisabpro.app.ui.theme.Slate700
 import kotlinx.coroutines.launch
@@ -168,7 +170,7 @@ fun PartiesListScreen(
                             }
                         }
                         Text(
-                            text = "Customer & Supplier Khata",
+                            text = stringResource(R.string.parties),
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = (-0.5).sp,

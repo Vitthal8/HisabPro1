@@ -96,96 +96,106 @@ class InvoiceRepository(context: Context) {
         }
     }
 
-    private fun saveInternal(list: List<Invoice>) {
-        val array = JSONArray()
-        for (inv in list) {
-            val obj = JSONObject().apply {
-                put("id", inv.id)
-                put("invoiceNumber", inv.invoiceNumber)
-                put("type", inv.type.name)
-                put("gstMode", inv.gstMode.name)
-                if (inv.customerId != null) put("customerId", inv.customerId) else put("customerId", JSONObject.NULL)
-                put("customerName", inv.customerName)
-                put("customerPhone", inv.customerPhone)
-                put("customerAddress", inv.customerAddress)
-                put("customerGstin", inv.customerGstin)
-                put("dateMillis", inv.dateMillis)
-                put("discountAmount", inv.discountAmount)
-                put("notes", inv.notes)
-                put("paymentStatus", inv.paymentStatus.name)
-                put("paidAmount", inv.paidAmount)
-                put("paymentMode", inv.paymentMode)
-                put("createdAt", inv.createdAt)
-
-                val itemsArray = JSONArray()
-                for (item in inv.items) {
-                    val itemObj = JSONObject().apply {
-                        put("id", item.id)
-                        put("description", item.description)
-                        put("hsnCode", item.hsnCode)
-                        put("quantity", item.quantity)
-                        put("unit", item.unit)
-                        put("unitPrice", item.unitPrice)
-                        put("gstRate", item.gstRate)
-                        put("discount", item.discount)
-                    }
-                    itemsArray.put(itemObj)
-                }
-                put("items", itemsArray)
-            }
-            array.put(obj)
-        }
-        prefs.edit().putString(KEY_INVOICES, array.toString()).apply()
+    private fun saveInternal(list: List<Invoice>, syncAllRoom: Boolean = false) {
         _invoices.value = list.sortedByDescending { it.dateMillis }
-
         scope.launch {
             try {
+                val array = JSONArray()
                 for (inv in list) {
-                    val invoiceEntity = InvoiceEntity(
-                        id = inv.id,
-                        businessId = "default_business",
-                        invoiceNo = inv.invoiceNumber,
-                        date = inv.dateMillis,
-                        partyId = inv.customerId,
-                        customerName = inv.customerName,
-                        customerPhone = inv.customerPhone,
-                        customerAddress = inv.customerAddress,
-                        customerGstin = inv.customerGstin,
-                        type = inv.type.name,
-                        gstMode = inv.gstMode.name,
-                        subtotal = inv.subtotal.toPaise(),
-                        cgst = inv.cgstTotal.toPaise(),
-                        sgst = inv.sgstTotal.toPaise(),
-                        igst = inv.igstTotal.toPaise(),
-                        discount = inv.discountAmount.toPaise(),
-                        taxableAmount = kotlin.math.max(0.0, inv.subtotal - inv.discountAmount).toPaise(),
-                        total = inv.grandTotal.toPaise(),
-                        paidAmount = inv.paidAmount.toPaise(),
-                        paymentStatus = inv.paymentStatus.name,
-                        paymentMode = if (inv.paidAmount > 0) "CASH" else "UNPAID",
-                        notes = inv.notes,
-                        isGst = inv.type != InvoiceType.NON_GST_BILL && inv.gstMode != GstMode.EXEMPT,
-                        createdAt = inv.createdAt
-                    )
-                    val itemEntities = inv.items.map { item ->
-                        InvoiceItemEntity(
-                            id = item.id,
-                            invoiceId = inv.id,
-                            itemName = item.description,
-                            hsnCode = item.hsnCode,
-                            qty = item.quantity,
-                            unit = item.unit,
-                            rate = item.unitPrice.toPaise(),
-                            cgstRate = if (inv.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0,
-                            sgstRate = if (inv.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0,
-                            amount = item.getTotal(inv.gstMode).toPaise()
-                        )
+                    val obj = JSONObject().apply {
+                        put("id", inv.id)
+                        put("invoiceNumber", inv.invoiceNumber)
+                        put("type", inv.type.name)
+                        put("gstMode", inv.gstMode.name)
+                        if (inv.customerId != null) put("customerId", inv.customerId) else put("customerId", JSONObject.NULL)
+                        put("customerName", inv.customerName)
+                        put("customerPhone", inv.customerPhone)
+                        put("customerAddress", inv.customerAddress)
+                        put("customerGstin", inv.customerGstin)
+                        put("dateMillis", inv.dateMillis)
+                        put("discountAmount", inv.discountAmount)
+                        put("notes", inv.notes)
+                        put("paymentStatus", inv.paymentStatus.name)
+                        put("paidAmount", inv.paidAmount)
+                        put("paymentMode", inv.paymentMode)
+                        put("createdAt", inv.createdAt)
+
+                        val itemsArray = JSONArray()
+                        for (item in inv.items) {
+                            val itemObj = JSONObject().apply {
+                                put("id", item.id)
+                                put("description", item.description)
+                                put("hsnCode", item.hsnCode)
+                                put("quantity", item.quantity)
+                                put("unit", item.unit)
+                                put("unitPrice", item.unitPrice)
+                                put("gstRate", item.gstRate)
+                                put("discount", item.discount)
+                            }
+                            itemsArray.put(itemObj)
+                        }
+                        put("items", itemsArray)
                     }
-                    db.invoiceDao().insertInvoiceWithItems(invoiceEntity, itemEntities)
+                    array.put(obj)
+                }
+                prefs.edit().putString(KEY_INVOICES, array.toString()).apply()
+
+                if (syncAllRoom) {
+                    for (inv in list) {
+                        saveSingleInvoiceDbInternal(inv)
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    private suspend fun saveSingleInvoiceDbInternal(inv: Invoice) {
+        try {
+            val invoiceEntity = InvoiceEntity(
+                id = inv.id,
+                businessId = "default_business",
+                invoiceNo = inv.invoiceNumber,
+                date = inv.dateMillis,
+                partyId = inv.customerId,
+                customerName = inv.customerName,
+                customerPhone = inv.customerPhone,
+                customerAddress = inv.customerAddress,
+                customerGstin = inv.customerGstin,
+                type = inv.type.name,
+                gstMode = inv.gstMode.name,
+                subtotal = inv.subtotal.toPaise(),
+                cgst = inv.cgstTotal.toPaise(),
+                sgst = inv.sgstTotal.toPaise(),
+                igst = inv.igstTotal.toPaise(),
+                discount = inv.discountAmount.toPaise(),
+                taxableAmount = kotlin.math.max(0.0, inv.subtotal - inv.discountAmount).toPaise(),
+                total = inv.grandTotal.toPaise(),
+                paidAmount = inv.paidAmount.toPaise(),
+                paymentStatus = inv.paymentStatus.name,
+                paymentMode = if (inv.paidAmount > 0) "CASH" else "UNPAID",
+                notes = inv.notes,
+                isGst = inv.type != InvoiceType.NON_GST_BILL && inv.gstMode != GstMode.EXEMPT,
+                createdAt = inv.createdAt
+            )
+            val itemEntities = inv.items.map { item ->
+                InvoiceItemEntity(
+                    id = item.id,
+                    invoiceId = inv.id,
+                    itemName = item.description,
+                    hsnCode = item.hsnCode,
+                    qty = item.quantity,
+                    unit = item.unit,
+                    rate = item.unitPrice.toPaise(),
+                    cgstRate = if (inv.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0,
+                    sgstRate = if (inv.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0,
+                    amount = item.getTotal(inv.gstMode).toPaise()
+                )
+            }
+            db.invoiceDao().insertInvoiceWithItems(invoiceEntity, itemEntities)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -214,12 +224,15 @@ class InvoiceRepository(context: Context) {
                 inv
             }
         }
-        saveInternal(updated)
+        saveInternal(updated, syncAllRoom = false)
     }
 
     fun addInvoice(invoice: Invoice): Invoice {
         val updated = listOf(invoice) + _invoices.value
-        saveInternal(updated)
+        saveInternal(updated, syncAllRoom = false)
+        scope.launch {
+            saveSingleInvoiceDbInternal(invoice)
+        }
         return invoice
     }
 
@@ -227,12 +240,15 @@ class InvoiceRepository(context: Context) {
         val updated = _invoices.value.map {
             if (it.id == invoice.id) invoice else it
         }
-        saveInternal(updated)
+        saveInternal(updated, syncAllRoom = false)
+        scope.launch {
+            saveSingleInvoiceDbInternal(invoice)
+        }
     }
 
     fun deleteInvoice(invoiceId: String) {
         val updated = _invoices.value.filterNot { it.id == invoiceId }
-        saveInternal(updated)
+        saveInternal(updated, syncAllRoom = false)
         scope.launch {
             try {
                 db.invoiceDao().deleteInvoiceWithItems(invoiceId)
@@ -260,7 +276,7 @@ class InvoiceRepository(context: Context) {
 
     fun resetToDemo() {
         val initial = createInitialInvoices()
-        saveInternal(initial)
+        saveInternal(initial, syncAllRoom = true)
     }
 
     private fun createInitialInvoices(): List<Invoice> {

@@ -1,6 +1,7 @@
 package com.hisabpro.app.ui.sales
 
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -100,6 +101,9 @@ fun InvoiceDetailSheet(
     onDelete: (Invoice) -> Unit,
     onEditInvoice: (Invoice) -> Unit = {}
 ) {
+    BackHandler(enabled = true) {
+        onDismiss()
+    }
     val context = LocalContext.current
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showUpiQrSheet by remember { mutableStateOf(false) }

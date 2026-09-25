@@ -1,6 +1,7 @@
 package com.hisabpro.app.ui
 
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -137,6 +138,10 @@ private fun MainScreenContent(
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showBusinessSetup by rememberSaveable { mutableStateOf(!businessProfile.hasCompletedOnboarding) }
     var activeSubScreen by rememberSaveable { mutableStateOf<String?>(null) } // "items", "cashbook", "backup"
+
+    BackHandler(enabled = selectedTab != 0 && activeSubScreen == null && !showBusinessSetup) {
+        selectedTab = 0
+    }
 
     if (showBusinessSetup) {
         BusinessSetupScreen(

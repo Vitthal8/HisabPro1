@@ -101,23 +101,40 @@ fun InvoiceDetailSheet(
     onDelete: (Invoice) -> Unit,
     onEditInvoice: (Invoice) -> Unit = {}
 ) {
-    BackHandler(enabled = true) {
-        onDismiss()
-    }
-    val context = LocalContext.current
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showUpiQrSheet by remember { mutableStateOf(false) }
+
+    fun handleDismissAttempt() {
+        if (showUpiQrSheet) {
+            showUpiQrSheet = false
+        } else if (showDeleteConfirm) {
+            showDeleteConfirm = false
+        } else {
+            onDismiss()
+        }
+    }
+
+    BackHandler(enabled = true) {
+        handleDismissAttempt()
+    }
+    val context = LocalContext.current
     val upiSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val settingsRepo = remember { SettingsRepository.getInstance(context) }
     val businessProfile by settingsRepo.profile.collectAsStateWithLifecycle()
     val dateFormat = remember { SimpleDateFormat("dd MMMM yyyy, hh:mm a", Locale.ENGLISH) }
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { handleDismissAttempt() },
         sheetState = sheetState,
+        properties = androidx.compose.material3.ModalBottomSheetDefaults.properties(
+            shouldDismissOnBackPress = false
+        ),
         dragHandle = null,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
+        BackHandler(enabled = true) {
+            handleDismissAttempt()
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()

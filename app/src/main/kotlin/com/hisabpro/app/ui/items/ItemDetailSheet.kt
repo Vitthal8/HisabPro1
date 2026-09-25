@@ -1,5 +1,6 @@
 package com.hisabpro.app.ui.items
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -84,15 +85,33 @@ fun ItemDetailSheet(
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
+    fun handleDismissAttempt() {
+        if (showDeleteConfirm) {
+            showDeleteConfirm = false
+        } else {
+            onDismiss()
+        }
+    }
+
+    BackHandler(enabled = true) {
+        handleDismissAttempt()
+    }
+
     val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale("en", "IN")) }
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { handleDismissAttempt() },
         sheetState = sheetState,
+        properties = androidx.compose.material3.ModalBottomSheetDefaults.properties(
+            shouldDismissOnBackPress = false
+        ),
         dragHandle = null,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
+        BackHandler(enabled = true) {
+            handleDismissAttempt()
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -216,7 +217,8 @@ fun CreateInvoiceSheet(
 
     val hasUnsavedChanges = remember(
         items.size, items.toList(), customerName, customerPhone, customerAddress,
-        customerGstin, discountText, notes, itemDesc, itemPriceText
+        customerGstin, discountText, notes, itemDesc, itemPriceText, itemHsn,
+        itemQtyText, paidAmountText, selectedParty, itemPickerSearch
     ) {
         if (invoiceToEdit == null) {
             items.isNotEmpty() ||
@@ -227,19 +229,40 @@ fun CreateInvoiceSheet(
                     notes.isNotBlank() ||
                     itemDesc.isNotBlank() ||
                     itemPriceText.isNotBlank() ||
+                    itemHsn.isNotBlank() ||
+                    (itemQtyText.isNotBlank() && itemQtyText != "1") ||
+                    paidAmountText.isNotBlank() ||
+                    selectedParty != null ||
+                    itemPickerSearch.isNotBlank() ||
                     (discountText.isNotBlank() && discountText != "0")
         } else {
             items.toList() != invoiceToEdit.items ||
                     customerName != initialCustomerName ||
                     customerPhone != initialCustomerPhone ||
                     notes != initialNotes ||
-                    discountText != initialDiscountText
+                    discountText != initialDiscountText ||
+                    itemDesc.isNotBlank() ||
+                    itemPriceText.isNotBlank()
         }
     }
 
     var showDiscardConfirmDialog by remember { mutableStateOf(false) }
 
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(density) > 0
+
     fun handleDismissAttempt() {
+        if (showItemPickerDialog) {
+            showItemPickerDialog = false
+            return
+        }
+        if (isImeVisible) {
+            keyboardController?.hide()
+            focusManager.clearFocus()
+            return
+        }
         if (hasUnsavedChanges) {
             showDiscardConfirmDialog = true
         } else {
@@ -277,10 +300,17 @@ fun CreateInvoiceSheet(
     ModalBottomSheet(
         onDismissRequest = { handleDismissAttempt() },
         sheetState = sheetState,
+        properties = androidx.compose.material3.ModalBottomSheetDefaults.properties(
+            shouldDismissOnBackPress = false
+        ),
         modifier = Modifier.imePadding(),
         dragHandle = null,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
+        BackHandler(enabled = true) {
+            handleDismissAttempt()
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()

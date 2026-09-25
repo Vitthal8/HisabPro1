@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -158,22 +159,35 @@ fun CreatePurchaseSheet(
     val enteredPaid = paidAmountInput.toDoubleOrNull() ?: grandTotal
     val dueAmount = (grandTotal - enteredPaid).coerceAtLeast(0.0)
 
+    val initialDraftItem = remember { draftItems.firstOrNull()?.copy() }
     val initialSupplierName = selectedSupplier?.name ?: ""
     val hasUnsavedChanges = remember(
-        customSupplierName, supplierPhone, vendorBillNumber, notes, draftItems.size, discountInput, paidAmountInput
+        customSupplierName, supplierPhone, supplierGstin, vendorBillNumber, notes, draftItems.toList(), discountInput, paidAmountInput
     ) {
         (customSupplierName.isNotBlank() && customSupplierName != initialSupplierName) ||
                 supplierPhone.isNotBlank() ||
+                supplierGstin.isNotBlank() ||
                 vendorBillNumber.isNotBlank() ||
                 notes.isNotBlank() ||
                 discountInput.isNotBlank() ||
                 paidAmountInput.isNotBlank() ||
-                draftItems.size > 1
+                draftItems.size > 1 ||
+                (draftItems.firstOrNull() != null && draftItems.first() != initialDraftItem)
     }
 
     var showDiscardConfirmDialog by remember { mutableStateOf(false) }
 
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(density) > 0
+
     fun handleDismissAttempt() {
+        if (isImeVisible) {
+            keyboardController?.hide()
+            focusManager.clearFocus()
+            return
+        }
         if (hasUnsavedChanges) {
             showDiscardConfirmDialog = true
         } else {
@@ -211,10 +225,17 @@ fun CreatePurchaseSheet(
     ModalBottomSheet(
         onDismissRequest = { handleDismissAttempt() },
         sheetState = sheetState,
+        properties = androidx.compose.material3.ModalBottomSheetDefaults.properties(
+            shouldDismissOnBackPress = false
+        ),
         modifier = Modifier.imePadding(),
         containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = null
     ) {
+        BackHandler(enabled = true) {
+            handleDismissAttempt()
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -948,7 +969,7 @@ fun CreatePurchaseSheet(
     }
 }
 
-class DraftPurchaseLine(
+data class DraftPurchaseLine(
     val id: String,
     var description: String,
     var itemId: String? = null,

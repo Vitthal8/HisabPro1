@@ -2,6 +2,7 @@ package com.hisabpro.app.ui.party
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -134,6 +135,10 @@ fun PartyKhataScreen(
     val editPartySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val upiSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val paymentSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    BackHandler(enabled = !showAddEntrySheet && !showEditPartySheet && !showRecordPaymentSheet && !showUpiQrSheet && !showDeletePartyDialog && !showMenu) {
+        onBack()
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),

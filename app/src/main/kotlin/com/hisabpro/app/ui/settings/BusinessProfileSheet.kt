@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,9 +16,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,12 +34,14 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Store
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -132,13 +136,94 @@ fun BusinessProfileSheet(
         showUpiQrOnInvoice = profile.showUpiQrOnInvoice
     }
 
+    val hasUnsavedChanges = remember(
+        shopName, ownerName, phone, email, isGstRegistered, gstin, address, city, state, stateCode, pincode,
+        upiId, bankName, accountNumber, ifscCode, invoicePrefix, purchasePrefix, termsAndConditions,
+        isThermalPrinterMode, showUpiQrOnInvoice, profile
+    ) {
+        shopName != profile.shopName ||
+                ownerName != profile.ownerName ||
+                phone != profile.phone ||
+                email != profile.email ||
+                isGstRegistered != profile.isGstRegistered ||
+                gstin != profile.gstin ||
+                address != profile.address ||
+                city != profile.city ||
+                state != profile.state ||
+                stateCode != profile.stateCode ||
+                pincode != profile.pincode ||
+                upiId != profile.upiId ||
+                bankName != profile.bankName ||
+                accountNumber != profile.accountNumber ||
+                ifscCode != profile.ifscCode ||
+                invoicePrefix != profile.invoicePrefix ||
+                purchasePrefix != profile.purchasePrefix ||
+                termsAndConditions != profile.termsAndConditions ||
+                isThermalPrinterMode != profile.isThermalPrinterMode ||
+                showUpiQrOnInvoice != profile.showUpiQrOnInvoice
+    }
+
+    var showDiscardConfirmDialog by remember { mutableStateOf(false) }
+
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(density) > 0
+
+    fun handleDismissAttempt() {
+        if (isImeVisible) {
+            keyboardController?.hide()
+            focusManager.clearFocus()
+            return
+        }
+        if (hasUnsavedChanges) {
+            showDiscardConfirmDialog = true
+        } else {
+            onDismiss()
+        }
+    }
+
+    BackHandler(enabled = true) {
+        handleDismissAttempt()
+    }
+
+    if (showDiscardConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirmDialog = false },
+            title = { Text("Discard changes?") },
+            text = { Text("You have unsaved changes in your business profile. Are you sure you want to discard them?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirmDialog = false
+                        onDismiss()
+                    }
+                ) {
+                    Text("Discard", color = androidx.compose.ui.graphics.Color.Red, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirmDialog = false }) {
+                    Text("Cancel", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                }
+            }
+        )
+    }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { handleDismissAttempt() },
         sheetState = sheetState,
+        properties = androidx.compose.material3.ModalBottomSheetDefaults.properties(
+            shouldDismissOnBackPress = false
+        ),
         modifier = Modifier.imePadding(),
         containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = null
     ) {
+        BackHandler(enabled = true) {
+            handleDismissAttempt()
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -183,7 +268,7 @@ fun BusinessProfileSheet(
                         )
                     }
                 }
-                IconButton(onClick = onDismiss) {
+                IconButton(onClick = { handleDismissAttempt() }) {
                     Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
                 }
             }

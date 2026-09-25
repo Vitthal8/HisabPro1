@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -88,19 +89,32 @@ fun AddTransactionDialog(
 
     val isEditing = initialTransaction != null
 
-    val hasUnsavedChanges = remember(titleText, amountText, noteText) {
+    val hasUnsavedChanges = remember(titleText, amountText, noteText, type, selectedCategory, selectedPaymentMode) {
         if (initialTransaction == null) {
-            titleText.isNotBlank() || amountText.isNotBlank() || noteText.isNotBlank()
+            titleText.isNotBlank() || amountText.isNotBlank() || noteText.isNotBlank() || selectedCategory != Category.FOOD || type != TransactionType.EXPENSE
         } else {
             titleText != initialTransaction.title ||
                     amountText != (if (initialTransaction.amount % 1.0 == 0.0) initialTransaction.amount.toLong().toString() else initialTransaction.amount.toString()) ||
-                    noteText != initialTransaction.note
+                    noteText != initialTransaction.note ||
+                    type != initialTransaction.type ||
+                    selectedCategory != initialTransaction.category ||
+                    selectedPaymentMode != initialTransaction.paymentMode
         }
     }
 
     var showDiscardConfirmDialog by remember { mutableStateOf(false) }
 
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(density) > 0
+
     fun handleDismissAttempt() {
+        if (isImeVisible) {
+            keyboardController?.hide()
+            focusManager.clearFocus()
+            return
+        }
         if (hasUnsavedChanges) {
             showDiscardConfirmDialog = true
         } else {
@@ -138,10 +152,17 @@ fun AddTransactionDialog(
     ModalBottomSheet(
         onDismissRequest = { handleDismissAttempt() },
         sheetState = sheetState,
+        properties = androidx.compose.material3.ModalBottomSheetDefaults.properties(
+            shouldDismissOnBackPress = false
+        ),
         modifier = Modifier.imePadding(),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         containerColor = MaterialTheme.colorScheme.surface
     ) {
+        BackHandler(enabled = true) {
+            handleDismissAttempt()
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()

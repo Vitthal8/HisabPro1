@@ -1,5 +1,6 @@
 package com.hisabpro.app.ui.party
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -93,6 +94,11 @@ fun PartiesListScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showAddPartySheet by remember { mutableStateOf(false) }
     var showSearchBar by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = showSearchBar && uiState.selectedParty == null) {
+        showSearchBar = false
+        viewModel.setSearchQuery("")
+    }
 
     // Payment & Receipt Sheet State
     var showRecordPaymentSheet by remember { mutableStateOf(false) }

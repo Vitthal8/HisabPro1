@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -115,7 +116,10 @@ fun AddEditItemSheet(
         name, itemCode, category, unit, salePriceText, purchasePriceText, hsnCode, openingStockText, minStockAlertText
     ) {
         if (itemToEdit == null) {
-            name.isNotBlank() || itemCode.isNotBlank() || salePriceText.isNotBlank() || purchasePriceText.isNotBlank() || hsnCode.isNotBlank()
+            name.isNotBlank() || itemCode.isNotBlank() || salePriceText.isNotBlank() ||
+                    purchasePriceText.isNotBlank() || hsnCode.isNotBlank() ||
+                    (openingStockText.isNotBlank() && openingStockText != "0") ||
+                    (minStockAlertText.isNotBlank() && minStockAlertText != "5")
         } else {
             name != itemToEdit.name ||
                     itemCode != itemToEdit.itemCode ||
@@ -129,7 +133,17 @@ fun AddEditItemSheet(
 
     var showDiscardConfirmDialog by remember { mutableStateOf(false) }
 
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(density) > 0
+
     fun handleDismissAttempt() {
+        if (isImeVisible) {
+            keyboardController?.hide()
+            focusManager.clearFocus()
+            return
+        }
         if (hasUnsavedChanges) {
             showDiscardConfirmDialog = true
         } else {
@@ -167,10 +181,17 @@ fun AddEditItemSheet(
     ModalBottomSheet(
         onDismissRequest = { handleDismissAttempt() },
         sheetState = sheetState,
+        properties = androidx.compose.material3.ModalBottomSheetDefaults.properties(
+            shouldDismissOnBackPress = false
+        ),
         modifier = Modifier.imePadding(),
         dragHandle = null,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
+        BackHandler(enabled = true) {
+            handleDismissAttempt()
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()

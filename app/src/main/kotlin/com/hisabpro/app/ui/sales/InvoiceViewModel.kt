@@ -17,6 +17,7 @@ import com.hisabpro.app.data.repository.TransactionRepository
 import com.hisabpro.app.domain.accounting.AccountingEngine
 import com.hisabpro.app.domain.usecase.CreateInvoiceUseCase
 import com.hisabpro.app.domain.usecase.DeleteInvoiceUseCase
+import com.hisabpro.app.domain.usecase.UpdateInvoiceUseCase
 import com.hisabpro.app.util.InvoicePdfGenerator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -53,6 +54,10 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
         transactionRepository = transactionRepository
     )
     private val deleteInvoiceUseCase = DeleteInvoiceUseCase(
+        invoiceRepository = repository,
+        itemRepository = itemRepository
+    )
+    private val updateInvoiceUseCase = UpdateInvoiceUseCase(
         invoiceRepository = repository,
         itemRepository = itemRepository
     )
@@ -147,7 +152,7 @@ class InvoiceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun updateInvoice(invoice: Invoice) {
-        repository.updateInvoice(invoice)
+        updateInvoiceUseCase.execute(invoice)
         _selectedInvoiceId.value = invoice.id
     }
 

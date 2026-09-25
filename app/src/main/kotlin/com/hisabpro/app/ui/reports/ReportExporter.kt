@@ -589,10 +589,12 @@ object ReportExporter {
                 out.write("Cost Price,${item.purchasePrice}\n")
                 out.write("Generated At,${timeFormat.format(Date())}\n\n")
 
-                out.write("Date & Time,Movement Reason,Change Qty,Unit,Balance After,Note / Reference\n")
+                out.write("Date & Time,Movement Reason,Source Ref,Source Type,Change Qty,Unit,Balance After,Note / Narration\n")
                 history.forEach { entry ->
                     val changeStr = if (entry.changeQty > 0) "+${entry.changeQty}" else "${entry.changeQty}"
-                    out.write("\"${timeFormat.format(Date(entry.timestampMillis))}\",\"${entry.reason.label}\",$changeStr,\"${item.unit}\",${entry.newStock},\"${entry.note.replace("\"", "\"\"")}\"\n")
+                    val sourceRef = entry.displaySourceRef.replace("\"", "\"\"")
+                    val sourceType = (entry.sourceTransactionType ?: "").replace("\"", "\"\"")
+                    out.write("\"${timeFormat.format(Date(entry.timestampMillis))}\",\"${entry.reason.label}\",\"$sourceRef\",\"$sourceType\",$changeStr,\"${item.unit}\",${entry.newStock},\"${entry.note.replace("\"", "\"\"")}\"\n")
                 }
             }
 

@@ -87,7 +87,10 @@ class ItemRepository(context: Context) {
                             newStock = obj.getDouble("newStock"),
                             reason = StockReason.fromString(obj.getString("reason")),
                             note = obj.optString("note", ""),
-                            timestampMillis = obj.getLong("timestampMillis")
+                            timestampMillis = obj.getLong("timestampMillis"),
+                            sourceTransactionId = obj.optString("sourceTransactionId").ifEmpty { null },
+                            sourceTransactionType = obj.optString("sourceTransactionType").ifEmpty { null },
+                            sourceRefNumber = obj.optString("sourceRefNumber").ifEmpty { null }
                         )
                     )
                 }
@@ -111,7 +114,10 @@ class ItemRepository(context: Context) {
                 prevStock = 0.0,
                 newStock = item.currentStock,
                 reason = StockReason.OPENING_STOCK,
-                note = "Initial opening stock"
+                note = "Initial opening stock",
+                sourceTransactionId = item.id,
+                sourceTransactionType = "OPENING_STOCK",
+                sourceRefNumber = "OPN-${item.itemCode.ifBlank { item.id.takeLast(6).uppercase() }}"
             )
         }
         return item
@@ -128,13 +134,17 @@ class ItemRepository(context: Context) {
             // If stock changed directly via item edit
             if (oldItem.currentStock != item.currentStock) {
                 val diff = item.currentStock - oldItem.currentStock
+                val isPositive = diff > 0
                 recordStockHistory(
                     itemId = item.id,
                     changeQty = diff,
                     prevStock = oldItem.currentStock,
                     newStock = item.currentStock,
-                    reason = StockReason.MANUAL_ADJUSTMENT,
-                    note = "Updated via item edit"
+                    reason = if (isPositive) StockReason.MANUAL_ADJUSTMENT else StockReason.DAMAGE_LOSS,
+                    note = "Updated via product edit screen",
+                    sourceTransactionId = item.id,
+                    sourceTransactionType = "STOCK_ADJUSTMENT",
+                    sourceRefNumber = "ADJ-EDIT-${item.itemCode.ifBlank { item.id.takeLast(4).uppercase() }}"
                 )
             }
         }
@@ -160,7 +170,10 @@ class ItemRepository(context: Context) {
         itemId: String,
         changeQty: Double,
         reason: StockReason,
-        note: String
+        note: String,
+        sourceRefNumber: String? = null,
+        sourceTransactionId: String? = null,
+        sourceTransactionType: String? = null
     ): Boolean {
         val current = _items.value.toMutableList()
         val index = current.indexOfFirst { it.id == itemId }
@@ -176,72 +189,256 @@ class ItemRepository(context: Context) {
         )
         saveItemsInternal(current)
 
+        val resolvedRef = if (!sourceRefNumber.isNullOrBlank()) {
+            sourceRefNumber
+        } else {
+            when (reason) {
+                StockReason.OPENING_STOCK -> "OPN-${item.itemCode.ifBlank { item.id.takeLast(4).uppercase() }}"
+                StockReason.PURCHASE_IN -> "PUR-${System.currentTimeMillis() % 10000}"
+                StockReason.SALES_RETURN, StockReason.RETURN_IN -> "SR-${System.currentTimeMillis() % 10000}"
+                StockReason.PURCHASE_RETURN -> "PR-${System.currentTimeMillis() % 10000}"
+                StockReason.SALE_OUT -> "DISP-${System.currentTimeMillis() % 10000}"
+                StockReason.DAMAGE_LOSS -> "SCRAP-${System.currentTimeMillis() % 10000}"
+                StockReason.MANUAL_ADJUSTMENT -> "AUDIT-${System.currentTimeMillis() % 10000}"
+            }
+        }
+
+        val resolvedType = sourceTransactionType ?: when (reason) {
+            StockReason.OPENING_STOCK -> "OPENING_STOCK"
+            StockReason.PURCHASE_IN -> "PURCHASE"
+            StockReason.SALES_RETURN, StockReason.RETURN_IN -> "SALES_RETURN"
+            StockReason.PURCHASE_RETURN -> "PURCHASE_RETURN"
+            StockReason.SALE_OUT -> "SALE_OUT"
+            StockReason.DAMAGE_LOSS -> "DAMAGE_LOSS"
+            StockReason.MANUAL_ADJUSTMENT -> "STOCK_ADJUSTMENT"
+        }
+
         recordStockHistory(
             itemId = itemId,
             changeQty = changeQty,
             prevStock = prevStock,
             newStock = newStock,
             reason = reason,
-            note = note
+            note = note,
+            sourceTransactionId = sourceTransactionId ?: UUID.randomUUID().toString(),
+            sourceTransactionType = resolvedType,
+            sourceRefNumber = resolvedRef
         )
         return true
     }
 
     /**
-     * Called when an invoice is created: deducts stock for matched items
+     * Called when an invoice is created: deducts stock for matched items.
+     * Prevents double stock deduction by checking whether this invoice transaction
+     * has already had stock deducted for this item.
      */
-    fun deductStockForInvoiceItem(itemNameOrId: String, quantity: Double, invoiceNumber: String) {
+    fun deductStockForInvoiceItem(
+        itemNameOrId: String,
+        quantity: Double,
+        invoiceNumber: String,
+        sourceTransactionId: String? = null
+    ): Boolean {
+        if (quantity <= 0.0) return false
+
         val current = _items.value.toMutableList()
         val index = current.indexOfFirst {
             it.id == itemNameOrId || it.name.equals(itemNameOrId, ignoreCase = true)
         }
-        if (index != -1) {
-            val item = current[index]
-            val prevStock = item.currentStock
-            val newStock = (prevStock - quantity).coerceAtLeast(0.0)
-            current[index] = item.copy(
-                currentStock = newStock,
-                updatedAtMillis = System.currentTimeMillis()
-            )
-            saveItemsInternal(current)
+        if (index == -1) return false
 
-            recordStockHistory(
-                itemId = item.id,
-                changeQty = -quantity,
-                prevStock = prevStock,
-                newStock = newStock,
-                reason = StockReason.SALE_OUT,
-                note = "Sold on Invoice #$invoiceNumber"
-            )
+        val item = current[index]
+
+        // Double deduction guard: ensure not deducted twice for the same invoice transaction
+        val alreadyDeducted = _stockHistory.value.any { entry ->
+            entry.itemId == item.id &&
+            entry.reason == StockReason.SALE_OUT &&
+            ((sourceTransactionId != null && entry.sourceTransactionId == sourceTransactionId) ||
+             (entry.sourceRefNumber == invoiceNumber))
         }
+        if (alreadyDeducted) {
+            return false // Prevent double stock deduction
+        }
+
+        val prevStock = item.currentStock
+        val newStock = (prevStock - quantity).coerceAtLeast(0.0)
+        current[index] = item.copy(
+            currentStock = newStock,
+            updatedAtMillis = System.currentTimeMillis()
+        )
+        saveItemsInternal(current)
+
+        recordStockHistory(
+            itemId = item.id,
+            changeQty = -quantity,
+            prevStock = prevStock,
+            newStock = newStock,
+            reason = StockReason.SALE_OUT,
+            note = "Sold on Invoice #$invoiceNumber",
+            sourceTransactionId = sourceTransactionId,
+            sourceTransactionType = "INVOICE",
+            sourceRefNumber = invoiceNumber
+        )
+        return true
     }
 
     /**
      * Called when an invoice is cancelled or deleted: restores stock for matched items
      */
-    fun restoreStockForInvoiceItem(itemNameOrId: String, quantity: Double, invoiceNumber: String) {
+    fun restoreStockForInvoiceItem(
+        itemNameOrId: String,
+        quantity: Double,
+        invoiceNumber: String,
+        sourceTransactionId: String? = null,
+        reason: StockReason = StockReason.SALES_RETURN,
+        notePrefix: String = "Restored: Cancelled Invoice #"
+    ): Boolean {
+        if (quantity <= 0.0) return false
+
         val current = _items.value.toMutableList()
         val index = current.indexOfFirst {
             it.id == itemNameOrId || it.name.equals(itemNameOrId, ignoreCase = true)
         }
-        if (index != -1) {
-            val item = current[index]
-            val prevStock = item.currentStock
-            val newStock = prevStock + quantity
-            current[index] = item.copy(
-                currentStock = newStock,
-                updatedAtMillis = System.currentTimeMillis()
-            )
-            saveItemsInternal(current)
+        if (index == -1) return false
 
-            recordStockHistory(
-                itemId = item.id,
-                changeQty = quantity,
-                prevStock = prevStock,
-                newStock = newStock,
-                reason = StockReason.RETURN_IN,
-                note = "Restored from Deleted Invoice #$invoiceNumber"
-            )
+        val item = current[index]
+        val prevStock = item.currentStock
+        val newStock = prevStock + quantity
+        current[index] = item.copy(
+            currentStock = newStock,
+            updatedAtMillis = System.currentTimeMillis()
+        )
+        saveItemsInternal(current)
+
+        recordStockHistory(
+            itemId = item.id,
+            changeQty = quantity,
+            prevStock = prevStock,
+            newStock = newStock,
+            reason = reason,
+            note = "$notePrefix$invoiceNumber",
+            sourceTransactionId = sourceTransactionId,
+            sourceTransactionType = "INVOICE_CANCEL",
+            sourceRefNumber = invoiceNumber
+        )
+        return true
+    }
+
+    /**
+     * Reconciles inventory stock whenever an existing invoice is updated/edited.
+     * Accurately calculates net differences per line item and updates stock
+     * with an audit trail, and handles invoice cancellation / reopening.
+     */
+    fun adjustStockForInvoiceUpdate(
+        oldInvoice: com.hisabpro.app.data.model.Invoice,
+        newInvoice: com.hisabpro.app.data.model.Invoice
+    ) {
+        val wasCancelled = oldInvoice.paymentStatus == com.hisabpro.app.data.model.InvoiceStatus.CANCELLED
+        val isCancelled = newInvoice.paymentStatus == com.hisabpro.app.data.model.InvoiceStatus.CANCELLED
+
+        // Transition 1: Invoice marked as CANCELLED -> restore all items to inventory
+        if (!wasCancelled && isCancelled) {
+            oldInvoice.items.forEach { oldLine ->
+                restoreStockForInvoiceItem(
+                    itemNameOrId = oldLine.description,
+                    quantity = oldLine.quantity,
+                    invoiceNumber = newInvoice.invoiceNumber,
+                    sourceTransactionId = newInvoice.id,
+                    reason = StockReason.SALES_RETURN,
+                    notePrefix = "Restored: Cancelled Invoice #"
+                )
+            }
+            return
+        }
+
+        // Transition 2: Invoice reopened from CANCELLED -> deduct all items again
+        if (wasCancelled && !isCancelled) {
+            newInvoice.items.forEach { newLine ->
+                deductStockForInvoiceItem(
+                    itemNameOrId = newLine.description,
+                    quantity = newLine.quantity,
+                    invoiceNumber = newInvoice.invoiceNumber,
+                    sourceTransactionId = newInvoice.id
+                )
+            }
+            return
+        }
+
+        // Transition 3: Both were cancelled, no stock movement
+        if (wasCancelled && isCancelled) {
+            return
+        }
+
+        // Transition 4: Active invoice edited with altered line items/quantities
+        val oldQuantities = mutableMapOf<String, Double>()
+        for (item in oldInvoice.items) {
+            val key = item.description.trim().lowercase()
+            oldQuantities[key] = (oldQuantities[key] ?: 0.0) + item.quantity
+        }
+
+        val newQuantities = mutableMapOf<String, Double>()
+        for (item in newInvoice.items) {
+            val key = item.description.trim().lowercase()
+            newQuantities[key] = (newQuantities[key] ?: 0.0) + item.quantity
+        }
+
+        val allKeys = oldQuantities.keys + newQuantities.keys
+        for (key in allKeys) {
+            val oldQty = oldQuantities[key] ?: 0.0
+            val newQty = newQuantities[key] ?: 0.0
+            val delta = oldQty - newQty // > 0: customer bought less/removed item; < 0: customer bought more/added item
+
+            if (delta > 0.0001) {
+                // Return stock back to inventory
+                val current = _items.value.toMutableList()
+                val idx = current.indexOfFirst {
+                    it.name.trim().lowercase() == key || it.id.lowercase() == key
+                }
+                if (idx != -1) {
+                    val itm = current[idx]
+                    val prev = itm.currentStock
+                    val next = prev + delta
+                    current[idx] = itm.copy(currentStock = next, updatedAtMillis = System.currentTimeMillis())
+                    saveItemsInternal(current)
+
+                    recordStockHistory(
+                        itemId = itm.id,
+                        changeQty = delta,
+                        prevStock = prev,
+                        newStock = next,
+                        reason = StockReason.SALES_RETURN,
+                        note = "Restored: Invoice #${newInvoice.invoiceNumber} updated (-${delta.toInt()} sold)",
+                        sourceTransactionId = newInvoice.id,
+                        sourceTransactionType = "INVOICE_EDIT",
+                        sourceRefNumber = newInvoice.invoiceNumber
+                    )
+                }
+            } else if (delta < -0.0001) {
+                // Deduct additional items from stock
+                val additionalSold = -delta
+                val current = _items.value.toMutableList()
+                val idx = current.indexOfFirst {
+                    it.name.trim().lowercase() == key || it.id.lowercase() == key
+                }
+                if (idx != -1) {
+                    val itm = current[idx]
+                    val prev = itm.currentStock
+                    val next = (prev - additionalSold).coerceAtLeast(0.0)
+                    current[idx] = itm.copy(currentStock = next, updatedAtMillis = System.currentTimeMillis())
+                    saveItemsInternal(current)
+
+                    recordStockHistory(
+                        itemId = itm.id,
+                        changeQty = -additionalSold,
+                        prevStock = prev,
+                        newStock = next,
+                        reason = StockReason.SALE_OUT,
+                        note = "Deducted: Invoice #${newInvoice.invoiceNumber} updated (+${additionalSold.toInt()} sold)",
+                        sourceTransactionId = newInvoice.id,
+                        sourceTransactionType = "INVOICE_EDIT",
+                        sourceRefNumber = newInvoice.invoiceNumber
+                    )
+                }
+            }
         }
     }
 
@@ -251,7 +448,10 @@ class ItemRepository(context: Context) {
         prevStock: Double,
         newStock: Double,
         reason: StockReason,
-        note: String
+        note: String,
+        sourceTransactionId: String? = null,
+        sourceTransactionType: String? = null,
+        sourceRefNumber: String? = null
     ) {
         val entry = StockHistoryEntry(
             id = UUID.randomUUID().toString(),
@@ -261,7 +461,10 @@ class ItemRepository(context: Context) {
             newStock = newStock,
             reason = reason,
             note = note,
-            timestampMillis = System.currentTimeMillis()
+            timestampMillis = System.currentTimeMillis(),
+            sourceTransactionId = sourceTransactionId,
+            sourceTransactionType = sourceTransactionType,
+            sourceRefNumber = sourceRefNumber
         )
         val current = _stockHistory.value.toMutableList()
         current.add(0, entry)
@@ -333,6 +536,9 @@ class ItemRepository(context: Context) {
                 put("reason", entry.reason.name)
                 put("note", entry.note)
                 put("timestampMillis", entry.timestampMillis)
+                put("sourceTransactionId", entry.sourceTransactionId ?: "")
+                put("sourceTransactionType", entry.sourceTransactionType ?: "")
+                put("sourceRefNumber", entry.sourceRefNumber ?: "")
             }
             array.put(obj)
         }

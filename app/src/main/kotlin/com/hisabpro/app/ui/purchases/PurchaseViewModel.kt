@@ -131,26 +131,20 @@ class PurchaseViewModel(application: Application) : AndroidViewModel(application
 
             // 1. Automatically increment Inventory stock for purchased items
             bill.items.forEach { pItem ->
-                if (pItem.itemId != null) {
+                val matchedItem = pItem.itemId?.let { id ->
+                    itemRepo.items.value.find { it.id == id }
+                } ?: itemRepo.items.value.find { it.name.equals(pItem.description, ignoreCase = true) }
+
+                if (matchedItem != null) {
                     itemRepo.adjustStock(
-                        itemId = pItem.itemId,
+                        itemId = matchedItem.id,
                         changeQty = pItem.quantity,
                         reason = StockReason.PURCHASE_IN,
-                        note = "Inward Purchase: ${bill.purchaseNumber} (${bill.supplierName})"
+                        note = "Inward Purchase: ${bill.purchaseNumber} (${bill.supplierName})",
+                        sourceRefNumber = bill.purchaseNumber,
+                        sourceTransactionId = bill.id,
+                        sourceTransactionType = "PURCHASE"
                     )
-                } else {
-                    // Try to match by item name
-                    val existing = itemRepo.items.value.find {
-                        it.name.equals(pItem.description, ignoreCase = true)
-                    }
-                    if (existing != null) {
-                        itemRepo.adjustStock(
-                            itemId = existing.id,
-                            changeQty = pItem.quantity,
-                            reason = StockReason.PURCHASE_IN,
-                            note = "Inward Purchase: ${bill.purchaseNumber} (${bill.supplierName})"
-                        )
-                    }
                 }
             }
 
@@ -215,8 +209,11 @@ class PurchaseViewModel(application: Application) : AndroidViewModel(application
                         itemRepo.adjustStock(
                             itemId = matchedItem.id,
                             changeQty = -pItem.quantity,
-                            reason = StockReason.MANUAL_ADJUSTMENT,
-                            note = "Reverted from Deleted Purchase Bill ${bill.purchaseNumber}"
+                            reason = StockReason.PURCHASE_RETURN,
+                            note = "Reverted from Cancelled Purchase Bill ${bill.purchaseNumber}",
+                            sourceRefNumber = bill.purchaseNumber,
+                            sourceTransactionId = bill.id,
+                            sourceTransactionType = "PURCHASE_CANCEL"
                         )
                     }
                 }

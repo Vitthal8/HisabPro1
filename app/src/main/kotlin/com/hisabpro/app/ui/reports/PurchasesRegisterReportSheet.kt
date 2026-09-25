@@ -303,6 +303,7 @@ fun PurchasesRegisterReportSheet(
                                                 InvoiceStatus.PAID -> IncomeGreen
                                                 InvoiceStatus.PARTIAL -> Color(0xFFD97706)
                                                 InvoiceStatus.UNPAID -> ExpenseRed
+                                                InvoiceStatus.CANCELLED -> Color(0xFF64748B)
                                             }
                                         )
                                     }

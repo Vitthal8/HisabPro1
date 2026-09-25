@@ -27,7 +27,8 @@ enum class GstMode(val label: String) {
 enum class InvoiceStatus(val label: String) {
     PAID("Paid"),
     PARTIAL("Partial"),
-    UNPAID("Unpaid / Credit");
+    UNPAID("Unpaid / Credit"),
+    CANCELLED("Cancelled");
 
     companion object {
         fun fromString(value: String): InvoiceStatus {
@@ -37,7 +38,7 @@ enum class InvoiceStatus(val label: String) {
 }
 
 data class InvoiceItem(
-    val id: String,
+    val id: String = java.util.UUID.randomUUID().toString(),
     val description: String,
     val hsnCode: String = "",
     val quantity: Double = 1.0,

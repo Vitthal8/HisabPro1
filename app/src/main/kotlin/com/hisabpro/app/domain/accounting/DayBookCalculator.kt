@@ -117,6 +117,7 @@ object DayBookCalculator {
                 InvoiceStatus.PAID -> if (isUpiOrBank) "Bank / UPI A/c" else "Cash in Hand"
                 InvoiceStatus.PARTIAL -> "${inv.customerName} & Cash/Bank"
                 InvoiceStatus.UNPAID -> "${inv.customerName} (Dr)"
+                InvoiceStatus.CANCELLED -> "Cancelled / Void"
             }
 
             if (inv.paidAmount > 0.009) {
@@ -158,6 +159,7 @@ object DayBookCalculator {
                 InvoiceStatus.PAID -> if (isBank) "Bank A/c" else "Cash in Hand"
                 InvoiceStatus.PARTIAL -> "${pur.supplierName} & Cash/Bank"
                 InvoiceStatus.UNPAID -> "${pur.supplierName} (Cr)"
+                InvoiceStatus.CANCELLED -> "Cancelled / Void"
             }
 
             if (pur.paidAmount > 0.009) {

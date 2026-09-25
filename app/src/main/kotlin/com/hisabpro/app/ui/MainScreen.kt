@@ -357,13 +357,6 @@ private fun MainScreenContent(
                         val nextNum = invoiceViewModel.getNextInvoiceNumber(invoice.type)
                         val toSave = invoice.copy(invoiceNumber = nextNum)
                         val saved = invoiceViewModel.createInvoice(toSave)
-                        toSave.items.forEach { lineItem ->
-                            itemViewModel.deductStockForInvoiceItem(
-                                itemNameOrId = lineItem.description,
-                                quantity = lineItem.quantity,
-                                invoiceNumber = saved.invoiceNumber
-                            )
-                        }
                     },
                     onSavePayment = { record ->
                         partyViewModel.recordPartyPayment(

@@ -594,15 +594,17 @@ fun PurchaseBillCard(
                             InvoiceStatus.PAID -> IncomeGreen.copy(alpha = 0.12f)
                             InvoiceStatus.PARTIAL -> Color(0xFFFEF3C7)
                             InvoiceStatus.UNPAID -> ExpenseRed.copy(alpha = 0.12f)
+                            InvoiceStatus.CANCELLED -> Color(0xFFE2E8F0)
                         },
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
-                            text = if (bill.dueAmount > 0) "Due: ₹${String.format(Locale.ENGLISH, "%.0f", bill.dueAmount)}" else "PAID",
+                            text = if (bill.paymentStatus == InvoiceStatus.CANCELLED) "CANCELLED" else if (bill.dueAmount > 0) "Due: ₹${String.format(Locale.ENGLISH, "%.0f", bill.dueAmount)}" else "PAID",
                             color = when (bill.paymentStatus) {
                                 InvoiceStatus.PAID -> IncomeGreen
                                 InvoiceStatus.PARTIAL -> Color(0xFFD97706)
                                 InvoiceStatus.UNPAID -> ExpenseRed
+                                InvoiceStatus.CANCELLED -> Slate500
                             },
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,

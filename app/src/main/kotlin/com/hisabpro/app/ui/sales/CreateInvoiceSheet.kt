@@ -203,7 +203,7 @@ fun CreateInvoiceSheet(
     val grandTotal = AccountingEngine.calculateGrandTotal(subtotal, totalTax, discount)
     val autoPaid = when (paymentStatus) {
         InvoiceStatus.PAID -> grandTotal
-        InvoiceStatus.UNPAID -> 0.0
+        InvoiceStatus.UNPAID, InvoiceStatus.CANCELLED -> 0.0
         InvoiceStatus.PARTIAL -> paidAmountText.toDoubleOrNull() ?: 0.0
     }
     val dueAmount = AccountingEngine.calculateBalanceDue(grandTotal, autoPaid)
@@ -890,6 +890,7 @@ fun CreateInvoiceSheet(
                                             InvoiceStatus.PAID -> IncomeGreen
                                             InvoiceStatus.PARTIAL -> Color(0xFFF59E0B)
                                             InvoiceStatus.UNPAID -> ExpenseRed
+                                            InvoiceStatus.CANCELLED -> Slate500
                                         },
                                         selectedLabelColor = PureWhite
                                     )

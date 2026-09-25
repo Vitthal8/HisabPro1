@@ -506,8 +506,14 @@ fun ItemsScreen(
                 showAdjustSheet = false
                 itemToAdjust = null
             },
-            onConfirm = { changeQty, reason, note ->
-                viewModel.adjustStock(itemToAdjust!!.id, changeQty, reason, note)
+            onConfirm = { changeQty, reason, note, refNumber ->
+                viewModel.adjustStock(
+                    itemId = itemToAdjust!!.id,
+                    changeQty = changeQty,
+                    reason = reason,
+                    note = note,
+                    sourceRefNumber = refNumber.ifBlank { null }
+                )
                 showAdjustSheet = false
                 itemToAdjust = null
             }

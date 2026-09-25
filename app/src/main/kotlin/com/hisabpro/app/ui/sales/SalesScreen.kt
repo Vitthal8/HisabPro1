@@ -702,15 +702,6 @@ fun SalesScreen(
                     val toSave = invoice.copy(invoiceNumber = nextNum)
                     val saved = viewModel.createInvoice(toSave)
 
-                    // Automatically deduct stock for any items sold
-                    toSave.items.forEach { lineItem ->
-                        itemViewModel?.deductStockForInvoiceItem(
-                            itemNameOrId = lineItem.description,
-                            quantity = lineItem.quantity,
-                            invoiceNumber = saved.invoiceNumber
-                        )
-                    }
-
                     when (action) {
                         SaveAction.SAVE_ONLY -> {
                             Toast.makeText(context, "Invoice ${saved.invoiceNumber} saved!", Toast.LENGTH_SHORT).show()
@@ -935,6 +926,7 @@ fun InvoiceCard(
         InvoiceStatus.PAID -> IncomeGreen
         InvoiceStatus.PARTIAL -> Color(0xFFD97706)
         InvoiceStatus.UNPAID -> ExpenseRed
+        InvoiceStatus.CANCELLED -> Slate500
     }
 
     Card(

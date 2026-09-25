@@ -51,7 +51,8 @@ class CreateInvoiceUseCase(
             itemRepository.deductStockForInvoiceItem(
                 itemNameOrId = lineItem.description,
                 quantity = lineItem.quantity,
-                invoiceNumber = saved.invoiceNumber
+                invoiceNumber = saved.invoiceNumber,
+                sourceTransactionId = saved.id
             )
         }
 

@@ -3,6 +3,7 @@ package com.hisabpro.app.ui.items
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,11 +69,12 @@ fun StockAdjustSheet(
     sheetState: SheetState,
     item: Item,
     onDismiss: () -> Unit,
-    onConfirm: (changeQty: Double, reason: StockReason, note: String) -> Unit
+    onConfirm: (changeQty: Double, reason: StockReason, note: String, refNumber: String) -> Unit
 ) {
     var isAddition by remember { mutableStateOf(true) }
     var qtyText by remember { mutableStateOf("") }
     var selectedReason by remember { mutableStateOf(StockReason.PURCHASE_IN) }
+    var refNumber by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var qtyError by remember { mutableStateOf(false) }
 
@@ -80,8 +82,18 @@ fun StockAdjustSheet(
     val signedChange = if (isAddition) qty else -qty
     val previewStock = (item.currentStock + signedChange).coerceAtLeast(0.0)
 
-    val addReasons = listOf(StockReason.PURCHASE_IN, StockReason.RETURN_IN, StockReason.MANUAL_ADJUSTMENT)
-    val removeReasons = listOf(StockReason.SALE_OUT, StockReason.DAMAGE_LOSS, StockReason.MANUAL_ADJUSTMENT)
+    val addReasons = listOf(
+        StockReason.PURCHASE_IN,
+        StockReason.SALES_RETURN,
+        StockReason.OPENING_STOCK,
+        StockReason.MANUAL_ADJUSTMENT
+    )
+    val removeReasons = listOf(
+        StockReason.SALE_OUT,
+        StockReason.PURCHASE_RETURN,
+        StockReason.DAMAGE_LOSS,
+        StockReason.MANUAL_ADJUSTMENT
+    )
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -322,7 +334,9 @@ fun StockAdjustSheet(
 
             val currentReasons = if (isAddition) addReasons else removeReasons
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 currentReasons.forEach { reason ->
@@ -340,12 +354,31 @@ fun StockAdjustSheet(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Source Transaction / Voucher / Ref #
+            OutlinedTextField(
+                value = refNumber,
+                onValueChange = { refNumber = it },
+                label = { Text("Source Voucher / Ref # (Optional)") },
+                placeholder = { Text(if (isAddition) "e.g. PB-2026/01, SR-101, AUDIT-01" else "e.g. PR-04, SCRAP-01, ADJ-02") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("adjust_stock_ref_input"),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Note / Remark
             OutlinedTextField(
                 value = note,
                 onValueChange = { note = it },
-                label = { Text("Note / Reference (Optional)") },
-                placeholder = { Text(if (isAddition) "e.g. Supplier Bill #405 or batch arrival" else "e.g. Damaged carton or counter sale") },
+                label = { Text("Note / Narration (Optional)") },
+                placeholder = { Text(if (isAddition) "e.g. Supplier Bill arrival or physical audit" else "e.g. Damaged carton or counter stock adjustment") },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
                     unfocusedTextColor = MaterialTheme.colorScheme.onSurface
@@ -377,7 +410,7 @@ fun StockAdjustSheet(
                             qtyError = true
                             return@Button
                         }
-                        onConfirm(signedChange, selectedReason, note.trim())
+                        onConfirm(signedChange, selectedReason, note.trim(), refNumber.trim())
                     },
                     modifier = Modifier
                         .weight(1.5f)

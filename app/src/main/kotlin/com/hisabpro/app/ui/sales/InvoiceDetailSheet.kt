@@ -209,6 +209,7 @@ fun InvoiceDetailSheet(
                             InvoiceStatus.PAID -> IncomeGreen.copy(alpha = 0.15f)
                             InvoiceStatus.PARTIAL -> Color(0xFFF59E0B).copy(alpha = 0.15f)
                             InvoiceStatus.UNPAID -> ExpenseRed.copy(alpha = 0.15f)
+                            InvoiceStatus.CANCELLED -> Color(0xFF94A3B8).copy(alpha = 0.15f)
                         },
                         shape = RoundedCornerShape(8.dp)
                     ) {
@@ -218,6 +219,7 @@ fun InvoiceDetailSheet(
                                 InvoiceStatus.PAID -> IncomeGreen
                                 InvoiceStatus.PARTIAL -> Color(0xFFD97706)
                                 InvoiceStatus.UNPAID -> ExpenseRed
+                                InvoiceStatus.CANCELLED -> Color(0xFF64748B)
                             },
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,

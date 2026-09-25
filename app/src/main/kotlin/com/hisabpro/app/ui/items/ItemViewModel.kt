@@ -138,28 +138,61 @@ class ItemViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun adjustStock(itemId: String, changeQty: Double, reason: StockReason, note: String) {
+    fun adjustStock(
+        itemId: String,
+        changeQty: Double,
+        reason: StockReason,
+        note: String,
+        sourceRefNumber: String? = null,
+        sourceTransactionId: String? = null,
+        sourceTransactionType: String? = null
+    ) {
         viewModelScope.launch {
-            repository.adjustStock(itemId, changeQty, reason, note)
+            repository.adjustStock(
+                itemId = itemId,
+                changeQty = changeQty,
+                reason = reason,
+                note = note,
+                sourceRefNumber = sourceRefNumber,
+                sourceTransactionId = sourceTransactionId,
+                sourceTransactionType = sourceTransactionType
+            )
         }
     }
 
     fun quickAdjustStock(itemId: String, delta: Double) {
         val reason = if (delta > 0) StockReason.PURCHASE_IN else StockReason.SALE_OUT
         val note = if (delta > 0) "Quick Count In (+${delta.toInt()})" else "Quick Count Out (${delta.toInt()})"
-        adjustStock(itemId, delta, reason, note)
+        adjustStock(
+            itemId = itemId,
+            changeQty = delta,
+            reason = reason,
+            note = note,
+            sourceRefNumber = "QUICK-ADJ",
+            sourceTransactionType = "STOCK_ADJUSTMENT"
+        )
     }
 
     fun getStockHistory(itemId: String): List<StockHistoryEntry> {
         return repository.getHistoryForItem(itemId)
     }
 
-    fun deductStockForInvoiceItem(itemNameOrId: String, quantity: Double, invoiceNumber: String) {
-        repository.deductStockForInvoiceItem(itemNameOrId, quantity, invoiceNumber)
+    fun deductStockForInvoiceItem(
+        itemNameOrId: String,
+        quantity: Double,
+        invoiceNumber: String,
+        sourceTransactionId: String? = null
+    ) {
+        repository.deductStockForInvoiceItem(itemNameOrId, quantity, invoiceNumber, sourceTransactionId)
     }
 
-    fun restoreStockForInvoiceItem(itemNameOrId: String, quantity: Double, invoiceNumber: String) {
-        repository.restoreStockForInvoiceItem(itemNameOrId, quantity, invoiceNumber)
+    fun restoreStockForInvoiceItem(
+        itemNameOrId: String,
+        quantity: Double,
+        invoiceNumber: String,
+        sourceTransactionId: String? = null
+    ) {
+        repository.restoreStockForInvoiceItem(itemNameOrId, quantity, invoiceNumber, sourceTransactionId)
     }
 
     fun exportStockCsv(context: Context) {

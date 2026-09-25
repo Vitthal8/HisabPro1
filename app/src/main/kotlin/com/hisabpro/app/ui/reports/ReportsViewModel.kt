@@ -330,6 +330,9 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
                 InvoiceStatus.UNPAID -> {
                     creditSales += inv.grandTotal
                 }
+                InvoiceStatus.CANCELLED -> {
+                    // Cancelled invoices do not count towards active sales
+                }
             }
         }
 

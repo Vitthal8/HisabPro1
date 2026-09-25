@@ -50,8 +50,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -59,7 +61,10 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -99,10 +104,10 @@ import java.util.UUID
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreatePurchaseSheet(
-    sheetState: SheetState,
     suppliers: List<Party>,
     inventoryItems: List<Item>,
     nextPurchaseNumber: String,
+    sheetState: SheetState? = null,
     onDismiss: () -> Unit,
     onSavePurchase: (PurchaseBill) -> Unit
 ) {
@@ -177,6 +182,26 @@ fun CreatePurchaseSheet(
 
     var showDiscardConfirmDialog by remember { mutableStateOf(false) }
 
+    val currentHasUnsavedChanges by rememberUpdatedState(hasUnsavedChanges)
+    val coroutineScope = rememberCoroutineScope()
+
+    val defaultSheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { targetValue ->
+            if (targetValue == SheetValue.Hidden) {
+                if (currentHasUnsavedChanges) {
+                    showDiscardConfirmDialog = true
+                    false
+                } else {
+                    true
+                }
+            } else {
+                true
+            }
+        }
+    )
+    val effectiveSheetState = sheetState ?: defaultSheetState
+
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -201,7 +226,16 @@ fun CreatePurchaseSheet(
 
     if (showDiscardConfirmDialog) {
         AlertDialog(
-            onDismissRequest = { showDiscardConfirmDialog = false },
+            onDismissRequest = {
+                showDiscardConfirmDialog = false
+                coroutineScope.launch {
+                    try {
+                        effectiveSheetState.expand()
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+                }
+            },
             title = { Text("Discard changes?") },
             text = { Text("You have unsaved changes in this purchase bill form. Are you sure you want to discard them?") },
             confirmButton = {
@@ -215,7 +249,18 @@ fun CreatePurchaseSheet(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDiscardConfirmDialog = false }) {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirmDialog = false
+                        coroutineScope.launch {
+                            try {
+                                effectiveSheetState.expand()
+                            } catch (e: Exception) {
+                                // ignore
+                            }
+                        }
+                    }
+                ) {
                     Text("Cancel", fontWeight = FontWeight.Bold)
                 }
             }
@@ -224,7 +269,7 @@ fun CreatePurchaseSheet(
 
     ModalBottomSheet(
         onDismissRequest = { handleDismissAttempt() },
-        sheetState = sheetState,
+        sheetState = effectiveSheetState,
         properties = androidx.compose.material3.ModalBottomSheetDefaults.properties(
             shouldDismissOnBackPress = false
         ),

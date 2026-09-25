@@ -507,7 +507,6 @@ fun PartyKhataScreen(
         AddKhataEntryDialog(
             party = party,
             initialType = entryTypeToAdd,
-            sheetState = sheetState,
             onDismiss = { showAddEntrySheet = false },
             onSave = { amount, type, dateMillis, billNumber, note ->
                 onAddEntry(amount, type, dateMillis, billNumber, note)
@@ -562,7 +561,6 @@ fun PartyKhataScreen(
 
     if (showEditPartySheet) {
         AddPartyDialog(
-            sheetState = editPartySheetState,
             onDismiss = { showEditPartySheet = false },
             partyToEdit = party,
             onSave = { name, phone, address, gstin, type, tag ->
@@ -585,7 +583,6 @@ fun PartyKhataScreen(
         RecordPaymentSheet(
             parties = listOf(party),
             initialDirection = initialDir,
-            sheetState = paymentSheetState,
             onDismiss = { showRecordPaymentSheet = false },
             onSavePayment = { data ->
                 onRecordPayment?.invoke(

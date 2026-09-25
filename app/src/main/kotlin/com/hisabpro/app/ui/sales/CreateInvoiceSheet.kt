@@ -53,9 +53,11 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,7 +65,10 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -111,11 +116,11 @@ import java.util.UUID
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateInvoiceSheet(
-    sheetState: SheetState,
     parties: List<Party>,
     availableItems: List<Item> = emptyList(),
     initialInvoiceType: InvoiceType = InvoiceType.TAX_INVOICE,
     invoiceToEdit: Invoice? = null,
+    sheetState: SheetState? = null,
     onDismiss: () -> Unit,
     onSaveInvoice: (Invoice, saveAction: SaveAction) -> Unit
 ) {
@@ -248,6 +253,26 @@ fun CreateInvoiceSheet(
 
     var showDiscardConfirmDialog by remember { mutableStateOf(false) }
 
+    val currentHasUnsavedChanges by rememberUpdatedState(hasUnsavedChanges)
+    val coroutineScope = rememberCoroutineScope()
+
+    val defaultSheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { targetValue ->
+            if (targetValue == SheetValue.Hidden) {
+                if (currentHasUnsavedChanges) {
+                    showDiscardConfirmDialog = true
+                    false
+                } else {
+                    true
+                }
+            } else {
+                true
+            }
+        }
+    )
+    val effectiveSheetState = sheetState ?: defaultSheetState
+
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -276,7 +301,16 @@ fun CreateInvoiceSheet(
 
     if (showDiscardConfirmDialog) {
         AlertDialog(
-            onDismissRequest = { showDiscardConfirmDialog = false },
+            onDismissRequest = {
+                showDiscardConfirmDialog = false
+                coroutineScope.launch {
+                    try {
+                        effectiveSheetState.expand()
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+                }
+            },
             title = { Text("Discard changes?") },
             text = { Text("You have unsaved changes in this invoice. Are you sure you want to discard them?") },
             confirmButton = {
@@ -290,7 +324,18 @@ fun CreateInvoiceSheet(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDiscardConfirmDialog = false }) {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirmDialog = false
+                        coroutineScope.launch {
+                            try {
+                                effectiveSheetState.expand()
+                            } catch (e: Exception) {
+                                // ignore
+                            }
+                        }
+                    }
+                ) {
                     Text("Cancel", fontWeight = FontWeight.Bold)
                 }
             }
@@ -299,7 +344,7 @@ fun CreateInvoiceSheet(
 
     ModalBottomSheet(
         onDismissRequest = { handleDismissAttempt() },
-        sheetState = sheetState,
+        sheetState = effectiveSheetState,
         properties = androidx.compose.material3.ModalBottomSheetDefaults.properties(
             shouldDismissOnBackPress = false
         ),

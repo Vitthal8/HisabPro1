@@ -511,7 +511,6 @@ fun DashboardScreen(
     // 1. Add Sale Sheet
     if (showAddSaleSheet && onSaveInvoice != null) {
         CreateInvoiceSheet(
-            sheetState = saleSheetState,
             parties = parties,
             availableItems = items,
             initialInvoiceType = if (profile.isGstRegistered) InvoiceType.TAX_INVOICE else InvoiceType.NON_GST_BILL,
@@ -532,7 +531,6 @@ fun DashboardScreen(
             initialPartyId = quickPayPartyId,
             merchantUpiId = profile.upiId,
             merchantName = profile.shopName.ifBlank { "HisabPro Merchant" },
-            sheetState = paymentSheetState,
             onDismiss = {
                 showReceivePaymentSheet = false
                 quickPayPartyId = null
@@ -548,7 +546,6 @@ fun DashboardScreen(
     // 3. Add Customer Sheet
     if (showAddCustomerSheet && onSaveParty != null) {
         AddPartyDialog(
-            sheetState = partySheetState,
             onDismiss = { showAddCustomerSheet = false },
             onSave = { name, phone, address, gstin, type, tag ->
                 onSaveParty(name, phone, address, gstin, type, tag)
@@ -560,7 +557,6 @@ fun DashboardScreen(
     // 4. Add Expense Sheet
     if (showAddExpenseSheet && onSaveExpense != null) {
         AddTransactionDialog(
-            sheetState = expenseSheetState,
             initialTransaction = null,
             onDismiss = { showAddExpenseSheet = false },
             onSave = { title, amount, type, category, dateMillis, paymentMode, note ->
@@ -584,7 +580,6 @@ fun DashboardScreen(
     // 5. Add Purchase Sheet
     if (showAddPurchaseSheet && onSavePurchase != null) {
         CreatePurchaseSheet(
-            sheetState = purchaseSheetState,
             suppliers = parties,
             inventoryItems = items,
             nextPurchaseNumber = nextPurchaseNumber,

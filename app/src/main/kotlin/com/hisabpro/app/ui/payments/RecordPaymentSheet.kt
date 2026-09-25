@@ -56,13 +56,17 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -114,7 +118,7 @@ fun RecordPaymentSheet(
     initialPartyId: String? = null,
     merchantUpiId: String = "",
     merchantName: String = "",
-    sheetState: SheetState,
+    sheetState: SheetState? = null,
     onDismiss: () -> Unit,
     onSavePayment: (PaymentRecordData) -> Unit
 ) {
@@ -186,6 +190,26 @@ fun RecordPaymentSheet(
 
     var showDiscardConfirmDialog by remember { mutableStateOf(false) }
 
+    val currentHasUnsavedChanges by rememberUpdatedState(hasUnsavedChanges)
+    val coroutineScope = rememberCoroutineScope()
+
+    val defaultSheetState = androidx.compose.material3.rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { targetValue ->
+            if (targetValue == androidx.compose.material3.SheetValue.Hidden) {
+                if (currentHasUnsavedChanges) {
+                    showDiscardConfirmDialog = true
+                    false
+                } else {
+                    true
+                }
+            } else {
+                true
+            }
+        }
+    )
+    val effectiveSheetState = sheetState ?: defaultSheetState
+
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -214,7 +238,16 @@ fun RecordPaymentSheet(
 
     if (showDiscardConfirmDialog) {
         AlertDialog(
-            onDismissRequest = { showDiscardConfirmDialog = false },
+            onDismissRequest = {
+                showDiscardConfirmDialog = false
+                coroutineScope.launch {
+                    try {
+                        effectiveSheetState.expand()
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+                }
+            },
             title = { Text("Discard changes?") },
             text = { Text("You have unsaved changes in this payment form. Are you sure you want to discard them?") },
             confirmButton = {
@@ -228,7 +261,18 @@ fun RecordPaymentSheet(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDiscardConfirmDialog = false }) {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirmDialog = false
+                        coroutineScope.launch {
+                            try {
+                                effectiveSheetState.expand()
+                            } catch (e: Exception) {
+                                // ignore
+                            }
+                        }
+                    }
+                ) {
                     Text("Cancel", fontWeight = FontWeight.Bold)
                 }
             }
@@ -237,7 +281,7 @@ fun RecordPaymentSheet(
 
     ModalBottomSheet(
         onDismissRequest = { handleDismissAttempt() },
-        sheetState = sheetState,
+        sheetState = effectiveSheetState,
         properties = androidx.compose.material3.ModalBottomSheetDefaults.properties(
             shouldDismissOnBackPress = false
         ),

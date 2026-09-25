@@ -686,7 +686,6 @@ fun SalesScreen(
     // Create / Edit Sheet
     if (showCreateSheet) {
         CreateInvoiceSheet(
-            sheetState = createSheetState,
             parties = parties,
             availableItems = inventoryItems,
             initialInvoiceType = initialCreateType,

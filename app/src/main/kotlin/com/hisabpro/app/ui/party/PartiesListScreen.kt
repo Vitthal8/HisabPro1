@@ -392,7 +392,6 @@ fun PartiesListScreen(
 
     if (showAddPartySheet) {
         AddPartyDialog(
-            sheetState = sheetState,
             onDismiss = { showAddPartySheet = false },
             onSave = { name, phone, address, gstin, type, tag ->
                 viewModel.addParty(
@@ -414,7 +413,6 @@ fun PartiesListScreen(
             initialPartyId = quickPaymentPartyId,
             merchantUpiId = businessProfile.upiId,
             merchantName = businessProfile.shopName.ifBlank { "HisabPro Merchant" },
-            sheetState = paymentSheetState,
             onDismiss = {
                 showRecordPaymentSheet = false
                 quickPaymentPartyId = null

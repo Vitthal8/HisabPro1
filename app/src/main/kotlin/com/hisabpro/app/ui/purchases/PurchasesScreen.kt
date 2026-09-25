@@ -452,12 +452,10 @@ fun PurchasesScreen(
     // Create Purchase Sheet
     if (showCreateSheet) {
         CreatePurchaseSheet(
-            sheetState = createSheetState,
             suppliers = suppliers,
             inventoryItems = inventoryItems,
             nextPurchaseNumber = viewModel.generateNextNumber(),
             onDismiss = {
-                scope.launch { createSheetState.hide() }
                 showCreateSheet = false
             },
             onSavePurchase = { newBill ->

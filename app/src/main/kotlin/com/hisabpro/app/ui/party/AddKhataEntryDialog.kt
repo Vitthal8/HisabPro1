@@ -31,14 +31,19 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,7 +65,7 @@ import com.hisabpro.app.ui.theme.PureWhite
 fun AddKhataEntryDialog(
     party: Party,
     initialType: KhataEntryType,
-    sheetState: SheetState,
+    sheetState: SheetState? = null,
     onDismiss: () -> Unit,
     onSave: (
         amount: Double,
@@ -110,6 +115,26 @@ fun AddKhataEntryDialog(
 
     var showDiscardConfirmDialog by remember { mutableStateOf(false) }
 
+    val currentHasUnsavedChanges by rememberUpdatedState(hasUnsavedChanges)
+    val coroutineScope = rememberCoroutineScope()
+
+    val defaultSheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { targetValue ->
+            if (targetValue == SheetValue.Hidden) {
+                if (currentHasUnsavedChanges) {
+                    showDiscardConfirmDialog = true
+                    false
+                } else {
+                    true
+                }
+            } else {
+                true
+            }
+        }
+    )
+    val effectiveSheetState = sheetState ?: defaultSheetState
+
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -134,7 +159,16 @@ fun AddKhataEntryDialog(
 
     if (showDiscardConfirmDialog) {
         AlertDialog(
-            onDismissRequest = { showDiscardConfirmDialog = false },
+            onDismissRequest = {
+                showDiscardConfirmDialog = false
+                coroutineScope.launch {
+                    try {
+                        effectiveSheetState.expand()
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+                }
+            },
             title = { Text("Discard changes?") },
             text = { Text("You have unsaved entry details. Are you sure you want to discard them?") },
             confirmButton = {
@@ -148,7 +182,18 @@ fun AddKhataEntryDialog(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDiscardConfirmDialog = false }) {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirmDialog = false
+                        coroutineScope.launch {
+                            try {
+                                effectiveSheetState.expand()
+                            } catch (e: Exception) {
+                                // ignore
+                            }
+                        }
+                    }
+                ) {
                     Text("Cancel", fontWeight = FontWeight.Bold)
                 }
             }
@@ -157,7 +202,7 @@ fun AddKhataEntryDialog(
 
     ModalBottomSheet(
         onDismissRequest = { handleDismissAttempt() },
-        sheetState = sheetState,
+        sheetState = effectiveSheetState,
         properties = androidx.compose.material3.ModalBottomSheetDefaults.properties(
             shouldDismissOnBackPress = false
         ),

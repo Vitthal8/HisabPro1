@@ -486,7 +486,6 @@ fun ItemsScreen(
     // Add / Edit Sheet
     if (showAddEditSheet) {
         AddEditItemSheet(
-            sheetState = addEditSheetState,
             itemToEdit = itemToEdit,
             onDismiss = {
                 showAddEditSheet = false
@@ -507,7 +506,6 @@ fun ItemsScreen(
     // Adjust Stock Sheet
     if (showAdjustSheet && itemToAdjust != null) {
         StockAdjustSheet(
-            sheetState = adjustSheetState,
             item = itemToAdjust!!,
             onDismiss = {
                 showAdjustSheet = false

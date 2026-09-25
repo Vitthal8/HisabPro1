@@ -63,6 +63,8 @@ fun MainScreen(
     reportsViewModel: ReportsViewModel,
     purchaseViewModel: PurchaseViewModel? = null,
     backupViewModel: BackupViewModel? = null,
+    onPickBackupFile: () -> Unit = {},
+    onSaveBackupToUri: (java.io.File) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -102,6 +104,8 @@ fun MainScreen(
             reportsViewModel = reportsViewModel,
             purchaseViewModel = purchaseViewModel,
             backupViewModel = backupViewModel,
+            onPickBackupFile = onPickBackupFile,
+            onSaveBackupToUri = onSaveBackupToUri,
             onReloadProfile = { settingsRepo.reloadProfile() },
             onSaveProfile = { updated -> settingsRepo.saveProfile(updated) },
             modifier = modifier
@@ -119,6 +123,8 @@ private fun MainScreenContent(
     reportsViewModel: ReportsViewModel,
     purchaseViewModel: PurchaseViewModel?,
     backupViewModel: BackupViewModel?,
+    onPickBackupFile: () -> Unit,
+    onSaveBackupToUri: (java.io.File) -> Unit,
     onReloadProfile: () -> Unit,
     onSaveProfile: (com.hisabpro.app.data.model.BusinessProfile) -> Unit,
     modifier: Modifier = Modifier
@@ -175,7 +181,9 @@ private fun MainScreenContent(
                 onBack = {
                     activeSubScreen = null
                     onReloadProfile()
-                }
+                },
+                onPickBackupFile = onPickBackupFile,
+                onSaveBackupToUri = onSaveBackupToUri
             )
         }
         return

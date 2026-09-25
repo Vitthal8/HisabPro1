@@ -1,9 +1,6 @@
 package com.hisabpro.app.ui.backup
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,8 +54,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -83,7 +78,6 @@ import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.ExpenseRed
 import com.hisabpro.app.ui.theme.PureWhite
-import com.hisabpro.app.ui.theme.SaffronLight
 import com.hisabpro.app.ui.theme.SaffronOrange
 import com.hisabpro.app.ui.theme.Slate200
 import com.hisabpro.app.ui.theme.Slate600
@@ -100,31 +94,17 @@ import java.util.Locale
 fun BackupScreen(
     viewModel: BackupViewModel,
     onBack: () -> Unit,
+    onPickBackupFile: () -> Unit = {},
+    onSaveBackupToUri: (File) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    // Intercept hardware and gesture back navigation
+    BackHandler {
+        onBack()
+    }
+
     val uiState by viewModel.uiState.collectAsState()
-
-    var fileToExport by remember { mutableStateOf<File?>(null) }
     var fileToDelete by remember { mutableStateOf<File?>(null) }
-
-    // SAF Document Picker for Restore
-    val openDocumentLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            viewModel.onBackupFilePicked(uri)
-        }
-    }
-
-    // SAF Document Creator for Saving Backup to user's device
-    val createDocumentLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/json")
-    ) { uri: Uri? ->
-        if (uri != null && fileToExport != null) {
-            viewModel.exportBackupToUri(fileToExport!!, uri)
-            fileToExport = null
-        }
-    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -168,20 +148,11 @@ fun BackupScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Tabs
+            // Standard Material 3 TabRow without fragile custom indicator calculation
             TabRow(
                 selectedTabIndex = uiState.selectedTab,
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = DeepNavyBlue,
-                indicator = { tabPositions ->
-                    if (uiState.selectedTab < tabPositions.size) {
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[uiState.selectedTab]),
-                            color = SaffronOrange,
-                            height = 3.dp
-                        )
-                    }
-                },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Tab(
@@ -315,19 +286,14 @@ fun BackupScreen(
                     uiState = uiState,
                     onCreateBackup = { shareAfter -> viewModel.createBackup(onSuccessShare = shareAfter) },
                     onShareFile = { file -> viewModel.shareBackupFile(file) },
-                    onSaveFile = { file ->
-                        fileToExport = file
-                        createDocumentLauncher.launch(file.name)
-                    },
+                    onSaveFile = { file -> onSaveBackupToUri(file) },
                     onRestoreFile = { file -> viewModel.onLocalBackupSelectedForRestore(file) },
                     onDeleteFile = { file -> fileToDelete = file },
                     onRefresh = { viewModel.loadLocalBackups() }
                 )
                 1 -> RestoreBackupTabContent(
                     uiState = uiState,
-                    onPickFile = {
-                        openDocumentLauncher.launch(arrayOf("*/*", "application/json", "application/octet-stream"))
-                    },
+                    onPickFile = onPickBackupFile,
                     onRestoreLocalFile = { file -> viewModel.onLocalBackupSelectedForRestore(file) }
                 )
             }

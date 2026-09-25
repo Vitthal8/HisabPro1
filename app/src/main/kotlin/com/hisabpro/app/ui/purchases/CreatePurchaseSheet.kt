@@ -129,17 +129,26 @@ fun CreatePurchaseSheet(
     var notes by remember { mutableStateOf("") }
 
     // Draft Purchase Items
+    val initialItem = inventoryItems.firstOrNull()
+    val initialPrice = initialItem?.purchasePrice?.takeIf { it > 0 } ?: 0.0
+    val initialPriceText = if (initialPrice > 0) {
+        if (initialPrice % 1.0 == 0.0) initialPrice.toInt().toString() else initialPrice.toString()
+    } else ""
+    val initialDesc = initialItem?.name ?: ""
+    val initialUnit = initialItem?.unit ?: "Pcs"
+    val initialGst = initialItem?.gstRate ?: 18.0
+
     val draftItems = remember {
         mutableStateListOf(
             DraftPurchaseLine(
                 id = UUID.randomUUID().toString(),
-                description = if (inventoryItems.isNotEmpty()) inventoryItems.first().name else "Raw Material / Goods",
-                itemId = inventoryItems.firstOrNull()?.id,
-                hsnCode = inventoryItems.firstOrNull()?.hsnCode ?: "",
-                quantity = 10.0,
-                unit = inventoryItems.firstOrNull()?.unit ?: "Pcs",
-                unitPrice = inventoryItems.firstOrNull()?.purchasePrice?.takeIf { it > 0 } ?: 250.0,
-                gstRate = inventoryItems.firstOrNull()?.gstRate ?: 18.0
+                initialDescription = initialDesc,
+                initialItemId = initialItem?.id,
+                initialHsnCode = initialItem?.hsnCode ?: "",
+                initialQuantityText = "1",
+                initialUnit = initialUnit,
+                initialUnitPriceText = initialPriceText,
+                initialGstRate = initialGst
             )
         )
     }
@@ -164,10 +173,12 @@ fun CreatePurchaseSheet(
     val enteredPaid = paidAmountInput.toDoubleOrNull() ?: grandTotal
     val dueAmount = (grandTotal - enteredPaid).coerceAtLeast(0.0)
 
-    val initialDraftItem = remember { draftItems.firstOrNull()?.copy() }
+    val firstItem = draftItems.firstOrNull()
     val initialSupplierName = selectedSupplier?.name ?: ""
     val hasUnsavedChanges = remember(
-        customSupplierName, supplierPhone, supplierGstin, vendorBillNumber, notes, draftItems.toList(), discountInput, paidAmountInput
+        customSupplierName, supplierPhone, supplierGstin, vendorBillNumber, notes,
+        draftItems.size, discountInput, paidAmountInput,
+        firstItem?.description, firstItem?.quantityText, firstItem?.unitPriceText, firstItem?.unit, firstItem?.gstRate
     ) {
         (customSupplierName.isNotBlank() && customSupplierName != initialSupplierName) ||
                 supplierPhone.isNotBlank() ||
@@ -177,7 +188,13 @@ fun CreatePurchaseSheet(
                 discountInput.isNotBlank() ||
                 paidAmountInput.isNotBlank() ||
                 draftItems.size > 1 ||
-                (draftItems.firstOrNull() != null && draftItems.first() != initialDraftItem)
+                (firstItem != null && firstItem.isModifiedFrom(
+                    initialDesc,
+                    "1",
+                    initialUnit,
+                    initialPriceText,
+                    initialGst
+                ))
     }
 
     var showDiscardConfirmDialog by remember { mutableStateOf(false) }
@@ -534,11 +551,11 @@ fun CreatePurchaseSheet(
                         draftItems.add(
                             DraftPurchaseLine(
                                 id = UUID.randomUUID().toString(),
-                                description = "",
-                                quantity = 1.0,
-                                unit = "Pcs",
-                                unitPrice = 100.0,
-                                gstRate = 18.0
+                                initialDescription = "",
+                                initialQuantityText = "1",
+                                initialUnit = "Pcs",
+                                initialUnitPriceText = "",
+                                initialGstRate = 18.0
                             )
                         )
                     },
@@ -612,7 +629,10 @@ fun CreatePurchaseSheet(
                                                 line.itemId = invItem.id
                                                 line.hsnCode = invItem.hsnCode
                                                 line.unit = invItem.unit
-                                                line.unitPrice = if (invItem.purchasePrice > 0) invItem.purchasePrice else invItem.salePrice * 0.8
+                                                val p = if (invItem.purchasePrice > 0) invItem.purchasePrice else invItem.salePrice * 0.8
+                                                line.unitPriceText = if (p > 0) {
+                                                    if (p % 1.0 == 0.0) p.toInt().toString() else String.format(Locale.ENGLISH, "%.2f", p)
+                                                } else ""
                                                 line.gstRate = invItem.gstRate
                                             }
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -627,6 +647,7 @@ fun CreatePurchaseSheet(
                             value = line.description,
                             onValueChange = { line.description = it },
                             label = { Text("Item Description *") },
+                            placeholder = { Text("e.g. Basmati Rice 25kg") },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Emerald700,
                                 unfocusedBorderColor = Slate200
@@ -641,15 +662,22 @@ fun CreatePurchaseSheet(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             OutlinedTextField(
-                                value = if (line.quantity == 0.0) "" else line.quantity.toString(),
-                                onValueChange = { line.quantity = it.toDoubleOrNull() ?: 0.0 },
-                                label = { Text("Inward Qty") },
+                                value = line.quantityText,
+                                onValueChange = { input ->
+                                    if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d*$"""))) {
+                                        line.quantityText = input
+                                    }
+                                },
+                                label = { Text("Inward Qty *") },
+                                placeholder = { Text("1") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = Emerald700,
                                     unfocusedBorderColor = Slate200
                                 ),
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier
+                                    .weight(1.1f)
+                                    .testTag("input_purchase_item_qty_${index}"),
                                 singleLine = true,
                                 shape = RoundedCornerShape(8.dp)
                             )
@@ -658,28 +686,73 @@ fun CreatePurchaseSheet(
                                 value = line.unit,
                                 onValueChange = { line.unit = it },
                                 label = { Text("Unit") },
+                                placeholder = { Text("Pcs") },
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = Emerald700,
                                     unfocusedBorderColor = Slate200
                                 ),
-                                modifier = Modifier.weight(0.8f),
+                                modifier = Modifier
+                                    .weight(0.8f)
+                                    .testTag("input_purchase_item_unit_${index}"),
                                 singleLine = true,
                                 shape = RoundedCornerShape(8.dp)
                             )
 
                             OutlinedTextField(
-                                value = if (line.unitPrice == 0.0) "" else line.unitPrice.toString(),
-                                onValueChange = { line.unitPrice = it.toDoubleOrNull() ?: 0.0 },
-                                label = { Text("Rate (₹)") },
+                                value = line.unitPriceText,
+                                onValueChange = { input ->
+                                    if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d*$"""))) {
+                                        line.unitPriceText = input
+                                    }
+                                },
+                                label = { Text("Rate (₹) *") },
+                                placeholder = { Text("0") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = Emerald700,
                                     unfocusedBorderColor = Slate200
                                 ),
-                                modifier = Modifier.weight(1.2f),
+                                modifier = Modifier
+                                    .weight(1.1f)
+                                    .testTag("input_purchase_item_rate_${index}"),
                                 singleLine = true,
                                 shape = RoundedCornerShape(8.dp)
                             )
+                        }
+
+                        // Quick Quantity Stepper
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Quick Qty:",
+                                fontSize = 11.sp,
+                                color = Slate500,
+                                fontWeight = FontWeight.Medium
+                            )
+                            listOf(-1, 1, 5, 10, 50).forEach { delta ->
+                                Surface(
+                                    color = if (delta > 0) Emerald50 else Slate100,
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = BorderStroke(1.dp, if (delta > 0) Emerald700.copy(alpha = 0.3f) else Slate200),
+                                    modifier = Modifier
+                                        .clickable {
+                                            val current = line.quantity
+                                            val updated = (current + delta).coerceAtLeast(1.0)
+                                            line.quantityText = if (updated % 1.0 == 0.0) updated.toInt().toString() else updated.toString()
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = if (delta > 0) "+$delta" else "$delta",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (delta > 0) Emerald800 else Slate700
+                                    )
+                                }
+                            }
                         }
 
                         // GST Slab for item
@@ -705,14 +778,14 @@ fun CreatePurchaseSheet(
                         }
 
                         // Line Total
-                        val lineTax = (line.quantity * line.unitPrice * line.gstRate) / 100.0
-                        val lineTotal = (line.quantity * line.unitPrice) + (if (gstMode == GstMode.EXEMPT) 0.0 else lineTax)
+                        val lineTax = line.lineTax(gstMode)
+                        val lineTotal = line.lineTotal(gstMode)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "Item Subtotal: ₹${String.format(Locale.ENGLISH, "%.2f", line.quantity * line.unitPrice)}",
+                                text = "Item Subtotal: ₹${String.format(Locale.ENGLISH, "%.2f", line.lineSubtotal)}",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -953,13 +1026,14 @@ fun CreatePurchaseSheet(
             Button(
                 onClick = {
                     val finalItems = draftItems.map { line ->
+                        val qty = if (line.quantity > 0) line.quantity else 1.0
                         PurchaseItem(
                             id = line.id,
                             itemId = line.itemId,
                             description = line.description.ifBlank { "Goods / Stock" },
                             hsnCode = line.hsnCode,
-                            quantity = line.quantity.coerceAtLeast(1.0),
-                            unit = line.unit,
+                            quantity = qty,
+                            unit = line.unit.ifBlank { "Pcs" },
                             unitPrice = line.unitPrice,
                             gstRate = line.gstRate
                         )
@@ -1014,13 +1088,50 @@ fun CreatePurchaseSheet(
     }
 }
 
-data class DraftPurchaseLine(
-    val id: String,
-    var description: String,
-    var itemId: String? = null,
-    var hsnCode: String = "",
-    var quantity: Double = 1.0,
-    var unit: String = "Pcs",
-    var unitPrice: Double = 0.0,
-    var gstRate: Double = 18.0
-)
+class DraftPurchaseLine(
+    val id: String = UUID.randomUUID().toString(),
+    initialDescription: String = "",
+    initialItemId: String? = null,
+    initialHsnCode: String = "",
+    initialQuantityText: String = "1",
+    initialUnit: String = "Pcs",
+    initialUnitPriceText: String = "",
+    initialGstRate: Double = 18.0
+) {
+    var description by mutableStateOf(initialDescription)
+    var itemId by mutableStateOf(initialItemId)
+    var hsnCode by mutableStateOf(initialHsnCode)
+    var quantityText by mutableStateOf(initialQuantityText)
+    var unit by mutableStateOf(initialUnit)
+    var unitPriceText by mutableStateOf(initialUnitPriceText)
+    var gstRate by mutableDoubleStateOf(initialGstRate)
+
+    val quantity: Double
+        get() = quantityText.toDoubleOrNull() ?: 0.0
+
+    val unitPrice: Double
+        get() = unitPriceText.toDoubleOrNull() ?: 0.0
+
+    val lineSubtotal: Double
+        get() = quantity * unitPrice
+
+    fun lineTax(gstMode: GstMode): Double =
+        if (gstMode == GstMode.EXEMPT) 0.0 else (lineSubtotal * gstRate) / 100.0
+
+    fun lineTotal(gstMode: GstMode): Double =
+        lineSubtotal + lineTax(gstMode)
+
+    fun isModifiedFrom(
+        desc: String,
+        qty: String,
+        u: String,
+        price: String,
+        gst: Double
+    ): Boolean {
+        return description != desc ||
+                quantityText != qty ||
+                unit != u ||
+                unitPriceText != price ||
+                gstRate != gst
+    }
+}

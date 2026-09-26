@@ -19,7 +19,11 @@ import com.hisabpro.app.data.local.entity.KhataEntryEntity
 import com.hisabpro.app.data.local.entity.PartyEntity
 import com.hisabpro.app.data.local.entity.PaymentEntity
 import com.hisabpro.app.data.model.BusinessProfile
+import com.hisabpro.app.data.repository.InvoiceRepository
+import com.hisabpro.app.data.repository.ItemRepository
+import com.hisabpro.app.data.repository.PartyRepository
 import com.hisabpro.app.data.repository.SettingsRepository
+import com.hisabpro.app.data.repository.TransactionRepository
 import com.hisabpro.app.util.IndianAccountingFormat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -93,6 +97,13 @@ class BackupManager private constructor(private val appContext: Context) {
         onProgress: ((String) -> Unit)? = null
     ): Result<File> = withContext(Dispatchers.IO) {
         try {
+            onProgress?.invoke("Synchronizing local business records...")
+
+            InvoiceRepository.getInstance(appContext).syncToDatabase()
+            PartyRepository.getInstance(appContext).syncToDatabase()
+            ItemRepository.getInstance(appContext).syncToDatabase()
+            TransactionRepository.getInstance(appContext).syncToDatabase()
+
             onProgress?.invoke("Reading business data...")
 
             val profile = SettingsRepository.getInstance(appContext).profile.value
@@ -333,9 +344,14 @@ class BackupManager private constructor(private val appContext: Context) {
                 }
             }
 
-            // Step 3: Restore settings outside db transaction
-            onProgress?.invoke("Applying business settings...")
+            // Step 3: Restore settings outside db transaction and reload application state
+            onProgress?.invoke("Applying business settings & reloading data...")
             SettingsRepository.getInstance(appContext).saveProfile(payload.settings.profile)
+
+            InvoiceRepository.getInstance(appContext).reloadFromDatabase()
+            PartyRepository.getInstance(appContext).reloadFromDatabase()
+            ItemRepository.getInstance(appContext).reloadFromDatabase()
+            TransactionRepository.getInstance(appContext).reloadFromDatabase()
 
             onProgress?.invoke("Restore complete!")
 

@@ -3,6 +3,7 @@ package com.hisabpro.app.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import com.hisabpro.app.data.local.AppDatabase
+import com.hisabpro.app.data.local.entity.BusinessEntity
 import com.hisabpro.app.data.local.entity.InvoiceEntity
 import com.hisabpro.app.data.local.entity.InvoiceItemEntity
 import com.hisabpro.app.data.model.GstMode
@@ -11,6 +12,7 @@ import com.hisabpro.app.data.model.InvoiceItem
 import com.hisabpro.app.data.model.InvoiceStatus
 import com.hisabpro.app.data.model.InvoiceType
 import com.hisabpro.app.util.toPaise
+import com.hisabpro.app.util.toRupees
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -94,6 +96,9 @@ class InvoiceRepository(context: Context) {
                 saveInternal(initial)
             }
         }
+        scope.launch {
+            syncToDatabase()
+        }
     }
 
     private fun saveInternal(list: List<Invoice>, syncAllRoom: Boolean = false) {
@@ -141,9 +146,7 @@ class InvoiceRepository(context: Context) {
                 prefs.edit().putString(KEY_INVOICES, array.toString()).apply()
 
                 if (syncAllRoom) {
-                    for (inv in list) {
-                        saveSingleInvoiceDbInternal(inv)
-                    }
+                    syncToDatabase()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -151,14 +154,103 @@ class InvoiceRepository(context: Context) {
         }
     }
 
-    private suspend fun saveSingleInvoiceDbInternal(inv: Invoice) {
+    suspend fun syncToDatabase() {
         try {
+            ensureDefaultBusiness()
+            val validPartyIds = db.partyDao().getAllPartiesGlobalSync().map { it.id }.toSet()
+            val currentInvoices = _invoices.value
+            for (inv in currentInvoices) {
+                saveSingleInvoiceDbInternal(inv, validPartyIds)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun reloadFromDatabase() {
+        try {
+            val dbInvoices = db.invoiceDao().getAllInvoicesGlobalSync()
+            if (dbInvoices.isNotEmpty()) {
+                val reloaded = mutableListOf<Invoice>()
+                for (ent in dbInvoices) {
+                    val dbItems = db.invoiceDao().getItemsForInvoiceSync(ent.id)
+                    val items = dbItems.map { itemEnt ->
+                        InvoiceItem(
+                            id = itemEnt.id,
+                            description = itemEnt.itemName,
+                            hsnCode = itemEnt.hsnCode,
+                            quantity = itemEnt.qty,
+                            unit = itemEnt.unit,
+                            unitPrice = itemEnt.rate.toRupees(),
+                            gstRate = (itemEnt.cgstRate + itemEnt.sgstRate + itemEnt.igstRate).coerceAtLeast(0.0),
+                            discount = itemEnt.discount.toRupees()
+                        )
+                    }
+                    val type = try { InvoiceType.valueOf(ent.type) } catch (e: Exception) { InvoiceType.NON_GST_BILL }
+                    val gstMode = try { GstMode.valueOf(ent.gstMode) } catch (e: Exception) { GstMode.INTRA_STATE }
+                    val status = try { InvoiceStatus.valueOf(ent.paymentStatus) } catch (e: Exception) { InvoiceStatus.PAID }
+                    reloaded.add(
+                        Invoice(
+                            id = ent.id,
+                            invoiceNumber = ent.invoiceNo,
+                            type = type,
+                            gstMode = gstMode,
+                            customerId = ent.partyId,
+                            customerName = ent.customerName,
+                            customerPhone = ent.customerPhone,
+                            customerAddress = ent.customerAddress,
+                            customerGstin = ent.customerGstin,
+                            dateMillis = ent.date,
+                            items = items,
+                            discountAmount = ent.discount.toRupees(),
+                            notes = ent.notes,
+                            paymentStatus = status,
+                            paidAmount = ent.paidAmount.toRupees(),
+                            paymentMode = ent.paymentMode,
+                            createdAt = ent.createdAt
+                        )
+                    )
+                }
+                _invoices.value = reloaded.sortedByDescending { it.dateMillis }
+                saveInternal(reloaded, syncAllRoom = false)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private suspend fun ensureDefaultBusiness() {
+        try {
+            val existing = db.businessDao().getBusinessSync("default_business")
+            if (existing == null) {
+                db.businessDao().insertOrUpdate(
+                    BusinessEntity(
+                        id = "default_business",
+                        name = "HisabPro Business",
+                        phone = "",
+                        address = "",
+                        gstin = "",
+                        gstEnabled = false
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private suspend fun saveSingleInvoiceDbInternal(inv: Invoice, validPartyIds: Set<String>? = null) {
+        try {
+            ensureDefaultBusiness()
+            val parties = validPartyIds ?: db.partyDao().getAllPartiesGlobalSync().map { it.id }.toSet()
+            val safePartyId = if (!inv.customerId.isNullOrBlank() && parties.contains(inv.customerId)) inv.customerId else null
+
             val invoiceEntity = InvoiceEntity(
                 id = inv.id,
                 businessId = "default_business",
                 invoiceNo = inv.invoiceNumber,
                 date = inv.dateMillis,
-                partyId = inv.customerId,
+                partyId = safePartyId,
                 customerName = inv.customerName,
                 customerPhone = inv.customerPhone,
                 customerAddress = inv.customerAddress,
@@ -174,7 +266,7 @@ class InvoiceRepository(context: Context) {
                 total = inv.grandTotal.toPaise(),
                 paidAmount = inv.paidAmount.toPaise(),
                 paymentStatus = inv.paymentStatus.name,
-                paymentMode = if (inv.paidAmount > 0) "CASH" else "UNPAID",
+                paymentMode = if (inv.paidAmount > 0) inv.paymentMode.ifBlank { "Cash" } else "UNPAID",
                 notes = inv.notes,
                 isGst = inv.type != InvoiceType.NON_GST_BILL && inv.gstMode != GstMode.EXEMPT,
                 createdAt = inv.createdAt

@@ -346,8 +346,9 @@ fun BackupScreen(
                                 fontSize = 12.sp,
                                 color = Slate700
                             )
+                            val totalPayments = summary.counts.payments + summary.counts.khataEntries
                             Text(
-                                text = "📊 Records to restore: ${summary.counts.invoices} Invoices • ${summary.counts.parties} Parties • ${summary.counts.items} Items • ${summary.counts.payments} Payments • ${summary.counts.expenses} Expenses",
+                                text = "📊 Records: ${summary.counts.invoices} Invoices • ${summary.counts.parties} Parties • ${summary.counts.items} Items • ${if (totalPayments > 0) totalPayments else summary.counts.payments} Payments • ${summary.counts.expenses} Expenses",
                                 fontSize = 11.sp,
                                 color = DeepNavyBlue,
                                 fontWeight = FontWeight.Medium
@@ -802,8 +803,9 @@ private fun BackupFileItemCard(
 
             if (backup.summary != null) {
                 val c = backup.summary.counts
+                val totalPayments = c.payments + c.khataEntries
                 Text(
-                    text = "${c.invoices} Invoices • ${c.parties} Parties • ${c.items} Items • ${c.payments} Payments",
+                    text = "${c.invoices} Invoices • ${c.parties} Parties • ${c.items} Items • ${if (totalPayments > 0) totalPayments else c.payments} Payments",
                     fontSize = 11.sp,
                     color = DeepNavyBlue,
                     fontWeight = FontWeight.Medium

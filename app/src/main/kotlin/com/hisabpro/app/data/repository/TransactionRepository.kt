@@ -3,6 +3,7 @@ package com.hisabpro.app.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import com.hisabpro.app.data.local.AppDatabase
+import com.hisabpro.app.data.local.entity.BusinessEntity
 import com.hisabpro.app.data.local.entity.ExpenseEntity
 import com.hisabpro.app.data.local.entity.PaymentEntity
 import com.hisabpro.app.data.model.Category
@@ -10,6 +11,7 @@ import com.hisabpro.app.data.model.PaymentMode
 import com.hisabpro.app.data.model.Transaction
 import com.hisabpro.app.data.model.TransactionType
 import com.hisabpro.app.util.toPaise
+import com.hisabpro.app.util.toRupees
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,6 +69,9 @@ class TransactionRepository(context: Context) {
                 _transactions.value = initial
             }
         }
+        scope.launch {
+            syncToDatabase()
+        }
     }
 
     private fun saveTransactions(list: List<Transaction>, syncAllRoom: Boolean = false) {
@@ -90,9 +95,7 @@ class TransactionRepository(context: Context) {
                 prefs.edit().putString(KEY_TRANSACTIONS, jsonArray.toString()).apply()
 
                 if (syncAllRoom) {
-                    for (item in list) {
-                        saveSingleTransactionDbInternal(item)
-                    }
+                    syncToDatabase()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -100,8 +103,87 @@ class TransactionRepository(context: Context) {
         }
     }
 
+    suspend fun syncToDatabase() {
+        try {
+            ensureDefaultBusiness()
+            val currentList = _transactions.value
+            for (item in currentList) {
+                saveSingleTransactionDbInternal(item)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun reloadFromDatabase() {
+        try {
+            val payments = db.paymentDao().getAllPaymentsGlobalSync()
+            val expenses = db.expenseDao().getAllExpensesGlobalSync()
+            if (payments.isNotEmpty() || expenses.isNotEmpty()) {
+                val list = mutableListOf<Transaction>()
+                for (p in payments) {
+                    val mode = try { PaymentMode.valueOf(p.mode) } catch (e: Exception) { PaymentMode.CASH }
+                    list.add(
+                        Transaction(
+                            id = p.id,
+                            title = p.referenceNo.ifBlank { "Payment Received" },
+                            amount = p.amount.toRupees(),
+                            type = TransactionType.INCOME,
+                            category = Category.BUSINESS,
+                            dateMillis = p.date,
+                            paymentMode = mode,
+                            note = p.notes
+                        )
+                    )
+                }
+                for (exp in expenses) {
+                    val cat = try { Category.valueOf(exp.category) } catch (e: Exception) { Category.OTHER }
+                    val mode = try { PaymentMode.valueOf(exp.mode) } catch (e: Exception) { PaymentMode.CASH }
+                    list.add(
+                        Transaction(
+                            id = exp.id,
+                            title = exp.description.ifBlank { "Expense" },
+                            amount = exp.amount.toRupees(),
+                            type = TransactionType.EXPENSE,
+                            category = cat,
+                            dateMillis = exp.date,
+                            paymentMode = mode,
+                            note = ""
+                        )
+                    )
+                }
+                val sorted = list.sortedByDescending { it.dateMillis }
+                _transactions.value = sorted
+                saveTransactions(sorted, syncAllRoom = false)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private suspend fun ensureDefaultBusiness() {
+        try {
+            val existing = db.businessDao().getBusinessSync("default_business")
+            if (existing == null) {
+                db.businessDao().insertOrUpdate(
+                    BusinessEntity(
+                        id = "default_business",
+                        name = "HisabPro Business",
+                        phone = "",
+                        address = "",
+                        gstin = "",
+                        gstEnabled = false
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     private suspend fun saveSingleTransactionDbInternal(item: Transaction) {
         try {
+            ensureDefaultBusiness()
             if (item.type == TransactionType.EXPENSE) {
                 db.expenseDao().insertExpense(
                     ExpenseEntity(

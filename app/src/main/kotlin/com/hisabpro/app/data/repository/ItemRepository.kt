@@ -3,11 +3,13 @@ package com.hisabpro.app.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import com.hisabpro.app.data.local.AppDatabase
+import com.hisabpro.app.data.local.entity.BusinessEntity
 import com.hisabpro.app.data.local.entity.ItemEntity
 import com.hisabpro.app.data.model.Item
 import com.hisabpro.app.data.model.StockHistoryEntry
 import com.hisabpro.app.data.model.StockReason
 import com.hisabpro.app.util.toPaise
+import com.hisabpro.app.util.toRupees
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -99,6 +101,10 @@ class ItemRepository(context: Context) {
                 e.printStackTrace()
                 _stockHistory.value = emptyList()
             }
+        }
+
+        scope.launch {
+            syncToDatabase()
         }
     }
 
@@ -499,6 +505,7 @@ class ItemRepository(context: Context) {
 
         scope.launch {
             try {
+                ensureDefaultBusiness()
                 val entities = list.map { item ->
                     ItemEntity(
                         id = item.id,
@@ -520,6 +527,82 @@ class ItemRepository(context: Context) {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    suspend fun syncToDatabase() {
+        try {
+            ensureDefaultBusiness()
+            val entities = _items.value.map { item ->
+                ItemEntity(
+                    id = item.id,
+                    businessId = "default_business",
+                    name = item.name,
+                    itemCode = item.itemCode,
+                    category = item.category,
+                    unit = item.unit,
+                    sellPrice = item.salePrice.toPaise(),
+                    purchasePrice = item.purchasePrice.toPaise(),
+                    gstRate = item.gstRate,
+                    hsnCode = item.hsnCode,
+                    stockQty = item.currentStock,
+                    lowStockThreshold = item.minStockAlert,
+                    createdAt = item.updatedAtMillis
+                )
+            }
+            if (entities.isNotEmpty()) {
+                db.itemDao().insertAllItems(entities)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun reloadFromDatabase() {
+        try {
+            val dbItems = db.itemDao().getAllItemsGlobalSync()
+            if (dbItems.isNotEmpty()) {
+                val itemsList = dbItems.map { item ->
+                    Item(
+                        id = item.id,
+                        name = item.name,
+                        itemCode = item.itemCode,
+                        category = item.category,
+                        unit = item.unit,
+                        salePrice = item.sellPrice.toRupees(),
+                        purchasePrice = item.purchasePrice.toRupees(),
+                        gstRate = item.gstRate,
+                        hsnCode = item.hsnCode,
+                        currentStock = item.stockQty,
+                        minStockAlert = item.lowStockThreshold,
+                        updatedAtMillis = item.createdAt
+                    )
+                }
+                _items.value = itemsList
+                saveItemsInternal(itemsList)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private suspend fun ensureDefaultBusiness() {
+        try {
+            val existing = db.businessDao().getBusinessSync("default_business")
+            if (existing == null) {
+                db.businessDao().insertOrUpdate(
+                    BusinessEntity(
+                        id = "default_business",
+                        name = "HisabPro Business",
+                        phone = "",
+                        address = "",
+                        gstin = "",
+                        gstEnabled = false
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 

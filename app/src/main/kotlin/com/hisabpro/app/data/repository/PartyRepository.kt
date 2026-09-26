@@ -3,6 +3,7 @@ package com.hisabpro.app.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import com.hisabpro.app.data.local.AppDatabase
+import com.hisabpro.app.data.local.entity.BusinessEntity
 import com.hisabpro.app.data.local.entity.KhataEntryEntity
 import com.hisabpro.app.data.local.entity.PartyEntity
 import com.hisabpro.app.data.model.KhataEntry
@@ -12,6 +13,7 @@ import com.hisabpro.app.data.model.PartyTag
 import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.data.model.PartyWithBalance
 import com.hisabpro.app.util.toPaise
+import com.hisabpro.app.util.toRupees
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -99,6 +101,9 @@ class PartyRepository(context: Context) {
                 _entries.value = initialEntries
             }
         }
+        scope.launch {
+            syncToDatabase()
+        }
     }
 
     private fun savePartiesInternal(list: List<Party>) {
@@ -121,6 +126,7 @@ class PartyRepository(context: Context) {
 
         scope.launch {
             try {
+                ensureDefaultBusiness()
                 val entities = list.map { p ->
                     PartyEntity(
                         id = p.id,
@@ -160,6 +166,7 @@ class PartyRepository(context: Context) {
 
         scope.launch {
             try {
+                ensureDefaultBusiness()
                 val entities = list.map { e ->
                     KhataEntryEntity(
                         id = e.id,
@@ -175,6 +182,107 @@ class PartyRepository(context: Context) {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    suspend fun syncToDatabase() {
+        try {
+            ensureDefaultBusiness()
+            val partyEntities = _parties.value.map { p ->
+                PartyEntity(
+                    id = p.id,
+                    businessId = "default_business",
+                    name = p.name,
+                    phone = p.phone,
+                    address = p.address,
+                    gstin = p.gstin,
+                    type = p.type.name,
+                    tag = p.tag.name,
+                    createdAt = p.createdAt
+                )
+            }
+            if (partyEntities.isNotEmpty()) {
+                db.partyDao().insertAllParties(partyEntities)
+            }
+            val entryEntities = _entries.value.map { e ->
+                KhataEntryEntity(
+                    id = e.id,
+                    partyId = e.partyId,
+                    amount = e.amount.toPaise(),
+                    type = e.type.name,
+                    date = e.dateMillis,
+                    billNumber = e.billNumber,
+                    note = e.note
+                )
+            }
+            if (entryEntities.isNotEmpty()) {
+                db.khataDao().insertAllEntries(entryEntities)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun reloadFromDatabase() {
+        try {
+            val dbParties = db.partyDao().getAllPartiesGlobalSync()
+            val dbEntries = db.khataDao().getAllEntriesSync()
+            if (dbParties.isNotEmpty()) {
+                val partiesList = dbParties.map { p ->
+                    val type = try { PartyType.valueOf(p.type) } catch (e: Exception) { PartyType.CUSTOMER }
+                    val tag = try { PartyTag.valueOf(p.tag) } catch (e: Exception) { PartyTag.REGULAR }
+                    Party(
+                        id = p.id,
+                        name = p.name,
+                        phone = p.phone,
+                        address = p.address,
+                        gstin = p.gstin,
+                        type = type,
+                        tag = tag,
+                        createdAt = p.createdAt
+                    )
+                }
+                _parties.value = partiesList
+                savePartiesInternal(partiesList)
+            }
+            if (dbEntries.isNotEmpty()) {
+                val entriesList = dbEntries.map { e ->
+                    val type = try { KhataEntryType.valueOf(e.type) } catch (e: Exception) { KhataEntryType.YOU_GAVE }
+                    KhataEntry(
+                        id = e.id,
+                        partyId = e.partyId,
+                        amount = e.amount.toRupees(),
+                        type = type,
+                        dateMillis = e.date,
+                        billNumber = e.billNumber,
+                        note = e.note
+                    )
+                }
+                _entries.value = entriesList
+                saveEntriesInternal(entriesList)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private suspend fun ensureDefaultBusiness() {
+        try {
+            val existing = db.businessDao().getBusinessSync("default_business")
+            if (existing == null) {
+                db.businessDao().insertOrUpdate(
+                    BusinessEntity(
+                        id = "default_business",
+                        name = "HisabPro Business",
+                        phone = "",
+                        address = "",
+                        gstin = "",
+                        gstEnabled = false
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 

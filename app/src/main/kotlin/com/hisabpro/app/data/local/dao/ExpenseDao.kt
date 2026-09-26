@@ -24,6 +24,9 @@ interface ExpenseDao {
     @Query("DELETE FROM expenses WHERE id = :id")
     suspend fun deleteExpense(id: String)
 
+    @Query("SELECT * FROM expenses WHERE business_id = :businessId ORDER BY date DESC")
+    suspend fun getAllExpensesSync(businessId: String = "default_business"): List<ExpenseEntity>
+
     @Query("SELECT * FROM expenses ORDER BY date DESC")
     suspend fun getAllExpensesGlobalSync(): List<ExpenseEntity>
 

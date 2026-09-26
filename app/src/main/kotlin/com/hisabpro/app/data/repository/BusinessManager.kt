@@ -36,6 +36,16 @@ class BusinessManager private constructor(private val context: Context) {
     private val _activeBusiness = MutableStateFlow(BusinessProfile())
     val activeBusiness: StateFlow<BusinessProfile> = _activeBusiness.asStateFlow()
 
+    val activeBusinessDatabaseId: String
+        get() {
+            val list = _businesses.value
+            val activeName = _activeBusiness.value.shopName.ifBlank { _activeBusinessId.value }
+            val idx = list.indexOfFirst { it.shopName == activeName || it.shopName == _activeBusinessId.value || it.gstin == activeName }
+            if (idx <= 0) return "default_business"
+            val p = list[idx]
+            return "biz_${p.shopName.lowercase().replace(" ", "_")}_$idx"
+        }
+
     init {
         loadBusinesses()
     }

@@ -25,6 +25,8 @@ import java.util.UUID
 class TransactionRepository(private val context: Context) {
 
     private val db = AppDatabase.getInstance(context)
+    private val activeBizId: String
+        get() = BusinessManager.getInstance(context).activeBusinessDatabaseId
     private val scope = CoroutineScope(Dispatchers.IO)
 
     private val prefs: SharedPreferences =
@@ -105,7 +107,7 @@ class TransactionRepository(private val context: Context) {
 
     suspend fun syncToDatabase() {
         try {
-            ensureDefaultBusiness()
+            ensureActiveBusiness()
             val currentList = _transactions.value
             for (item in currentList) {
                 saveSingleTransactionDbInternal(item)
@@ -117,8 +119,8 @@ class TransactionRepository(private val context: Context) {
 
     suspend fun reloadFromDatabase() {
         try {
-            val payments = db.paymentDao().getAllPaymentsGlobalSync()
-            val expenses = db.expenseDao().getAllExpensesGlobalSync()
+            val payments = db.paymentDao().getAllPaymentsSync(activeBizId)
+            val expenses = db.expenseDao().getAllExpensesSync(activeBizId)
             if (payments.isNotEmpty() || expenses.isNotEmpty()) {
                 val list = mutableListOf<Transaction>()
                 for (p in payments) {
@@ -161,18 +163,20 @@ class TransactionRepository(private val context: Context) {
         }
     }
 
-    private suspend fun ensureDefaultBusiness() {
+    private suspend fun ensureActiveBusiness() {
         try {
-            val existing = db.businessDao().getBusinessSync("default_business")
+            val bizId = activeBizId
+            val profile = BusinessManager.getInstance(context).activeBusiness.value
+            val existing = db.businessDao().getBusinessSync(bizId)
             if (existing == null) {
                 db.businessDao().insertOrUpdate(
                     BusinessEntity(
-                        id = "default_business",
-                        name = "HisabPro Business",
-                        phone = "",
-                        address = "",
-                        gstin = "",
-                        gstEnabled = false
+                        id = bizId,
+                        name = profile.shopName.ifBlank { "HisabPro Business" },
+                        phone = profile.phone,
+                        address = profile.address,
+                        gstin = profile.gstin,
+                        gstEnabled = profile.isGstRegistered
                     )
                 )
             }
@@ -183,11 +187,11 @@ class TransactionRepository(private val context: Context) {
 
     private suspend fun saveSingleTransactionDbInternal(item: Transaction, enqueueForSync: Boolean = false) {
         try {
-            ensureDefaultBusiness()
+            ensureActiveBusiness()
             if (item.type == TransactionType.EXPENSE) {
                 val exp = ExpenseEntity(
                     id = item.id,
-                    businessId = "default_business",
+                    businessId = activeBizId,
                     date = item.dateMillis,
                     category = item.category.name,
                     amount = item.amount.toPaise(),
@@ -219,7 +223,7 @@ class TransactionRepository(private val context: Context) {
             } else {
                 val pay = PaymentEntity(
                     id = item.id,
-                    businessId = "default_business",
+                    businessId = activeBizId,
                     partyId = null,
                     date = item.dateMillis,
                     amount = item.amount.toPaise(),

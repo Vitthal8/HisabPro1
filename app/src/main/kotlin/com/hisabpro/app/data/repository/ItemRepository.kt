@@ -23,6 +23,8 @@ import java.util.UUID
 class ItemRepository(private val context: Context) {
 
     private val db = AppDatabase.getInstance(context)
+    private val activeBizId: String
+        get() = BusinessManager.getInstance(context).activeBusinessDatabaseId
     private val scope = CoroutineScope(Dispatchers.IO)
 
     private val prefs: SharedPreferences =
@@ -131,7 +133,7 @@ class ItemRepository(private val context: Context) {
             try {
                 val payload = JSONObject().apply {
                     put("id", item.id)
-                    put("business_id", "default_business")
+                    put("business_id", activeBizId)
                     put("name", item.name)
                     put("item_code", item.itemCode)
                     put("category", item.category)
@@ -187,7 +189,7 @@ class ItemRepository(private val context: Context) {
                 try {
                     val payload = JSONObject().apply {
                         put("id", item.id)
-                        put("business_id", "default_business")
+                        put("business_id", activeBizId)
                         put("name", item.name)
                         put("item_code", item.itemCode)
                         put("category", item.category)
@@ -626,7 +628,7 @@ class ItemRepository(private val context: Context) {
 
     suspend fun reloadFromDatabase() {
         try {
-            val dbItems = db.itemDao().getAllItemsGlobalSync()
+            val dbItems = db.itemDao().getAllItemsSync(activeBizId)
             if (dbItems.isNotEmpty()) {
                 val itemsList = dbItems.map { item ->
                     Item(

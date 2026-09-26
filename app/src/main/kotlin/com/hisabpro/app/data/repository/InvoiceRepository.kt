@@ -27,6 +27,8 @@ import java.util.UUID
 class InvoiceRepository(private val context: Context) {
 
     private val db = AppDatabase.getInstance(context)
+    private val activeBizId: String
+        get() = BusinessManager.getInstance(context).activeBusinessDatabaseId
     private val scope = CoroutineScope(Dispatchers.IO)
 
     private val prefs: SharedPreferences =
@@ -156,8 +158,8 @@ class InvoiceRepository(private val context: Context) {
 
     suspend fun syncToDatabase() {
         try {
-            ensureDefaultBusiness()
-            val validPartyIds = db.partyDao().getAllPartiesGlobalSync().map { it.id }.toSet()
+            ensureActiveBusiness()
+            val validPartyIds = db.partyDao().getAllPartiesSync(activeBizId).map { it.id }.toSet()
             val currentInvoices = _invoices.value
             for (inv in currentInvoices) {
                 saveSingleInvoiceDbInternal(inv, validPartyIds)
@@ -169,7 +171,7 @@ class InvoiceRepository(private val context: Context) {
 
     suspend fun reloadFromDatabase() {
         try {
-            val dbInvoices = db.invoiceDao().getAllInvoicesGlobalSync()
+            val dbInvoices = db.invoiceDao().getAllInvoicesSync(activeBizId)
             if (dbInvoices.isNotEmpty()) {
                 val reloaded = mutableListOf<Invoice>()
                 for (ent in dbInvoices) {
@@ -219,18 +221,20 @@ class InvoiceRepository(private val context: Context) {
         }
     }
 
-    private suspend fun ensureDefaultBusiness() {
+    private suspend fun ensureActiveBusiness() {
         try {
-            val existing = db.businessDao().getBusinessSync("default_business")
+            val bizId = activeBizId
+            val profile = BusinessManager.getInstance(context).activeBusiness.value
+            val existing = db.businessDao().getBusinessSync(bizId)
             if (existing == null) {
                 db.businessDao().insertOrUpdate(
                     BusinessEntity(
-                        id = "default_business",
-                        name = "HisabPro Business",
-                        phone = "",
-                        address = "",
-                        gstin = "",
-                        gstEnabled = false
+                        id = bizId,
+                        name = profile.shopName.ifBlank { "HisabPro Business" },
+                        phone = profile.phone,
+                        address = profile.address,
+                        gstin = profile.gstin,
+                        gstEnabled = profile.isGstRegistered
                     )
                 )
             }
@@ -245,13 +249,13 @@ class InvoiceRepository(private val context: Context) {
         enqueueForSync: Boolean = false
     ) {
         try {
-            ensureDefaultBusiness()
-            val parties = validPartyIds ?: db.partyDao().getAllPartiesGlobalSync().map { it.id }.toSet()
+            ensureActiveBusiness()
+            val parties = validPartyIds ?: db.partyDao().getAllPartiesSync(activeBizId).map { it.id }.toSet()
             val safePartyId = if (!inv.customerId.isNullOrBlank() && parties.contains(inv.customerId)) inv.customerId else null
 
             val invoiceEntity = InvoiceEntity(
                 id = inv.id,
-                businessId = "default_business",
+                businessId = activeBizId,
                 invoiceNo = inv.invoiceNumber,
                 date = inv.dateMillis,
                 partyId = safePartyId,

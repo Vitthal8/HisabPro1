@@ -28,6 +28,8 @@ import java.util.UUID
 class PartyRepository(private val context: Context) {
 
     private val db = AppDatabase.getInstance(context)
+    private val activeBizId: String
+        get() = BusinessManager.getInstance(context).activeBusinessDatabaseId
     private val scope = CoroutineScope(Dispatchers.IO)
 
     private val prefs: SharedPreferences =
@@ -126,11 +128,11 @@ class PartyRepository(private val context: Context) {
 
         scope.launch {
             try {
-                ensureDefaultBusiness()
+                ensureActiveBusiness()
                 val entities = list.map { p ->
                     PartyEntity(
                         id = p.id,
-                        businessId = "default_business",
+                        businessId = activeBizId,
                         name = p.name,
                         phone = p.phone,
                         address = p.address,
@@ -166,7 +168,7 @@ class PartyRepository(private val context: Context) {
 
         scope.launch {
             try {
-                ensureDefaultBusiness()
+                ensureActiveBusiness()
                 val entities = list.map { e ->
                     KhataEntryEntity(
                         id = e.id,
@@ -187,11 +189,11 @@ class PartyRepository(private val context: Context) {
 
     suspend fun syncToDatabase() {
         try {
-            ensureDefaultBusiness()
+            ensureActiveBusiness()
             val partyEntities = _parties.value.map { p ->
                 PartyEntity(
                     id = p.id,
-                    businessId = "default_business",
+                    businessId = activeBizId,
                     name = p.name,
                     phone = p.phone,
                     address = p.address,
@@ -225,7 +227,7 @@ class PartyRepository(private val context: Context) {
 
     suspend fun reloadFromDatabase() {
         try {
-            val dbParties = db.partyDao().getAllPartiesGlobalSync()
+            val dbParties = db.partyDao().getAllPartiesSync(activeBizId)
             val dbEntries = db.khataDao().getAllEntriesSync()
             if (dbParties.isNotEmpty()) {
                 val partiesList = dbParties.map { p ->
@@ -266,18 +268,20 @@ class PartyRepository(private val context: Context) {
         }
     }
 
-    private suspend fun ensureDefaultBusiness() {
+    private suspend fun ensureActiveBusiness() {
         try {
-            val existing = db.businessDao().getBusinessSync("default_business")
+            val bizId = activeBizId
+            val profile = BusinessManager.getInstance(context).activeBusiness.value
+            val existing = db.businessDao().getBusinessSync(bizId)
             if (existing == null) {
                 db.businessDao().insertOrUpdate(
                     BusinessEntity(
-                        id = "default_business",
-                        name = "HisabPro Business",
-                        phone = "",
-                        address = "",
-                        gstin = "",
-                        gstEnabled = false
+                        id = bizId,
+                        name = profile.shopName.ifBlank { "HisabPro Business" },
+                        phone = profile.phone,
+                        address = profile.address,
+                        gstin = profile.gstin,
+                        gstEnabled = profile.isGstRegistered
                     )
                 )
             }
@@ -311,7 +315,7 @@ class PartyRepository(private val context: Context) {
             try {
                 val payload = JSONObject().apply {
                     put("id", newParty.id)
-                    put("business_id", "default_business")
+                    put("business_id", activeBizId)
                     put("name", newParty.name)
                     put("phone", newParty.phone)
                     put("email", "")
@@ -346,7 +350,7 @@ class PartyRepository(private val context: Context) {
             try {
                 val payload = JSONObject().apply {
                     put("id", party.id)
-                    put("business_id", "default_business")
+                    put("business_id", activeBizId)
                     put("name", party.name)
                     put("phone", party.phone)
                     put("email", "")

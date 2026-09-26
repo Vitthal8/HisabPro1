@@ -46,7 +46,7 @@ class TransactionRepository(private val context: Context) {
     private fun loadTransactions() {
         val jsonString = prefs.getString(KEY_TRANSACTIONS, null)
         if (jsonString.isNullOrBlank()) {
-            val initial = if (activeBizId == "default_business") getInitialTransactions() else emptyList()
+            val initial = emptyList<Transaction>()
             saveTransactions(initial)
             _transactions.value = initial
         } else {
@@ -70,7 +70,7 @@ class TransactionRepository(private val context: Context) {
                 }
                 _transactions.value = list
             } catch (e: Exception) {
-                val initial = getInitialTransactions()
+                val initial = emptyList<Transaction>()
                 saveTransactions(initial)
                 _transactions.value = initial
             }

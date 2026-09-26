@@ -41,7 +41,7 @@ class PurchaseRepository(private val context: Context) {
     private fun loadData() {
         val json = prefs.getString(KEY_PURCHASES, null)
         if (json.isNullOrBlank()) {
-            val initial = if (activeBizId == "default_business") createInitialPurchases() else emptyList()
+            val initial = emptyList<PurchaseBill>()
             saveInternal(initial)
         } else {
             try {
@@ -93,7 +93,7 @@ class PurchaseRepository(private val context: Context) {
                 }
                 _purchases.value = list.sortedByDescending { it.dateMillis }
             } catch (e: Exception) {
-                val initial = createInitialPurchases()
+                val initial = emptyList<PurchaseBill>()
                 saveInternal(initial)
             }
         }

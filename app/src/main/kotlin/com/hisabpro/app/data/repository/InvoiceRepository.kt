@@ -48,7 +48,7 @@ class InvoiceRepository(private val context: Context) {
     private fun loadData() {
         val json = prefs.getString(KEY_INVOICES, null)
         if (json.isNullOrBlank()) {
-            val initial = if (activeBizId == "default_business") createInitialInvoices() else emptyList()
+            val initial = emptyList<Invoice>()
             saveInternal(initial)
         } else {
             try {
@@ -98,7 +98,7 @@ class InvoiceRepository(private val context: Context) {
                 }
                 _invoices.value = list.sortedByDescending { it.dateMillis }
             } catch (e: Exception) {
-                val initial = createInitialInvoices()
+                val initial = emptyList<Invoice>()
                 saveInternal(initial)
             }
         }

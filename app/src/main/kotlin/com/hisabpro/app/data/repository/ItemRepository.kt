@@ -47,7 +47,7 @@ class ItemRepository(private val context: Context) {
     private fun loadData() {
         val itemsJson = prefs.getString(KEY_ITEMS, null)
         if (itemsJson.isNullOrBlank()) {
-            val initialItems = if (activeBizId == "default_business") createInitialItems() else emptyList()
+            val initialItems = emptyList<Item>()
             saveItemsInternal(initialItems)
         } else {
             try {

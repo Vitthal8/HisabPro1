@@ -136,4 +136,7 @@ data class Invoice(
 
     val isQuickSale: Boolean
         get() = customerId == null && customerName.equals("Cash Customer", ignoreCase = true)
+
+    val isGstInvoice: Boolean
+        get() = type == InvoiceType.TAX_INVOICE && gstMode != GstMode.EXEMPT
 }

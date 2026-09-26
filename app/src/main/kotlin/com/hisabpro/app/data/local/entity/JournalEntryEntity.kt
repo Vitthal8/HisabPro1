@@ -33,7 +33,11 @@ data class JournalEntryEntity(
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "updated_at")
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(name = "deleted_at")
+    val deletedAt: Long? = null,
+    @ColumnInfo(name = "synced_at")
+    val syncedAt: Long? = null
 )
 
 @Entity(
@@ -73,5 +77,9 @@ data class JournalEntryLineEntity(
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "updated_at")
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(name = "deleted_at")
+    val deletedAt: Long? = null,
+    @ColumnInfo(name = "synced_at")
+    val syncedAt: Long? = null
 )

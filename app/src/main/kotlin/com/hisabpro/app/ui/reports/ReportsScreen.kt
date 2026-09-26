@@ -65,6 +65,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -550,32 +551,30 @@ fun ReportsScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // GSTR-1 (Only for GST Registered)
-                if (uiState.isGstRegistered) {
-                    ReportNavigationCard(
-                        icon = Icons.Default.Description,
-                        iconColor = Emerald800,
-                        title = "GSTR-1 Tax Filing Summary",
-                        subtitle = "B2B, B2C, 0-28% GST Slabs & HSN Summary",
-                        metricHighlight = "${IndianAccountingFormat.formatIndianCurrency(uiState.gstr1.totalTax)} Tax",
-                        badge = "CA Ready",
-                        badgeColor = Color(0xFFD97706),
-                        testTag = "card_report_gstr1",
-                        onClick = { showGstrSheet = true }
-                    )
+                // GSTR-1 & GSTR-3B Tax Reports
+                ReportNavigationCard(
+                    icon = Icons.Default.Description,
+                    iconColor = Emerald800,
+                    title = "GSTR-1 Tax Filing Summary",
+                    subtitle = "B2B, B2C, 0-28% GST Slabs & HSN Summary",
+                    metricHighlight = "${IndianAccountingFormat.formatIndianCurrency(uiState.gstr1.totalTax)} Tax",
+                    badge = if (uiState.isGstRegistered) "CA Ready" else "Non-GST",
+                    badgeColor = if (uiState.isGstRegistered) Color(0xFFD97706) else Color(0xFF64748B),
+                    testTag = "card_report_gstr1",
+                    onClick = { showGstrSheet = true }
+                )
 
-                    ReportNavigationCard(
-                        icon = Icons.Default.Assessment,
-                        iconColor = Emerald700,
-                        title = "GSTR-3B Tax Offset & ITC Return",
-                        subtitle = "Output Tax vs. Input Tax Credit (ITC) = Net Tax",
-                        metricHighlight = "${IndianAccountingFormat.formatIndianCurrency(uiState.gstr3b.totalNetGstPayable)} Cash Tax",
-                        badge = "ITC Claim",
-                        badgeColor = Color(0xFF1D4ED8),
-                        testTag = "card_report_gstr3b",
-                        onClick = { showGstr3bSheet = true }
-                    )
-                }
+                ReportNavigationCard(
+                    icon = Icons.Default.Assessment,
+                    iconColor = Emerald700,
+                    title = "GSTR-3B Tax Offset & ITC Return",
+                    subtitle = "Output Tax vs. Input Tax Credit (ITC) = Net Tax",
+                    metricHighlight = "${IndianAccountingFormat.formatIndianCurrency(uiState.gstr3b.totalNetGstPayable)} Cash Tax",
+                    badge = if (uiState.isGstRegistered) "ITC Claim" else "Non-GST",
+                    badgeColor = if (uiState.isGstRegistered) Color(0xFF1D4ED8) else Color(0xFF64748B),
+                    testTag = "card_report_gstr3b",
+                    onClick = { showGstr3bSheet = true }
+                )
 
                 // Profit & Loss
                 ReportNavigationCard(
@@ -853,13 +852,17 @@ private fun ReportNavigationCard(
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         text = title,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
-                        color = Slate900
+                        color = Slate900,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                     Surface(
                         shape = RoundedCornerShape(6.dp),
@@ -870,6 +873,8 @@ private fun ReportNavigationCard(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = badgeColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -878,7 +883,9 @@ private fun ReportNavigationCard(
                 Text(
                     text = subtitle,
                     fontSize = 12.sp,
-                    color = Slate600
+                    color = Slate600,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 

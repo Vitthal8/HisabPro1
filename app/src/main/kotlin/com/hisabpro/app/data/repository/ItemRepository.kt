@@ -20,7 +20,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
-class ItemRepository(context: Context) {
+class ItemRepository(private val context: Context) {
 
     private val db = AppDatabase.getInstance(context)
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -126,6 +126,35 @@ class ItemRepository(context: Context) {
                 sourceRefNumber = "OPN-${item.itemCode.ifBlank { item.id.takeLast(6).uppercase() }}"
             )
         }
+
+        scope.launch {
+            try {
+                val payload = JSONObject().apply {
+                    put("id", item.id)
+                    put("business_id", "default_business")
+                    put("name", item.name)
+                    put("item_code", item.itemCode)
+                    put("category", item.category)
+                    put("unit", item.unit)
+                    put("sell_price", item.salePrice.toPaise())
+                    put("purchase_price", item.purchasePrice.toPaise())
+                    put("gst_rate", item.gstRate)
+                    put("hsn_code", item.hsnCode)
+                    put("stock_qty", item.currentStock)
+                    put("low_stock_threshold", item.minStockAlert)
+                    put("created_at", item.updatedAtMillis)
+                    put("updated_at", item.updatedAtMillis)
+                }
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                    entityType = "item",
+                    entityId = item.id,
+                    operation = "UPSERT",
+                    payloadJson = payload.toString()
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
         return item
     }
 
@@ -153,6 +182,35 @@ class ItemRepository(context: Context) {
                     sourceRefNumber = "ADJ-EDIT-${item.itemCode.ifBlank { item.id.takeLast(4).uppercase() }}"
                 )
             }
+
+            scope.launch {
+                try {
+                    val payload = JSONObject().apply {
+                        put("id", item.id)
+                        put("business_id", "default_business")
+                        put("name", item.name)
+                        put("item_code", item.itemCode)
+                        put("category", item.category)
+                        put("unit", item.unit)
+                        put("sell_price", item.salePrice.toPaise())
+                        put("purchase_price", item.purchasePrice.toPaise())
+                        put("gst_rate", item.gstRate)
+                        put("hsn_code", item.hsnCode)
+                        put("stock_qty", item.currentStock)
+                        put("low_stock_threshold", item.minStockAlert)
+                        put("created_at", item.updatedAtMillis)
+                        put("updated_at", System.currentTimeMillis())
+                    }
+                    com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                        entityType = "item",
+                        entityId = item.id,
+                        operation = "UPSERT",
+                        payloadJson = payload.toString()
+                    )
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
         }
     }
 
@@ -166,6 +224,12 @@ class ItemRepository(context: Context) {
         scope.launch {
             try {
                 db.itemDao().deleteItem(itemId)
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                    entityType = "item",
+                    entityId = itemId,
+                    operation = "DELETE",
+                    payloadJson = "{}"
+                )
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -523,7 +587,9 @@ class ItemRepository(context: Context) {
                         createdAt = item.updatedAtMillis
                     )
                 }
-                db.itemDao().insertAllItems(entities)
+                if (entities.isNotEmpty()) {
+                    db.itemDao().insertAllItems(entities)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }

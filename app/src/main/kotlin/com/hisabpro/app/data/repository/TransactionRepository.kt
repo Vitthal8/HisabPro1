@@ -22,7 +22,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
-class TransactionRepository(context: Context) {
+class TransactionRepository(private val context: Context) {
 
     private val db = AppDatabase.getInstance(context)
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -181,36 +181,75 @@ class TransactionRepository(context: Context) {
         }
     }
 
-    private suspend fun saveSingleTransactionDbInternal(item: Transaction) {
+    private suspend fun saveSingleTransactionDbInternal(item: Transaction, enqueueForSync: Boolean = false) {
         try {
             ensureDefaultBusiness()
             if (item.type == TransactionType.EXPENSE) {
-                db.expenseDao().insertExpense(
-                    ExpenseEntity(
-                        id = item.id,
-                        businessId = "default_business",
-                        date = item.dateMillis,
-                        category = item.category.name,
-                        amount = item.amount.toPaise(),
-                        description = item.title + (if (item.note.isNotBlank()) " - ${item.note}" else ""),
-                        mode = item.paymentMode.name,
-                        receiptPath = ""
-                    )
+                val exp = ExpenseEntity(
+                    id = item.id,
+                    businessId = "default_business",
+                    date = item.dateMillis,
+                    category = item.category.name,
+                    amount = item.amount.toPaise(),
+                    description = item.title + (if (item.note.isNotBlank()) " - ${item.note}" else ""),
+                    mode = item.paymentMode.name,
+                    receiptPath = ""
                 )
+                db.expenseDao().insertExpense(exp)
+                if (enqueueForSync) {
+                    val payload = JSONObject().apply {
+                        put("id", exp.id)
+                        put("business_id", exp.businessId)
+                        put("date", exp.date)
+                        put("category", exp.category)
+                        put("amount", exp.amount)
+                        put("description", exp.description)
+                        put("mode", exp.mode)
+                        put("receipt_path", exp.receiptPath)
+                        put("created_at", exp.createdAt)
+                        put("updated_at", exp.updatedAt)
+                    }
+                    com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                        entityType = "expense",
+                        entityId = exp.id,
+                        operation = "UPSERT",
+                        payloadJson = payload.toString()
+                    )
+                }
             } else {
-                db.paymentDao().insertPayment(
-                    PaymentEntity(
-                        id = item.id,
-                        businessId = "default_business",
-                        partyId = null,
-                        date = item.dateMillis,
-                        amount = item.amount.toPaise(),
-                        mode = item.paymentMode.name,
-                        referenceNo = item.title,
-                        notes = item.note,
-                        linkedInvoiceId = null
-                    )
+                val pay = PaymentEntity(
+                    id = item.id,
+                    businessId = "default_business",
+                    partyId = null,
+                    date = item.dateMillis,
+                    amount = item.amount.toPaise(),
+                    mode = item.paymentMode.name,
+                    referenceNo = item.title,
+                    notes = item.note,
+                    linkedInvoiceId = null
                 )
+                db.paymentDao().insertPayment(pay)
+                if (enqueueForSync) {
+                    val payload = JSONObject().apply {
+                        put("id", pay.id)
+                        put("business_id", pay.businessId)
+                        put("party_id", pay.partyId ?: "")
+                        put("date", pay.date)
+                        put("amount", pay.amount)
+                        put("mode", pay.mode)
+                        put("reference_no", pay.referenceNo)
+                        put("notes", pay.notes)
+                        put("linked_invoice_id", pay.linkedInvoiceId ?: "")
+                        put("created_at", pay.createdAt)
+                        put("updated_at", pay.updatedAt)
+                    }
+                    com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                        entityType = "payment",
+                        entityId = pay.id,
+                        operation = "UPSERT",
+                        payloadJson = payload.toString()
+                    )
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -239,7 +278,7 @@ class TransactionRepository(context: Context) {
         val updated = listOf(newTx) + _transactions.value
         saveTransactions(updated, syncAllRoom = false)
         scope.launch {
-            saveSingleTransactionDbInternal(newTx)
+            saveSingleTransactionDbInternal(newTx, enqueueForSync = true)
         }
     }
 
@@ -249,7 +288,7 @@ class TransactionRepository(context: Context) {
         }
         saveTransactions(updated, syncAllRoom = false)
         scope.launch {
-            saveSingleTransactionDbInternal(transaction)
+            saveSingleTransactionDbInternal(transaction, enqueueForSync = true)
         }
     }
 
@@ -260,6 +299,12 @@ class TransactionRepository(context: Context) {
             try {
                 db.expenseDao().deleteExpense(id)
                 db.paymentDao().deletePayment(id)
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                    entityType = "payment",
+                    entityId = id,
+                    operation = "DELETE",
+                    payloadJson = "{}"
+                )
             } catch (e: Exception) {
                 e.printStackTrace()
             }

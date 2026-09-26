@@ -58,6 +58,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hisabpro.app.data.repository.SettingsRepository
+import com.hisabpro.app.util.ShareHelper
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -408,9 +409,5 @@ private fun shareGstr3bToWhatsApp(context: Context, s: Gstr3bSummary, period: St
         appendLine("👉 *TOTAL CASH PAYABLE: ₹${String.format(Locale.ENGLISH, "%,.2f", s.totalNetGstPayable)}*")
     }
 
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, text)
-    }
-    context.startActivity(Intent.createChooser(intent, "Share GSTR-3B Summary"))
+    ShareHelper.shareText(context, text, "Share GSTR-3B Summary", "GSTR-3B Return - $period")
 }

@@ -291,6 +291,7 @@ class BackupManager private constructor(private val appContext: Context) {
                 db.accountDao().deleteAllAccounts()
                 db.partyDao().deleteAllParties()
                 db.businessDao().deleteAllBusinesses()
+                db.syncQueueDao().clearAll()
 
                 onProgress?.invoke("Restoring business profile and accounts...")
 

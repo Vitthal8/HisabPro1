@@ -15,6 +15,8 @@ import com.hisabpro.app.data.local.dao.JournalDao
 import com.hisabpro.app.data.local.dao.KhataDao
 import com.hisabpro.app.data.local.dao.PartyDao
 import com.hisabpro.app.data.local.dao.PaymentDao
+import com.hisabpro.app.data.local.dao.SyncMetadataDao
+import com.hisabpro.app.data.local.dao.SyncQueueDao
 import com.hisabpro.app.data.local.entity.AccountEntity
 import com.hisabpro.app.data.local.entity.BusinessEntity
 import com.hisabpro.app.data.local.entity.ExpenseEntity
@@ -26,6 +28,8 @@ import com.hisabpro.app.data.local.entity.JournalEntryLineEntity
 import com.hisabpro.app.data.local.entity.KhataEntryEntity
 import com.hisabpro.app.data.local.entity.PartyEntity
 import com.hisabpro.app.data.local.entity.PaymentEntity
+import com.hisabpro.app.data.local.entity.SyncMetadataEntity
+import com.hisabpro.app.data.local.entity.SyncQueueEntity
 
 @Database(
     entities = [
@@ -39,9 +43,11 @@ import com.hisabpro.app.data.local.entity.PaymentEntity
         ExpenseEntity::class,
         AccountEntity::class,
         JournalEntryEntity::class,
-        JournalEntryLineEntity::class
+        JournalEntryLineEntity::class,
+        SyncQueueEntity::class,
+        SyncMetadataEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -55,6 +61,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
     abstract fun accountDao(): AccountDao
     abstract fun journalDao(): JournalDao
+    abstract fun syncQueueDao(): SyncQueueDao
+    abstract fun syncMetadataDao(): SyncMetadataDao
 
     companion object {
         @Volatile
@@ -471,6 +479,50 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Alter existing tables to add deleted_at and synced_at nullable columns
+                val tables = listOf(
+                    "businesses", "parties", "items", "invoices", "invoice_items",
+                    "payments", "expenses", "accounts", "journal_entries", "journal_entry_lines", "khata_entries"
+                )
+                for (table in tables) {
+                    db.execSQL("ALTER TABLE `$table` ADD COLUMN `deleted_at` INTEGER DEFAULT NULL;")
+                    db.execSQL("ALTER TABLE `$table` ADD COLUMN `synced_at` INTEGER DEFAULT NULL;")
+                }
+
+                // 2. Create sync_queue table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `sync_queue` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `entity_type` TEXT NOT NULL,
+                        `entity_id` TEXT NOT NULL,
+                        `operation` TEXT NOT NULL,
+                        `payload_json` TEXT NOT NULL,
+                        `created_at` INTEGER NOT NULL,
+                        `status` TEXT NOT NULL DEFAULT 'PENDING',
+                        `retry_count` INTEGER NOT NULL DEFAULT 0,
+                        `last_error` TEXT,
+                        `next_retry_at` INTEGER NOT NULL DEFAULT 0
+                    );
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_sync_queue_status` ON `sync_queue` (`status`);")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_sync_queue_entity_type_entity_id` ON `sync_queue` (`entity_type`, `entity_id`);")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_sync_queue_created_at` ON `sync_queue` (`created_at`);")
+
+                // 3. Create sync_metadata table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `sync_metadata` (
+                        `table_name` TEXT PRIMARY KEY NOT NULL,
+                        `last_pulled_at` INTEGER NOT NULL DEFAULT 0,
+                        `last_pushed_at` INTEGER NOT NULL DEFAULT 0,
+                        `last_sync_status` TEXT NOT NULL DEFAULT 'IDLE',
+                        `error_message` TEXT
+                    );
+                """.trimIndent())
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -478,7 +530,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "hisabpro_database"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigrationOnDowngrade()
                     .build().also { INSTANCE = it }
             }

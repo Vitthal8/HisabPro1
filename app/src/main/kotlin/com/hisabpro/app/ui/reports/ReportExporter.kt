@@ -938,6 +938,257 @@ object ReportExporter {
         }
     }
 
+    fun exportGstr1GovtJson(
+        context: Context,
+        gstr: Gstr1Summary,
+        period: ReportPeriod,
+        businessName: String = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" },
+        gstin: String = SettingsRepository.getInstance(context).profile.value.gstin.ifBlank { "27AAAAA0000A1Z5" }
+    ): Uri? {
+        return try {
+            val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+            val cleanGstin = gstin.trim().uppercase()
+            val cal = java.util.Calendar.getInstance()
+            val month = String.format(Locale.US, "%02d", cal.get(java.util.Calendar.MONTH) + 1)
+            val year = cal.get(java.util.Calendar.YEAR).toString()
+            val fp = "$month$year"
+            val file = File(exportDir, "GSTR1_${cleanGstin}_${fp}.json")
+
+            val root = org.json.JSONObject()
+            root.put("gstin", cleanGstin)
+            root.put("fp", fp)
+            root.put("gt", gstr.totalInvoiceValue)
+            root.put("cur_gt", gstr.totalTaxableSupplies)
+            root.put("version", "GSTR1_V1.0_HISABPRO")
+            root.put("hash", "hash_${System.currentTimeMillis()}")
+
+            // B2B Section
+            val b2bArray = org.json.JSONArray()
+            val b2bInvoices = gstr.eligibleInvoices.filter { it.customerGstin.isNotBlank() }
+            if (b2bInvoices.isNotEmpty()) {
+                val byParty = b2bInvoices.groupBy { it.customerGstin.ifBlank { "27XXXXX0000X1Z1" } }
+                for ((partyGstin, invList) in byParty) {
+                    val ctinObj = org.json.JSONObject()
+                    ctinObj.put("ctin", partyGstin)
+                    val invArray = org.json.JSONArray()
+                    for (inv in invList) {
+                        val invObj = org.json.JSONObject()
+                        invObj.put("inum", inv.invoiceNumber)
+                        val invDateStr = SimpleDateFormat("dd-MM-yyyy", Locale.ENGLISH).format(Date(inv.dateMillis))
+                        invObj.put("idt", invDateStr)
+                        invObj.put("val", inv.grandTotal)
+                        invObj.put("pos", partyGstin.take(2).ifBlank { "27" })
+                        invObj.put("rchrg", "N")
+                        invObj.put("inv_typ", "R")
+                        
+                        val itmsArray = org.json.JSONArray()
+                        inv.items.forEachIndexed { idx, item ->
+                            val itmObj = org.json.JSONObject()
+                            itmObj.put("num", idx + 1)
+                            val itmDet = org.json.JSONObject()
+                            itmDet.put("rt", item.gstRate)
+                            itmDet.put("txval", item.taxableAmount)
+                            itmDet.put("iamt", if (inv.gstMode == com.hisabpro.app.data.model.GstMode.INTER_STATE) item.getTaxAmount(inv.gstMode) else 0.0)
+                            itmDet.put("camt", if (inv.gstMode == com.hisabpro.app.data.model.GstMode.INTRA_STATE) item.getTaxAmount(inv.gstMode) / 2.0 else 0.0)
+                            itmDet.put("samt", if (inv.gstMode == com.hisabpro.app.data.model.GstMode.INTRA_STATE) item.getTaxAmount(inv.gstMode) / 2.0 else 0.0)
+                            itmDet.put("csamt", 0.0)
+                            itmObj.put("itm_det", itmDet)
+                            itmsArray.put(itmObj)
+                        }
+                        invObj.put("itms", itmsArray)
+                        invArray.put(invObj)
+                    }
+                    ctinObj.put("inv", invArray)
+                    b2bArray.put(ctinObj)
+                }
+            }
+            root.put("b2b", b2bArray)
+
+            // B2CS (B2C Small) Section
+            val b2csArray = org.json.JSONArray()
+            gstr.slabSummaries.filter { it.taxableAmount > 0.0 }.forEach { slab ->
+                val b2csObj = org.json.JSONObject()
+                b2csObj.put("sply_ty", "INTRA")
+                b2csObj.put("pos", "27")
+                b2csObj.put("typ", "OE")
+                b2csObj.put("rt", slab.gstRate)
+                b2csObj.put("txval", slab.taxableAmount)
+                b2csObj.put("iamt", slab.igstAmount)
+                b2csObj.put("camt", slab.cgstAmount)
+                b2csObj.put("samt", slab.sgstAmount)
+                b2csObj.put("csamt", 0.0)
+                b2csArray.put(b2csObj)
+            }
+            root.put("b2cs", b2csArray)
+
+            // HSN Summary Section
+            val hsnObj = org.json.JSONObject()
+            val hsnDataArray = org.json.JSONArray()
+            gstr.hsnSummaries.forEachIndexed { idx, hsn ->
+                val row = org.json.JSONObject()
+                row.put("num", idx + 1)
+                row.put("hsn_sc", hsn.hsnCode.ifBlank { "9999" })
+                row.put("desc", hsn.description.take(30))
+                row.put("uqc", hsn.unit.take(3).uppercase())
+                row.put("qty", hsn.totalQuantity)
+                row.put("val", hsn.taxableAmount + hsn.totalTax)
+                row.put("txval", hsn.taxableAmount)
+                row.put("iamt", 0.0)
+                row.put("camt", hsn.totalTax / 2.0)
+                row.put("samt", hsn.totalTax / 2.0)
+                row.put("csamt", 0.0)
+                hsnDataArray.put(row)
+            }
+            hsnObj.put("data", hsnDataArray)
+            root.put("hsn", hsnObj)
+
+            // Document Issue Summary
+            val docIssueObj = org.json.JSONObject()
+            val docDetArray = org.json.JSONArray()
+            val docDet = org.json.JSONObject()
+            docDet.put("doc_num", 1)
+            val docListArray = org.json.JSONArray()
+            val docItem = org.json.JSONObject()
+            docItem.put("num", 1)
+            docItem.put("from", b2bInvoices.firstOrNull()?.invoiceNumber ?: gstr.eligibleInvoices.firstOrNull()?.invoiceNumber ?: "INV-001")
+            docItem.put("to", b2bInvoices.lastOrNull()?.invoiceNumber ?: gstr.eligibleInvoices.lastOrNull()?.invoiceNumber ?: "INV-099")
+            docItem.put("totnum", gstr.b2bCount + gstr.b2cCount)
+            docItem.put("canc", 0)
+            docItem.put("net_issue", gstr.b2bCount + gstr.b2cCount)
+            docListArray.put(docItem)
+            docDet.put("docs", docListArray)
+            docDetArray.put(docDet)
+            docIssueObj.put("doc_det", docDetArray)
+            root.put("doc_issue", docIssueObj)
+
+            file.writeText(root.toString(2), Charsets.UTF_8)
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun shareJsonFile(context: Context, uri: Uri, title: String) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/json"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, title)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val chooser = Intent.createChooser(intent, "Share $title via")
+        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            context.startActivity(chooser)
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Generates a clean 32-column (58mm) or 48-column (80mm) POS Thermal Receipt text
+     * optimized for standard ESC/POS Bluetooth thermal receipt printers.
+     */
+    fun generateThermalReceiptText(
+        invoice: com.hisabpro.app.data.model.Invoice,
+        business: com.hisabpro.app.data.model.BusinessProfile,
+        widthChars: Int = 32
+    ): String {
+        val line = "-".repeat(widthChars)
+        val dline = "=".repeat(widthChars)
+        val sb = StringBuilder()
+
+        fun center(text: String): String {
+            if (text.length >= widthChars) return text.take(widthChars)
+            val pad = (widthChars - text.length) / 2
+            return " ".repeat(pad) + text
+        }
+
+        fun row(left: String, right: String): String {
+            val space = (widthChars - left.length - right.length).coerceAtLeast(1)
+            return left + " ".repeat(space) + right
+        }
+
+        sb.appendLine(dline)
+        sb.appendLine(center(business.shopName.ifBlank { "HISABPRO STORE" }.uppercase()))
+        if (business.address.isNotBlank()) sb.appendLine(center(business.address.take(widthChars)))
+        if (business.city.isNotBlank()) sb.appendLine(center("${business.city} - ${business.pincode}"))
+        if (business.phone.isNotBlank()) sb.appendLine(center("Ph: ${business.phone}"))
+        if (business.isGstRegistered && business.gstin.isNotBlank()) {
+            sb.appendLine(center("GSTIN: ${business.gstin}"))
+        }
+        sb.appendLine(dline)
+
+        val billType = if (invoice.isGstInvoice) "TAX INVOICE" else "RETAIL CASH BILL"
+        sb.appendLine(center("*** $billType ***"))
+        sb.appendLine(row("Bill No: ${invoice.invoiceNumber}", ""))
+        val dateStr = SimpleDateFormat("dd/MM/yyyy hh:mm a", Locale.ENGLISH).format(Date(invoice.dateMillis))
+        sb.appendLine(row("Date: $dateStr", ""))
+
+        if (invoice.customerName.isNotBlank() && invoice.customerName != "Cash Sale") {
+            sb.appendLine(row("Customer: ${invoice.customerName.take(widthChars - 10)}", ""))
+            if (invoice.customerPhone.isNotBlank()) sb.appendLine(row("Phone: ${invoice.customerPhone}", ""))
+            if (invoice.customerGstin.isNotBlank()) sb.appendLine(row("GSTIN: ${invoice.customerGstin}", ""))
+        }
+        sb.appendLine(line)
+
+        if (widthChars == 32) {
+            sb.appendLine(String.format(Locale.ENGLISH, "%-14s %3s %6s %6s", "ITEM", "QTY", "RATE", "AMT"))
+        } else {
+            sb.appendLine(String.format(Locale.ENGLISH, "%-22s %5s %9s %9s", "ITEM NAME", "QTY", "RATE", "AMOUNT"))
+        }
+        sb.appendLine(line)
+
+        for (item in invoice.items) {
+            val name = item.description.take(if (widthChars == 32) 14 else 22)
+            val qtyStr = String.format(Locale.ENGLISH, "%.1f", item.quantity)
+            val rateStr = String.format(Locale.ENGLISH, "%.0f", item.unitPrice)
+            val amtStr = String.format(Locale.ENGLISH, "%.0f", item.getTotal(invoice.gstMode))
+
+            if (widthChars == 32) {
+                sb.appendLine(String.format(Locale.ENGLISH, "%-14s %3s %6s %6s", name, qtyStr, rateStr, amtStr))
+            } else {
+                sb.appendLine(String.format(Locale.ENGLISH, "%-22s %5s %9s %9s", name, qtyStr, rateStr, amtStr))
+            }
+        }
+        sb.appendLine(line)
+
+        sb.appendLine(row("Subtotal:", "INR ${HisabViewModel.formatAmount(invoice.subtotal)}"))
+        if (invoice.discountAmount > 0) {
+            sb.appendLine(row("Discount (-):", "INR ${HisabViewModel.formatAmount(invoice.discountAmount)}"))
+        }
+        if (invoice.isGstInvoice) {
+            if (invoice.gstMode == com.hisabpro.app.data.model.GstMode.INTRA_STATE) {
+                sb.appendLine(row("CGST:", "INR ${HisabViewModel.formatAmount(invoice.cgstTotal)}"))
+                sb.appendLine(row("SGST:", "INR ${HisabViewModel.formatAmount(invoice.sgstTotal)}"))
+            } else {
+                sb.appendLine(row("IGST:", "INR ${HisabViewModel.formatAmount(invoice.igstTotal)}"))
+            }
+        }
+        sb.appendLine(dline)
+        sb.appendLine(row("GRAND TOTAL:", "INR ${HisabViewModel.formatAmount(invoice.grandTotal)}"))
+        sb.appendLine(dline)
+
+        sb.appendLine(row("Paid (${invoice.paymentMode}):", "INR ${HisabViewModel.formatAmount(invoice.paidAmount)}"))
+        val balanceDue = (invoice.grandTotal - invoice.paidAmount).coerceAtLeast(0.0)
+        if (balanceDue > 0) {
+            sb.appendLine(row("BALANCE DUE:", "INR ${HisabViewModel.formatAmount(balanceDue)}"))
+        }
+
+        if (business.showUpiQrOnInvoice && business.upiId.isNotBlank()) {
+            sb.appendLine(line)
+            sb.appendLine(center("PAY VIA UPI:"))
+            sb.appendLine(center(business.upiId))
+            sb.appendLine(center("Scan QR / Enter UPI ID"))
+        }
+
+        sb.appendLine(line)
+        sb.appendLine(center("THANK YOU! VISIT AGAIN"))
+        sb.appendLine(center("Powered by HisabPro App"))
+        sb.appendLine("\n\n") // Feed lines for thermal tear
+
+        return sb.toString()
+    }
+
     fun shareCsvFile(context: Context, uri: Uri, title: String) {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/csv"

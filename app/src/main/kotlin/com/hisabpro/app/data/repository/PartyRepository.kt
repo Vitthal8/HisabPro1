@@ -25,7 +25,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
-class PartyRepository(context: Context) {
+class PartyRepository(private val context: Context) {
 
     private val db = AppDatabase.getInstance(context)
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -306,6 +306,33 @@ class PartyRepository(context: Context) {
         )
         val updated = listOf(newParty) + _parties.value
         savePartiesInternal(updated)
+        
+        scope.launch {
+            try {
+                val payload = JSONObject().apply {
+                    put("id", newParty.id)
+                    put("business_id", "default_business")
+                    put("name", newParty.name)
+                    put("phone", newParty.phone)
+                    put("email", "")
+                    put("address", newParty.address)
+                    put("gstin", newParty.gstin)
+                    put("type", newParty.type.name)
+                    put("tag", newParty.tag.name)
+                    put("opening_balance", 0L)
+                    put("created_at", newParty.createdAt)
+                    put("updated_at", newParty.createdAt)
+                }
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                    entityType = "party",
+                    entityId = newParty.id,
+                    operation = "UPSERT",
+                    payloadJson = payload.toString()
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
         return newParty
     }
 
@@ -314,6 +341,33 @@ class PartyRepository(context: Context) {
             if (it.id == party.id) party else it
         }
         savePartiesInternal(updated)
+        
+        scope.launch {
+            try {
+                val payload = JSONObject().apply {
+                    put("id", party.id)
+                    put("business_id", "default_business")
+                    put("name", party.name)
+                    put("phone", party.phone)
+                    put("email", "")
+                    put("address", party.address)
+                    put("gstin", party.gstin)
+                    put("type", party.type.name)
+                    put("tag", party.tag.name)
+                    put("opening_balance", 0L)
+                    put("created_at", party.createdAt)
+                    put("updated_at", System.currentTimeMillis())
+                }
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                    entityType = "party",
+                    entityId = party.id,
+                    operation = "UPSERT",
+                    payloadJson = payload.toString()
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     fun deleteParty(partyId: String) {
@@ -325,6 +379,12 @@ class PartyRepository(context: Context) {
             try {
                 db.partyDao().deleteParty(partyId)
                 db.khataDao().deleteEntriesForParty(partyId)
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                    entityType = "party",
+                    entityId = partyId,
+                    operation = "DELETE",
+                    payloadJson = "{}"
+                )
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -350,6 +410,30 @@ class PartyRepository(context: Context) {
         )
         val updated = listOf(newEntry) + _entries.value
         saveEntriesInternal(updated)
+        
+        scope.launch {
+            try {
+                val payload = JSONObject().apply {
+                    put("id", newEntry.id)
+                    put("party_id", newEntry.partyId)
+                    put("amount", newEntry.amount.toPaise())
+                    put("type", newEntry.type.name)
+                    put("date", newEntry.dateMillis)
+                    put("bill_number", newEntry.billNumber)
+                    put("note", newEntry.note)
+                    put("created_at", newEntry.dateMillis)
+                    put("updated_at", newEntry.dateMillis)
+                }
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                    entityType = "khata_entry",
+                    entityId = newEntry.id,
+                    operation = "UPSERT",
+                    payloadJson = payload.toString()
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
         return newEntry
     }
 
@@ -359,6 +443,12 @@ class PartyRepository(context: Context) {
         scope.launch {
             try {
                 db.khataDao().deleteEntry(entryId)
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                    entityType = "khata_entry",
+                    entityId = entryId,
+                    operation = "DELETE",
+                    payloadJson = "{}"
+                )
             } catch (e: Exception) {
                 e.printStackTrace()
             }

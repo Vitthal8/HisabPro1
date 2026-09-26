@@ -65,4 +65,18 @@ object ShareHelper {
             } catch (_: Exception) {}
         }
     }
+
+    fun shareText(context: Context, text: String, title: String, subject: String = "Share") {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        val chooser = Intent.createChooser(intent, title)
+        chooser.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        try {
+            context.startActivity(chooser)
+        } catch (_: Exception) {}
+    }
 }

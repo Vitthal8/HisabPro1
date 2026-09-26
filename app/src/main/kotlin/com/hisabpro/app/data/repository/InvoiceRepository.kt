@@ -24,7 +24,7 @@ import org.json.JSONObject
 import java.util.Calendar
 import java.util.UUID
 
-class InvoiceRepository(context: Context) {
+class InvoiceRepository(private val context: Context) {
 
     private val db = AppDatabase.getInstance(context)
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -239,7 +239,11 @@ class InvoiceRepository(context: Context) {
         }
     }
 
-    private suspend fun saveSingleInvoiceDbInternal(inv: Invoice, validPartyIds: Set<String>? = null) {
+    private suspend fun saveSingleInvoiceDbInternal(
+        inv: Invoice, 
+        validPartyIds: Set<String>? = null,
+        enqueueForSync: Boolean = false
+    ) {
         try {
             ensureDefaultBusiness()
             val parties = validPartyIds ?: db.partyDao().getAllPartiesGlobalSync().map { it.id }.toSet()
@@ -286,6 +290,47 @@ class InvoiceRepository(context: Context) {
                 )
             }
             db.invoiceDao().insertInvoiceWithItems(invoiceEntity, itemEntities)
+            
+            // Enqueue into Sync Queue for Cloud Sync only on user mutation
+            if (enqueueForSync) {
+                try {
+                    val payload = JSONObject().apply {
+                        put("id", invoiceEntity.id)
+                        put("business_id", invoiceEntity.businessId)
+                        put("invoice_no", invoiceEntity.invoiceNo)
+                        put("date", invoiceEntity.date)
+                        put("party_id", invoiceEntity.partyId ?: "")
+                        put("customer_name", invoiceEntity.customerName)
+                        put("customer_phone", invoiceEntity.customerPhone)
+                        put("customer_address", invoiceEntity.customerAddress)
+                        put("customer_gstin", invoiceEntity.customerGstin)
+                        put("type", invoiceEntity.type)
+                        put("gst_mode", invoiceEntity.gstMode)
+                        put("subtotal", invoiceEntity.subtotal)
+                        put("discount", invoiceEntity.discount)
+                        put("taxable_amount", invoiceEntity.taxableAmount)
+                        put("cgst", invoiceEntity.cgst)
+                        put("sgst", invoiceEntity.sgst)
+                        put("igst", invoiceEntity.igst)
+                        put("total", invoiceEntity.total)
+                        put("paid_amount", invoiceEntity.paidAmount)
+                        put("payment_status", invoiceEntity.paymentStatus)
+                        put("payment_mode", invoiceEntity.paymentMode)
+                        put("notes", invoiceEntity.notes)
+                        put("is_gst", invoiceEntity.isGst)
+                        put("created_at", invoiceEntity.createdAt)
+                        put("updated_at", invoiceEntity.updatedAt)
+                    }
+                    com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                        entityType = "invoice",
+                        entityId = inv.id,
+                        operation = "UPSERT",
+                        payloadJson = payload.toString()
+                    )
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -323,7 +368,7 @@ class InvoiceRepository(context: Context) {
         val updated = listOf(invoice) + _invoices.value
         saveInternal(updated, syncAllRoom = false)
         scope.launch {
-            saveSingleInvoiceDbInternal(invoice)
+            saveSingleInvoiceDbInternal(invoice, enqueueForSync = true)
         }
         return invoice
     }
@@ -334,7 +379,7 @@ class InvoiceRepository(context: Context) {
         }
         saveInternal(updated, syncAllRoom = false)
         scope.launch {
-            saveSingleInvoiceDbInternal(invoice)
+            saveSingleInvoiceDbInternal(invoice, enqueueForSync = true)
         }
     }
 
@@ -344,6 +389,12 @@ class InvoiceRepository(context: Context) {
         scope.launch {
             try {
                 db.invoiceDao().deleteInvoiceWithItems(invoiceId)
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                    entityType = "invoice",
+                    entityId = invoiceId,
+                    operation = "DELETE",
+                    payloadJson = "{}"
+                )
             } catch (e: Exception) {
                 e.printStackTrace()
             }

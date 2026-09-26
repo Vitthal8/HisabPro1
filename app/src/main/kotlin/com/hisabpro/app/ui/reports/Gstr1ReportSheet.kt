@@ -51,6 +51,7 @@ import com.hisabpro.app.ui.HisabViewModel
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.Emerald900
+import com.hisabpro.app.ui.theme.DeepNavyBlue
 import com.hisabpro.app.ui.theme.PureWhite
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -153,10 +154,10 @@ fun Gstr1ReportSheet(
                 }
             }
 
-            // Quick Actions: Share with CA & Export CSV
+            // Quick Actions: Share with CA, Export CSV & Govt Portal JSON
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
                     onClick = {
@@ -170,7 +171,7 @@ fun Gstr1ReportSheet(
                     },
                     modifier = Modifier
                         .weight(1f)
-                        .height(46.dp)
+                        .height(44.dp)
                         .testTag("btn_share_gstr_ca"),
                     colors = ButtonDefaults.buttonColors(containerColor = Emerald800),
                     shape = RoundedCornerShape(10.dp)
@@ -180,8 +181,8 @@ fun Gstr1ReportSheet(
                         contentDescription = null,
                         modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Share with CA", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Share", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
 
                 OutlinedButton(
@@ -199,7 +200,7 @@ fun Gstr1ReportSheet(
                     },
                     modifier = Modifier
                         .weight(1f)
-                        .height(46.dp)
+                        .height(44.dp)
                         .testTag("btn_export_gstr_csv"),
                     shape = RoundedCornerShape(10.dp)
                 ) {
@@ -209,8 +210,38 @@ fun Gstr1ReportSheet(
                         modifier = Modifier.size(16.dp),
                         tint = Emerald800
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Export CSV", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Emerald800)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("CSV", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Emerald800)
+                }
+
+                Button(
+                    onClick = {
+                        val uri = ReportExporter.exportGstr1GovtJson(
+                            context = context,
+                            gstr = gstr,
+                            period = period,
+                            businessName = businessProfile.shopName.ifBlank { "HisabPro Store" },
+                            gstin = businessProfile.gstin
+                        )
+                        if (uri != null) {
+                            ReportExporter.shareJsonFile(context, uri, "Govt GSTR-1 Portal JSON")
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .height(44.dp)
+                        .testTag("btn_export_gstr_json"),
+                    colors = ButtonDefaults.buttonColors(containerColor = DeepNavyBlue),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FileDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = PureWhite
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Portal JSON", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PureWhite)
                 }
             }
 

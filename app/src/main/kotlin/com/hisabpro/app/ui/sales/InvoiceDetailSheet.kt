@@ -103,9 +103,13 @@ fun InvoiceDetailSheet(
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showUpiQrSheet by remember { mutableStateOf(false) }
+    var showThermalSheet by remember { mutableStateOf(false) }
+    val thermalSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     fun handleDismissAttempt() {
-        if (showUpiQrSheet) {
+        if (showThermalSheet) {
+            showThermalSheet = false
+        } else if (showUpiQrSheet) {
             showUpiQrSheet = false
         } else if (showDeleteConfirm) {
             showDeleteConfirm = false
@@ -581,7 +585,7 @@ fun InvoiceDetailSheet(
 
                         OutlinedButton(
                             onClick = {
-                                com.hisabpro.app.util.ThermalSlipGenerator.shareThermalSlip(context, invoice, businessProfile)
+                                showThermalSheet = true
                             },
                             modifier = Modifier
                                 .weight(1f)
@@ -592,7 +596,7 @@ fun InvoiceDetailSheet(
                             Icon(imageVector = Icons.Default.Receipt, contentDescription = null, tint = Emerald800, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (businessProfile.isThermalPrinterMode) "POS (BT)" else "POS 58mm",
+                                text = "POS Thermal",
                                 color = Emerald800,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 13.sp
@@ -699,6 +703,15 @@ fun InvoiceDetailSheet(
             onPaymentConfirmed = {
                 onMarkAsPaid(invoice)
             }
+        )
+    }
+
+    if (showThermalSheet) {
+        ThermalReceiptSheet(
+            sheetState = thermalSheetState,
+            invoice = invoice,
+            businessProfile = businessProfile,
+            onDismiss = { showThermalSheet = false }
         )
     }
 }

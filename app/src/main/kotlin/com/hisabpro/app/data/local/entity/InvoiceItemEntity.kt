@@ -48,5 +48,9 @@ data class InvoiceItemEntity(
     val sgstRate: Double = 0.0,
     @ColumnInfo(name = "igst_rate")
     val igstRate: Double = 0.0,
-    val amount: Long = 0L        // In paise
+    val amount: Long = 0L,       // In paise
+    @ColumnInfo(name = "deleted_at")
+    val deletedAt: Long? = null,
+    @ColumnInfo(name = "synced_at")
+    val syncedAt: Long? = null
 )

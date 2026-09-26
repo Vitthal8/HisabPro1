@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.Icon
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -51,6 +53,8 @@ import com.hisabpro.app.ui.reports.ReportsScreen
 import com.hisabpro.app.ui.reports.ReportsViewModel
 import com.hisabpro.app.ui.sales.InvoiceViewModel
 import com.hisabpro.app.ui.sales.SalesScreen
+import com.hisabpro.app.ui.sync.CloudSyncScreen
+import com.hisabpro.app.ui.sync.CloudSyncViewModel
 import com.hisabpro.app.ui.theme.DeepNavyBlue
 import com.hisabpro.app.ui.theme.SaffronOrange
 import java.util.Locale
@@ -64,6 +68,7 @@ fun MainScreen(
     reportsViewModel: ReportsViewModel,
     purchaseViewModel: PurchaseViewModel? = null,
     backupViewModel: BackupViewModel? = null,
+    cloudSyncViewModel: CloudSyncViewModel? = null,
     onPickBackupFile: () -> Unit = {},
     onSaveBackupToUri: (java.io.File) -> Unit = {},
     modifier: Modifier = Modifier
@@ -105,6 +110,7 @@ fun MainScreen(
             reportsViewModel = reportsViewModel,
             purchaseViewModel = purchaseViewModel,
             backupViewModel = backupViewModel,
+            cloudSyncViewModel = cloudSyncViewModel,
             onPickBackupFile = onPickBackupFile,
             onSaveBackupToUri = onSaveBackupToUri,
             onReloadProfile = { settingsRepo.reloadProfile() },
@@ -114,6 +120,7 @@ fun MainScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainScreenContent(
     businessProfile: com.hisabpro.app.data.model.BusinessProfile,
@@ -124,12 +131,18 @@ private fun MainScreenContent(
     reportsViewModel: ReportsViewModel,
     purchaseViewModel: PurchaseViewModel?,
     backupViewModel: BackupViewModel?,
+    cloudSyncViewModel: CloudSyncViewModel?,
     onPickBackupFile: () -> Unit,
     onSaveBackupToUri: (java.io.File) -> Unit,
     onReloadProfile: () -> Unit,
     onSaveProfile: (com.hisabpro.app.data.model.BusinessProfile) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val businessManager = remember { com.hisabpro.app.data.repository.BusinessManager.getInstance(context) }
+    val allBusinesses by businessManager.businesses.collectAsStateWithLifecycle()
+    val activeBusiness by businessManager.activeBusiness.collectAsStateWithLifecycle()
+
     val salesUiState by invoiceViewModel.uiState.collectAsStateWithLifecycle()
     val partyUiState by partyViewModel.uiState.collectAsStateWithLifecycle()
     val items by itemViewModel.rawItems.collectAsStateWithLifecycle()
@@ -137,7 +150,12 @@ private fun MainScreenContent(
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showBusinessSetup by rememberSaveable { mutableStateOf(!businessProfile.hasCompletedOnboarding) }
-    var activeSubScreen by rememberSaveable { mutableStateOf<String?>(null) } // "items", "cashbook", "backup"
+    var activeSubScreen by rememberSaveable { mutableStateOf<String?>(null) } // "items", "cashbook", "backup", "cloud_sync", "bank_reconciliation"
+
+    var showBusinessSwitcher by remember { mutableStateOf(false) }
+    val switcherSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var editingBusinessProfile by remember { mutableStateOf<com.hisabpro.app.data.model.BusinessProfile?>(null) }
+    var showAddBusinessDialog by remember { mutableStateOf(false) }
 
     BackHandler(enabled = selectedTab != 0 && activeSubScreen == null && !showBusinessSetup) {
         selectedTab = 0
@@ -149,6 +167,7 @@ private fun MainScreenContent(
             isInitialOnboarding = !businessProfile.hasCompletedOnboarding,
             onSaveProfile = { updated ->
                 onSaveProfile(updated)
+                businessManager.updateActiveBusiness(updated)
                 showBusinessSetup = false
             },
             onDismiss = if (businessProfile.hasCompletedOnboarding) {
@@ -189,6 +208,28 @@ private fun MainScreenContent(
                 },
                 onPickBackupFile = onPickBackupFile,
                 onSaveBackupToUri = onSaveBackupToUri
+            )
+        }
+        return
+    }
+
+    if (activeSubScreen == "cloud_sync" && cloudSyncViewModel != null) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            CloudSyncScreen(
+                viewModel = cloudSyncViewModel,
+                onBack = {
+                    activeSubScreen = null
+                    onReloadProfile()
+                }
+            )
+        }
+        return
+    }
+
+    if (activeSubScreen == "bank_reconciliation") {
+        Box(modifier = Modifier.fillMaxSize()) {
+            com.hisabpro.app.ui.reports.BankReconciliationScreen(
+                onNavigateBack = { activeSubScreen = null }
             )
         }
         return
@@ -413,10 +454,57 @@ private fun MainScreenContent(
                     onOpenItems = { activeSubScreen = "items" },
                     onOpenCashbook = { activeSubScreen = "cashbook" },
                     onOpenBackup = { activeSubScreen = "backup" },
-                    onUpdateProfile = { updated -> onSaveProfile(updated) }
+                    onOpenCloudSync = { activeSubScreen = "cloud_sync" },
+                    onOpenBusinessSwitcher = { showBusinessSwitcher = true },
+                    onOpenBankReconciliation = { activeSubScreen = "bank_reconciliation" },
+                    onUpdateProfile = { updated -> 
+                        onSaveProfile(updated)
+                        businessManager.updateActiveBusiness(updated)
+                    }
                 )
             }
         }
+    }
+
+    if (showBusinessSwitcher) {
+        com.hisabpro.app.ui.components.BusinessSwitcherSheet(
+            sheetState = switcherSheetState,
+            businesses = allBusinesses,
+            activeBusiness = activeBusiness,
+            onSelectBusiness = { biz ->
+                businessManager.switchBusiness(biz)
+                onSaveProfile(biz)
+                showBusinessSwitcher = false
+            },
+            onAddNewBusiness = {
+                editingBusinessProfile = null
+                showAddBusinessDialog = true
+            },
+            onEditBusiness = { biz ->
+                editingBusinessProfile = biz
+                showAddBusinessDialog = true
+            },
+            onDeleteBusiness = { name ->
+                businessManager.deleteBusiness(name)
+            },
+            onDismiss = { showBusinessSwitcher = false }
+        )
+    }
+
+    if (showAddBusinessDialog) {
+        com.hisabpro.app.ui.components.AddEditBusinessDialog(
+            initialProfile = editingBusinessProfile,
+            onSave = { updated ->
+                if (editingBusinessProfile == null) {
+                    businessManager.addBusiness(updated)
+                } else {
+                    businessManager.updateActiveBusiness(updated)
+                }
+                onSaveProfile(updated)
+                showAddBusinessDialog = false
+            },
+            onDismiss = { showAddBusinessDialog = false }
+        )
     }
 }
 

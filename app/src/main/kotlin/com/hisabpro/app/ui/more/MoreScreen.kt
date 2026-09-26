@@ -18,14 +18,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Store
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -70,6 +73,9 @@ fun MoreScreen(
     onOpenItems: () -> Unit,
     onOpenCashbook: () -> Unit,
     onOpenBackup: () -> Unit,
+    onOpenCloudSync: () -> Unit,
+    onOpenBusinessSwitcher: () -> Unit = {},
+    onOpenBankReconciliation: () -> Unit = {},
     onUpdateProfile: (BusinessProfile) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -155,13 +161,27 @@ fun MoreScreen(
 
         // Section: Core Management
         item {
-            SectionHeader(title = stringResource(R.string.settings))
+            SectionHeader(title = "Company & Business Setup")
+            SettingsItemRow(
+                icon = Icons.Default.Storefront,
+                title = "Switch / Add Multiple Businesses",
+                subtitle = "Manage multiple firms, branches & GST profiles",
+                tag = "more_item_multi_business",
+                onClick = onOpenBusinessSwitcher
+            )
             SettingsItemRow(
                 icon = Icons.Default.Store,
                 title = stringResource(R.string.business_setup),
                 subtitle = if (profile.isGstRegistered) stringResource(R.string.gst_registered) else stringResource(R.string.non_gst_shop),
                 tag = "more_item_business_setup",
                 onClick = onOpenBusinessSetup
+            )
+            SettingsItemRow(
+                icon = Icons.Default.AccountBalance,
+                title = "Bank Reconciliation",
+                subtitle = "Match passbook entries, mark cleared & track UTR",
+                tag = "more_item_bank_reconciliation",
+                onClick = onOpenBankReconciliation
             )
             SettingsItemRow(
                 icon = Icons.Default.Inventory2,
@@ -176,6 +196,13 @@ fun MoreScreen(
                 subtitle = stringResource(R.string.cash_book),
                 tag = "more_item_cashbook",
                 onClick = onOpenCashbook
+            )
+            SettingsItemRow(
+                icon = Icons.Default.CloudSync,
+                title = "Supabase Cloud Sync",
+                subtitle = "Automatic cloud backup & multi-device sync",
+                tag = "more_item_cloud_sync",
+                onClick = onOpenCloudSync
             )
             SettingsItemRow(
                 icon = Icons.Default.CloudDone,

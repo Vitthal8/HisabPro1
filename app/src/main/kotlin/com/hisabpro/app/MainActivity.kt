@@ -22,6 +22,7 @@ class MainActivity : ComponentActivity() {
     private val reportsViewModel: com.hisabpro.app.ui.reports.ReportsViewModel by viewModels()
     private val purchaseViewModel: com.hisabpro.app.ui.purchases.PurchaseViewModel by viewModels()
     private val backupViewModel: com.hisabpro.app.ui.backup.BackupViewModel by viewModels()
+    private val cloudSyncViewModel: com.hisabpro.app.ui.sync.CloudSyncViewModel by viewModels()
 
     private var pendingFileToExport: File? = null
 
@@ -57,6 +58,7 @@ class MainActivity : ComponentActivity() {
                     reportsViewModel = reportsViewModel,
                     purchaseViewModel = purchaseViewModel,
                     backupViewModel = backupViewModel,
+                    cloudSyncViewModel = cloudSyncViewModel,
                     onPickBackupFile = {
                         try {
                             restoreFilePickerLauncher.launch(arrayOf("*/*", "application/json", "application/octet-stream"))

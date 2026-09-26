@@ -2,6 +2,7 @@ package com.hisabpro.app.ui.purchases
 
 import android.content.Context
 import android.content.Intent
+import com.hisabpro.app.util.ShareHelper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -602,9 +603,5 @@ private fun sharePurchaseVoucher(context: Context, bill: PurchaseBill) {
         appendLine("\nGenerated via HisabPro")
     }
 
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, text)
-    }
-    context.startActivity(Intent.createChooser(intent, "Share Purchase Voucher"))
+    ShareHelper.shareText(context, text, "Share Purchase Voucher", "Purchase Voucher - ${bill.purchaseNumber}")
 }

@@ -29,20 +29,24 @@ class TransactionRepository(private val context: Context) {
         get() = BusinessManager.getInstance(context).activeBusinessDatabaseId
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences("hisab_pro_prefs", Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences
+        get() = context.getSharedPreferences("hisab_pro_transactions_$activeBizId", Context.MODE_PRIVATE)
 
     private val _transactions = MutableStateFlow<List<Transaction>>(emptyList())
     val transactions: StateFlow<List<Transaction>> = _transactions.asStateFlow()
 
     init {
-        loadTransactions()
+        scope.launch {
+            BusinessManager.getInstance(context).activeBusinessId.collect {
+                reloadFromDatabase()
+            }
+        }
     }
 
     private fun loadTransactions() {
         val jsonString = prefs.getString(KEY_TRANSACTIONS, null)
         if (jsonString.isNullOrBlank()) {
-            val initial = getInitialTransactions()
+            val initial = if (activeBizId == "default_business") getInitialTransactions() else emptyList()
             saveTransactions(initial)
             _transactions.value = initial
         } else {
@@ -121,43 +125,41 @@ class TransactionRepository(private val context: Context) {
         try {
             val payments = db.paymentDao().getAllPaymentsSync(activeBizId)
             val expenses = db.expenseDao().getAllExpensesSync(activeBizId)
-            if (payments.isNotEmpty() || expenses.isNotEmpty()) {
-                val list = mutableListOf<Transaction>()
-                for (p in payments) {
-                    val mode = try { PaymentMode.valueOf(p.mode) } catch (e: Exception) { PaymentMode.CASH }
-                    list.add(
-                        Transaction(
-                            id = p.id,
-                            title = p.referenceNo.ifBlank { "Payment Received" },
-                            amount = p.amount.toRupees(),
-                            type = TransactionType.INCOME,
-                            category = Category.BUSINESS,
-                            dateMillis = p.date,
-                            paymentMode = mode,
-                            note = p.notes
-                        )
+            val list = mutableListOf<Transaction>()
+            for (p in payments) {
+                val mode = try { PaymentMode.valueOf(p.mode) } catch (e: Exception) { PaymentMode.CASH }
+                list.add(
+                    Transaction(
+                        id = p.id,
+                        title = p.referenceNo.ifBlank { "Payment Received" },
+                        amount = p.amount.toRupees(),
+                        type = TransactionType.INCOME,
+                        category = Category.BUSINESS,
+                        dateMillis = p.date,
+                        paymentMode = mode,
+                        note = p.notes
                     )
-                }
-                for (exp in expenses) {
-                    val cat = try { Category.valueOf(exp.category) } catch (e: Exception) { Category.OTHER }
-                    val mode = try { PaymentMode.valueOf(exp.mode) } catch (e: Exception) { PaymentMode.CASH }
-                    list.add(
-                        Transaction(
-                            id = exp.id,
-                            title = exp.description.ifBlank { "Expense" },
-                            amount = exp.amount.toRupees(),
-                            type = TransactionType.EXPENSE,
-                            category = cat,
-                            dateMillis = exp.date,
-                            paymentMode = mode,
-                            note = ""
-                        )
-                    )
-                }
-                val sorted = list.sortedByDescending { it.dateMillis }
-                _transactions.value = sorted
-                saveTransactions(sorted, syncAllRoom = false)
+                )
             }
+            for (exp in expenses) {
+                val cat = try { Category.valueOf(exp.category) } catch (e: Exception) { Category.OTHER }
+                val mode = try { PaymentMode.valueOf(exp.mode) } catch (e: Exception) { PaymentMode.CASH }
+                list.add(
+                    Transaction(
+                        id = exp.id,
+                        title = exp.description.ifBlank { "Expense" },
+                        amount = exp.amount.toRupees(),
+                        type = TransactionType.EXPENSE,
+                        category = cat,
+                        dateMillis = exp.date,
+                        paymentMode = mode,
+                        note = ""
+                    )
+                )
+            }
+            val sorted = list.sortedByDescending { it.dateMillis }
+            _transactions.value = sorted
+            saveTransactions(sorted, syncAllRoom = false)
         } catch (e: Exception) {
             e.printStackTrace()
         }

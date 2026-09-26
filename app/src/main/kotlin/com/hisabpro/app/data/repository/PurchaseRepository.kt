@@ -6,6 +6,9 @@ import com.hisabpro.app.data.model.GstMode
 import com.hisabpro.app.data.model.InvoiceStatus
 import com.hisabpro.app.data.model.PurchaseBill
 import com.hisabpro.app.data.model.PurchaseItem
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,22 +17,31 @@ import org.json.JSONObject
 import java.util.Calendar
 import java.util.UUID
 
-class PurchaseRepository(context: Context) {
+class PurchaseRepository(private val context: Context) {
 
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences("hisab_pro_purchases_v1", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val scope = CoroutineScope(Dispatchers.IO)
+    private val activeBizId: String
+        get() = BusinessManager.getInstance(appContext).activeBusinessDatabaseId
+
+    private val prefs: SharedPreferences
+        get() = appContext.getSharedPreferences("hisab_pro_purchases_$activeBizId", Context.MODE_PRIVATE)
 
     private val _purchases = MutableStateFlow<List<PurchaseBill>>(emptyList())
     val purchases: StateFlow<List<PurchaseBill>> = _purchases.asStateFlow()
 
     init {
-        loadData()
+        scope.launch {
+            BusinessManager.getInstance(appContext).activeBusinessId.collect {
+                loadData()
+            }
+        }
     }
 
     private fun loadData() {
         val json = prefs.getString(KEY_PURCHASES, null)
         if (json.isNullOrBlank()) {
-            val initial = createInitialPurchases()
+            val initial = if (activeBizId == "default_business") createInitialPurchases() else emptyList()
             saveInternal(initial)
         } else {
             try {

@@ -9,17 +9,17 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface KhataDao {
-    @Query("SELECT * FROM khata_entries ORDER BY date DESC")
-    fun getAllEntries(): Flow<List<KhataEntryEntity>>
+    @Query("SELECT * FROM khata_entries WHERE business_id = :businessId ORDER BY date DESC")
+    fun getAllEntries(businessId: String = "default_business"): Flow<List<KhataEntryEntity>>
 
-    @Query("SELECT * FROM khata_entries ORDER BY date DESC")
-    suspend fun getAllEntriesSync(): List<KhataEntryEntity>
+    @Query("SELECT * FROM khata_entries WHERE business_id = :businessId ORDER BY date DESC")
+    suspend fun getAllEntriesSync(businessId: String = "default_business"): List<KhataEntryEntity>
 
-    @Query("SELECT * FROM khata_entries WHERE party_id = :partyId ORDER BY date DESC")
-    fun getEntriesForParty(partyId: String): Flow<List<KhataEntryEntity>>
+    @Query("SELECT * FROM khata_entries WHERE business_id = :businessId AND party_id = :partyId ORDER BY date DESC")
+    fun getEntriesForParty(businessId: String = "default_business", partyId: String): Flow<List<KhataEntryEntity>>
 
-    @Query("SELECT * FROM khata_entries WHERE party_id = :partyId ORDER BY date DESC")
-    suspend fun getEntriesForPartySync(partyId: String): List<KhataEntryEntity>
+    @Query("SELECT * FROM khata_entries WHERE business_id = :businessId AND party_id = :partyId ORDER BY date DESC")
+    suspend fun getEntriesForPartySync(businessId: String = "default_business", partyId: String): List<KhataEntryEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntry(entry: KhataEntryEntity)

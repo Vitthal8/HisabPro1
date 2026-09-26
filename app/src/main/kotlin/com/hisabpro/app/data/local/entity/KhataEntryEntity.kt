@@ -9,10 +9,17 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "khata_entries",
     indices = [
+        Index(value = ["business_id"]),
         Index(value = ["party_id"]),
         Index(value = ["date"])
     ],
     foreignKeys = [
+        ForeignKey(
+            entity = BusinessEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["business_id"],
+            onDelete = ForeignKey.CASCADE
+        ),
         ForeignKey(
             entity = PartyEntity::class,
             parentColumns = ["id"],
@@ -24,6 +31,8 @@ import androidx.room.PrimaryKey
 data class KhataEntryEntity(
     @PrimaryKey
     val id: String,
+    @ColumnInfo(name = "business_id")
+    val businessId: String = "default_business",
     @ColumnInfo(name = "party_id")
     val partyId: String,
     val amount: Long, // In paise

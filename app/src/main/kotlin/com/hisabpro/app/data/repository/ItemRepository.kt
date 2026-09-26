@@ -27,8 +27,8 @@ class ItemRepository(private val context: Context) {
         get() = BusinessManager.getInstance(context).activeBusinessDatabaseId
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences("hisab_pro_items_v1", Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences
+        get() = context.getSharedPreferences("hisab_pro_items_$activeBizId", Context.MODE_PRIVATE)
 
     private val _items = MutableStateFlow<List<Item>>(emptyList())
     val items: StateFlow<List<Item>> = _items.asStateFlow()
@@ -37,13 +37,17 @@ class ItemRepository(private val context: Context) {
     val stockHistory: StateFlow<List<StockHistoryEntry>> = _stockHistory.asStateFlow()
 
     init {
-        loadData()
+        scope.launch {
+            BusinessManager.getInstance(context).activeBusinessId.collect {
+                reloadFromDatabase()
+            }
+        }
     }
 
     private fun loadData() {
         val itemsJson = prefs.getString(KEY_ITEMS, null)
         if (itemsJson.isNullOrBlank()) {
-            val initialItems = createInitialItems()
+            val initialItems = if (activeBizId == "default_business") createInitialItems() else emptyList()
             saveItemsInternal(initialItems)
         } else {
             try {
@@ -571,11 +575,11 @@ class ItemRepository(private val context: Context) {
 
         scope.launch {
             try {
-                ensureDefaultBusiness()
+                ensureActiveBusiness()
                 val entities = list.map { item ->
                     ItemEntity(
                         id = item.id,
-                        businessId = "default_business",
+                        businessId = activeBizId,
                         name = item.name,
                         itemCode = item.itemCode,
                         category = item.category,
@@ -600,11 +604,11 @@ class ItemRepository(private val context: Context) {
 
     suspend fun syncToDatabase() {
         try {
-            ensureDefaultBusiness()
+            ensureActiveBusiness()
             val entities = _items.value.map { item ->
                 ItemEntity(
                     id = item.id,
-                    businessId = "default_business",
+                    businessId = activeBizId,
                     name = item.name,
                     itemCode = item.itemCode,
                     category = item.category,
@@ -629,43 +633,61 @@ class ItemRepository(private val context: Context) {
     suspend fun reloadFromDatabase() {
         try {
             val dbItems = db.itemDao().getAllItemsSync(activeBizId)
-            if (dbItems.isNotEmpty()) {
-                val itemsList = dbItems.map { item ->
-                    Item(
-                        id = item.id,
-                        name = item.name,
-                        itemCode = item.itemCode,
-                        category = item.category,
-                        unit = item.unit,
-                        salePrice = item.sellPrice.toRupees(),
-                        purchasePrice = item.purchasePrice.toRupees(),
-                        gstRate = item.gstRate,
-                        hsnCode = item.hsnCode,
-                        currentStock = item.stockQty,
-                        minStockAlert = item.lowStockThreshold,
-                        updatedAtMillis = item.createdAt
-                    )
-                }
-                _items.value = itemsList
-                saveItemsInternal(itemsList)
+            val itemsList = dbItems.map { item ->
+                Item(
+                    id = item.id,
+                    name = item.name,
+                    itemCode = item.itemCode,
+                    category = item.category,
+                    unit = item.unit,
+                    salePrice = item.sellPrice.toRupees(),
+                    purchasePrice = item.purchasePrice.toRupees(),
+                    gstRate = item.gstRate,
+                    hsnCode = item.hsnCode,
+                    currentStock = item.stockQty,
+                    minStockAlert = item.lowStockThreshold,
+                    updatedAtMillis = item.createdAt
+                )
             }
+            _items.value = itemsList
+            val array = JSONArray()
+            for (item in itemsList) {
+                val obj = JSONObject().apply {
+                    put("id", item.id)
+                    put("name", item.name)
+                    put("itemCode", item.itemCode)
+                    put("category", item.category)
+                    put("unit", item.unit)
+                    put("salePrice", item.salePrice)
+                    put("purchasePrice", item.purchasePrice)
+                    put("gstRate", item.gstRate)
+                    put("hsnCode", item.hsnCode)
+                    put("currentStock", item.currentStock)
+                    put("minStockAlert", item.minStockAlert)
+                    put("updatedAtMillis", item.updatedAtMillis)
+                }
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_ITEMS, array.toString()).apply()
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    private suspend fun ensureDefaultBusiness() {
+    private suspend fun ensureActiveBusiness() {
         try {
-            val existing = db.businessDao().getBusinessSync("default_business")
+            val bizId = activeBizId
+            val profile = BusinessManager.getInstance(context).activeBusiness.value
+            val existing = db.businessDao().getBusinessSync(bizId)
             if (existing == null) {
                 db.businessDao().insertOrUpdate(
                     BusinessEntity(
-                        id = "default_business",
-                        name = "HisabPro Business",
-                        phone = "",
-                        address = "",
-                        gstin = "",
-                        gstEnabled = false
+                        id = bizId,
+                        name = profile.shopName.ifBlank { "HisabPro Business" },
+                        phone = profile.phone,
+                        address = profile.address,
+                        gstin = profile.gstin,
+                        gstEnabled = profile.isGstRegistered
                     )
                 )
             }

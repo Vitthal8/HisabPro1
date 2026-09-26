@@ -32,8 +32,8 @@ class PartyRepository(private val context: Context) {
         get() = BusinessManager.getInstance(context).activeBusinessDatabaseId
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences("hisab_pro_parties_v1", Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences
+        get() = context.getSharedPreferences("hisab_pro_parties_$activeBizId", Context.MODE_PRIVATE)
 
     private val _parties = MutableStateFlow<List<Party>>(emptyList())
     val parties: StateFlow<List<Party>> = _parties.asStateFlow()
@@ -42,69 +42,50 @@ class PartyRepository(private val context: Context) {
     val entries: StateFlow<List<KhataEntry>> = _entries.asStateFlow()
 
     init {
-        loadData()
-    }
-
-    private fun loadData() {
-        val partiesJson = prefs.getString(KEY_PARTIES, null)
-        val entriesJson = prefs.getString(KEY_ENTRIES, null)
-
-        if (partiesJson.isNullOrBlank()) {
-            val (initialParties, initialEntries) = createInitialData()
-            savePartiesInternal(initialParties)
-            saveEntriesInternal(initialEntries)
-            _parties.value = initialParties
-            _entries.value = initialEntries
-        } else {
-            try {
-                val partiesList = mutableListOf<Party>()
-                val pArray = JSONArray(partiesJson)
-                for (i in 0 until pArray.length()) {
-                    val obj = pArray.getJSONObject(i)
-                    partiesList.add(
-                        Party(
-                            id = obj.getString("id"),
-                            name = obj.getString("name"),
-                            phone = obj.getString("phone"),
-                            address = obj.optString("address", ""),
-                            gstin = obj.optString("gstin", ""),
-                            type = PartyType.fromString(obj.optString("type", "CUSTOMER")),
-                            tag = PartyTag.fromString(obj.optString("tag", "REGULAR")),
-                            createdAt = obj.optLong("createdAt", System.currentTimeMillis())
-                        )
-                    )
-                }
-                _parties.value = partiesList
-
-                val entriesList = mutableListOf<KhataEntry>()
-                if (!entriesJson.isNullOrBlank()) {
-                    val eArray = JSONArray(entriesJson)
-                    for (i in 0 until eArray.length()) {
-                        val obj = eArray.getJSONObject(i)
-                        entriesList.add(
-                            KhataEntry(
-                                id = obj.getString("id"),
-                                partyId = obj.getString("partyId"),
-                                amount = obj.getDouble("amount"),
-                                type = KhataEntryType.fromString(obj.getString("type")),
-                                dateMillis = obj.getLong("dateMillis"),
-                                billNumber = obj.optString("billNumber", ""),
-                                note = obj.optString("note", "")
-                            )
-                        )
-                    }
-                }
-                _entries.value = entriesList
-            } catch (e: Exception) {
-                val (initialParties, initialEntries) = createInitialData()
-                savePartiesInternal(initialParties)
-                saveEntriesInternal(initialEntries)
-                _parties.value = initialParties
-                _entries.value = initialEntries
+        scope.launch {
+            BusinessManager.getInstance(context).activeBusinessId.collect {
+                reloadFromDatabase()
             }
         }
-        scope.launch {
-            syncToDatabase()
+    }
+
+    suspend fun reloadFromDatabase() {
+        try {
+            val dbParties = db.partyDao().getAllPartiesSync(activeBizId)
+            val partiesList = dbParties.map { p ->
+                val type = try { PartyType.valueOf(p.type) } catch (e: Exception) { PartyType.CUSTOMER }
+                val tag = try { PartyTag.valueOf(p.tag) } catch (e: Exception) { PartyTag.REGULAR }
+                Party(
+                    id = p.id,
+                    name = p.name,
+                    phone = p.phone,
+                    address = p.address,
+                    gstin = p.gstin,
+                    type = type,
+                    tag = tag,
+                    createdAt = p.createdAt
+                )
+            }
+            _parties.value = partiesList
+            savePartiesInternal(partiesList)
+
+            val dbEntries = db.khataDao().getAllEntriesSync(activeBizId)
+            val entriesList = dbEntries.map { e ->
+                val type = try { KhataEntryType.valueOf(e.type) } catch (e: Exception) { KhataEntryType.YOU_GAVE }
+                KhataEntry(
+                    id = e.id,
+                    partyId = e.partyId,
+                    amount = e.amount.toRupees(),
+                    type = type,
+                    dateMillis = e.date,
+                    billNumber = e.billNumber,
+                    note = e.note
+                )
+            }
+            _entries.value = entriesList
+            saveEntriesInternal(entriesList)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -172,6 +153,7 @@ class PartyRepository(private val context: Context) {
                 val entities = list.map { e ->
                     KhataEntryEntity(
                         id = e.id,
+                        businessId = activeBizId,
                         partyId = e.partyId,
                         amount = e.amount.toPaise(),
                         type = e.type.name,
@@ -219,49 +201,6 @@ class PartyRepository(private val context: Context) {
             }
             if (entryEntities.isNotEmpty()) {
                 db.khataDao().insertAllEntries(entryEntities)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    suspend fun reloadFromDatabase() {
-        try {
-            val dbParties = db.partyDao().getAllPartiesSync(activeBizId)
-            val dbEntries = db.khataDao().getAllEntriesSync()
-            if (dbParties.isNotEmpty()) {
-                val partiesList = dbParties.map { p ->
-                    val type = try { PartyType.valueOf(p.type) } catch (e: Exception) { PartyType.CUSTOMER }
-                    val tag = try { PartyTag.valueOf(p.tag) } catch (e: Exception) { PartyTag.REGULAR }
-                    Party(
-                        id = p.id,
-                        name = p.name,
-                        phone = p.phone,
-                        address = p.address,
-                        gstin = p.gstin,
-                        type = type,
-                        tag = tag,
-                        createdAt = p.createdAt
-                    )
-                }
-                _parties.value = partiesList
-                savePartiesInternal(partiesList)
-            }
-            if (dbEntries.isNotEmpty()) {
-                val entriesList = dbEntries.map { e ->
-                    val type = try { KhataEntryType.valueOf(e.type) } catch (e: Exception) { KhataEntryType.YOU_GAVE }
-                    KhataEntry(
-                        id = e.id,
-                        partyId = e.partyId,
-                        amount = e.amount.toRupees(),
-                        type = type,
-                        dateMillis = e.date,
-                        billNumber = e.billNumber,
-                        note = e.note
-                    )
-                }
-                _entries.value = entriesList
-                saveEntriesInternal(entriesList)
             }
         } catch (e: Exception) {
             e.printStackTrace()

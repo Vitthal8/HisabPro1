@@ -31,20 +31,24 @@ class InvoiceRepository(private val context: Context) {
         get() = BusinessManager.getInstance(context).activeBusinessDatabaseId
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences("hisab_pro_invoices_v1", Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences
+        get() = context.getSharedPreferences("hisab_pro_invoices_$activeBizId", Context.MODE_PRIVATE)
 
     private val _invoices = MutableStateFlow<List<Invoice>>(emptyList())
     val invoices: StateFlow<List<Invoice>> = _invoices.asStateFlow()
 
     init {
-        loadData()
+        scope.launch {
+            BusinessManager.getInstance(context).activeBusinessId.collect {
+                reloadFromDatabase()
+            }
+        }
     }
 
     private fun loadData() {
         val json = prefs.getString(KEY_INVOICES, null)
         if (json.isNullOrBlank()) {
-            val initial = createInitialInvoices()
+            val initial = if (activeBizId == "default_business") createInitialInvoices() else emptyList()
             saveInternal(initial)
         } else {
             try {
@@ -172,50 +176,48 @@ class InvoiceRepository(private val context: Context) {
     suspend fun reloadFromDatabase() {
         try {
             val dbInvoices = db.invoiceDao().getAllInvoicesSync(activeBizId)
-            if (dbInvoices.isNotEmpty()) {
-                val reloaded = mutableListOf<Invoice>()
-                for (ent in dbInvoices) {
-                    val dbItems = db.invoiceDao().getItemsForInvoiceSync(ent.id)
-                    val items = dbItems.map { itemEnt ->
-                        InvoiceItem(
-                            id = itemEnt.id,
-                            description = itemEnt.itemName,
-                            hsnCode = itemEnt.hsnCode,
-                            quantity = itemEnt.qty,
-                            unit = itemEnt.unit,
-                            unitPrice = itemEnt.rate.toRupees(),
-                            gstRate = (itemEnt.cgstRate + itemEnt.sgstRate + itemEnt.igstRate).coerceAtLeast(0.0),
-                            discount = itemEnt.discount.toRupees()
-                        )
-                    }
-                    val type = try { InvoiceType.valueOf(ent.type) } catch (e: Exception) { InvoiceType.NON_GST_BILL }
-                    val gstMode = try { GstMode.valueOf(ent.gstMode) } catch (e: Exception) { GstMode.INTRA_STATE }
-                    val status = try { InvoiceStatus.valueOf(ent.paymentStatus) } catch (e: Exception) { InvoiceStatus.PAID }
-                    reloaded.add(
-                        Invoice(
-                            id = ent.id,
-                            invoiceNumber = ent.invoiceNo,
-                            type = type,
-                            gstMode = gstMode,
-                            customerId = ent.partyId,
-                            customerName = ent.customerName,
-                            customerPhone = ent.customerPhone,
-                            customerAddress = ent.customerAddress,
-                            customerGstin = ent.customerGstin,
-                            dateMillis = ent.date,
-                            items = items,
-                            discountAmount = ent.discount.toRupees(),
-                            notes = ent.notes,
-                            paymentStatus = status,
-                            paidAmount = ent.paidAmount.toRupees(),
-                            paymentMode = ent.paymentMode,
-                            createdAt = ent.createdAt
-                        )
+            val reloaded = mutableListOf<Invoice>()
+            for (ent in dbInvoices) {
+                val dbItems = db.invoiceDao().getItemsForInvoiceSync(ent.id)
+                val items = dbItems.map { itemEnt ->
+                    InvoiceItem(
+                        id = itemEnt.id,
+                        description = itemEnt.itemName,
+                        hsnCode = itemEnt.hsnCode,
+                        quantity = itemEnt.qty,
+                        unit = itemEnt.unit,
+                        unitPrice = itemEnt.rate.toRupees(),
+                        gstRate = (itemEnt.cgstRate + itemEnt.sgstRate + itemEnt.igstRate).coerceAtLeast(0.0),
+                        discount = itemEnt.discount.toRupees()
                     )
                 }
-                _invoices.value = reloaded.sortedByDescending { it.dateMillis }
-                saveInternal(reloaded, syncAllRoom = false)
+                val type = try { InvoiceType.valueOf(ent.type) } catch (e: Exception) { InvoiceType.NON_GST_BILL }
+                val gstMode = try { GstMode.valueOf(ent.gstMode) } catch (e: Exception) { GstMode.INTRA_STATE }
+                val status = try { InvoiceStatus.valueOf(ent.paymentStatus) } catch (e: Exception) { InvoiceStatus.PAID }
+                reloaded.add(
+                    Invoice(
+                        id = ent.id,
+                        invoiceNumber = ent.invoiceNo,
+                        type = type,
+                        gstMode = gstMode,
+                        customerId = ent.partyId,
+                        customerName = ent.customerName,
+                        customerPhone = ent.customerPhone,
+                        customerAddress = ent.customerAddress,
+                        customerGstin = ent.customerGstin,
+                        dateMillis = ent.date,
+                        items = items,
+                        discountAmount = ent.discount.toRupees(),
+                        notes = ent.notes,
+                        paymentStatus = status,
+                        paidAmount = ent.paidAmount.toRupees(),
+                        paymentMode = ent.paymentMode,
+                        createdAt = ent.createdAt
+                    )
+                )
             }
+            _invoices.value = reloaded.sortedByDescending { it.dateMillis }
+            saveInternal(reloaded, syncAllRoom = false)
         } catch (e: Exception) {
             e.printStackTrace()
         }

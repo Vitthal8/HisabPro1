@@ -47,7 +47,7 @@ import com.hisabpro.app.data.local.entity.SyncQueueEntity
         SyncQueueEntity::class,
         SyncMetadataEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -523,6 +523,46 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("PRAGMA foreign_keys = OFF;")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `khata_entries_v3` (
+                        `id` TEXT NOT NULL,
+                        `business_id` TEXT NOT NULL DEFAULT 'default_business',
+                        `party_id` TEXT NOT NULL,
+                        `amount` INTEGER NOT NULL DEFAULT 0,
+                        `type` TEXT NOT NULL,
+                        `date` INTEGER NOT NULL,
+                        `bill_number` TEXT NOT NULL DEFAULT '',
+                        `note` TEXT NOT NULL DEFAULT '',
+                        `created_at` INTEGER NOT NULL DEFAULT 0,
+                        `updated_at` INTEGER NOT NULL DEFAULT 0,
+                        `deleted_at` INTEGER DEFAULT NULL,
+                        `synced_at` INTEGER DEFAULT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`business_id`) REFERENCES `businesses`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`party_id`) REFERENCES `parties`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    );
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO `khata_entries_v3` (
+                        `id`, `business_id`, `party_id`, `amount`, `type`, `date`, `bill_number`, `note`, `created_at`, `updated_at`, `deleted_at`, `synced_at`
+                    )
+                    SELECT
+                        k.`id`, COALESCE(p.`business_id`, 'default_business'), k.`party_id`, k.`amount`, k.`type`, k.`date`, k.`bill_number`, k.`note`, k.`created_at`, k.`updated_at`, k.`deleted_at`, k.`synced_at`
+                    FROM `khata_entries` k
+                    LEFT JOIN `parties` p ON k.`party_id` = p.`id`;
+                """.trimIndent())
+                db.execSQL("DROP TABLE IF EXISTS `khata_entries`;")
+                db.execSQL("ALTER TABLE `khata_entries_v3` RENAME TO `khata_entries`;")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_khata_entries_business_id` ON `khata_entries` (`business_id`);")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_khata_entries_party_id` ON `khata_entries` (`party_id`);")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_khata_entries_date` ON `khata_entries` (`date`);")
+                db.execSQL("PRAGMA foreign_keys = ON;")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -530,7 +570,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "hisabpro_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .fallbackToDestructiveMigrationOnDowngrade()
                     .build().also { INSTANCE = it }
             }

@@ -1,6 +1,7 @@
 package com.hisabpro.app.ui.reports
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import com.hisabpro.app.util.ShareHelper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -91,6 +92,10 @@ data class ReconciliationState(
 fun BankReconciliationScreen(
     onNavigateBack: () -> Unit
 ) {
+    BackHandler {
+        onNavigateBack()
+    }
+
     val context = LocalContext.current
     val txRepo = remember { TransactionRepository.getInstance(context) }
     val transactions by txRepo.transactions.collectAsStateWithLifecycle()

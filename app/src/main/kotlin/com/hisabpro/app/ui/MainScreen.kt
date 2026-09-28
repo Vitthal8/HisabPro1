@@ -161,6 +161,10 @@ private fun MainScreenContent(
         selectedTab = 0
     }
 
+    BackHandler(enabled = activeSubScreen != null) {
+        activeSubScreen = null
+    }
+
     if (showBusinessSetup) {
         BusinessSetupScreen(
             currentProfile = businessProfile,

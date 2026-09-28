@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.hisabpro.app.data.local.AppDatabase
 import com.hisabpro.app.data.local.entity.BusinessEntity
+import com.hisabpro.app.data.model.BankDetails
 import com.hisabpro.app.data.model.BusinessProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -105,6 +106,29 @@ class BusinessManager private constructor(private val context: Context) {
     }
 
     private fun parseProfileFromJson(obj: JSONObject): BusinessProfile {
+        val bankAccountsArr = obj.optJSONArray("bankAccounts")
+        val loadedBankAccounts = mutableListOf<BankDetails>()
+        if (bankAccountsArr != null) {
+            for (i in 0 until bankAccountsArr.length()) {
+                val bObj = bankAccountsArr.optJSONObject(i)
+                if (bObj != null) {
+                    loadedBankAccounts.add(
+                        BankDetails(
+                            bankName = bObj.optString("bankName", ""),
+                            accountNumber = bObj.optString("accountNumber", ""),
+                            ifscCode = bObj.optString("ifscCode", "")
+                        )
+                    )
+                }
+            }
+        }
+        val primaryBank = obj.optString("bankName", "State Bank of India")
+        val primaryAcc = obj.optString("accountNumber", "987654321012")
+        val primaryIfsc = obj.optString("ifscCode", "SBIN0001234")
+        if (loadedBankAccounts.isEmpty()) {
+            loadedBankAccounts.add(BankDetails(primaryBank, primaryAcc, primaryIfsc))
+        }
+
         return BusinessProfile(
             shopName = obj.optString("shopName", "HisabPro Enterprises"),
             ownerName = obj.optString("ownerName", "Vittal Mali"),
@@ -121,9 +145,10 @@ class BusinessManager private constructor(private val context: Context) {
             stateCode = obj.optString("stateCode", "27"),
             pincode = obj.optString("pincode", "411037"),
             upiId = obj.optString("upiId", "vittal@okhdfcbank"),
-            bankName = obj.optString("bankName", "State Bank of India"),
-            accountNumber = obj.optString("accountNumber", "987654321012"),
-            ifscCode = obj.optString("ifscCode", "SBIN0001234"),
+            bankName = primaryBank,
+            accountNumber = primaryAcc,
+            ifscCode = primaryIfsc,
+            bankAccounts = loadedBankAccounts,
             invoicePrefix = obj.optString("invoicePrefix", "INV"),
             purchasePrefix = obj.optString("purchasePrefix", "PUR"),
             termsAndConditions = obj.optString("termsAndConditions", "1. Goods once sold cannot be returned.\n2. Due in 15 days."),
@@ -144,6 +169,18 @@ class BusinessManager private constructor(private val context: Context) {
 
         val array = JSONArray()
         for (p in list) {
+            val firstBank = p.effectiveBankAccounts.firstOrNull() ?: BankDetails()
+            val bankArr = JSONArray()
+            for (b in p.effectiveBankAccounts) {
+                bankArr.put(
+                    JSONObject().apply {
+                        put("bankName", b.bankName)
+                        put("accountNumber", b.accountNumber)
+                        put("ifscCode", b.ifscCode)
+                    }
+                )
+            }
+
             val obj = JSONObject().apply {
                 put("shopName", p.shopName)
                 put("ownerName", p.ownerName)
@@ -160,9 +197,10 @@ class BusinessManager private constructor(private val context: Context) {
                 put("stateCode", p.stateCode)
                 put("pincode", p.pincode)
                 put("upiId", p.upiId)
-                put("bankName", p.bankName)
-                put("accountNumber", p.accountNumber)
-                put("ifscCode", p.ifscCode)
+                put("bankName", firstBank.bankName)
+                put("accountNumber", firstBank.accountNumber)
+                put("ifscCode", firstBank.ifscCode)
+                put("bankAccounts", bankArr)
                 put("invoicePrefix", p.invoicePrefix)
                 put("purchasePrefix", p.purchasePrefix)
                 put("termsAndConditions", p.termsAndConditions)

@@ -1,5 +1,11 @@
 package com.hisabpro.app.data.model
 
+data class BankDetails(
+    val bankName: String = "",
+    val accountNumber: String = "",
+    val ifscCode: String = ""
+)
+
 data class BusinessProfile(
     val shopName: String = "HisabPro Enterprises",
     val ownerName: String = "Vittal Mali",
@@ -19,6 +25,7 @@ data class BusinessProfile(
     val bankName: String = "Yes Bank",
     val accountNumber: String = "041990200007430",
     val ifscCode: String = "YESB0000740",
+    val bankAccounts: List<BankDetails> = emptyList(),
     val invoicePrefix: String = "INV",
     val purchasePrefix: String = "PUR",
     val termsAndConditions: String = "1. Goods once sold cannot be returned without original invoice.\n2. Payment terms: Due within 15 days of invoice date.\n3. Subject to local jurisdiction only.",
@@ -33,8 +40,12 @@ data class BusinessProfile(
             .filter { it.isNotBlank() }
             .joinToString(", ")
 
+    val effectiveBankAccounts: List<BankDetails>
+        get() = if (bankAccounts.isNotEmpty()) bankAccounts else listOf(BankDetails(bankName, accountNumber, ifscCode))
+
     val effectiveGstRateComposition: Double
         get() = if (isCompositionScheme) {
             if (compositionType.equals("SERVICE", ignoreCase = true)) 6.0 else 1.0
         } else 0.0
 }
+

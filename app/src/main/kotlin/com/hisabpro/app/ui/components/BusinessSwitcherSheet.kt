@@ -1,5 +1,6 @@
 package com.hisabpro.app.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,6 +43,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +57,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.hisabpro.app.data.model.BankDetails
 import com.hisabpro.app.data.model.BusinessProfile
 import com.hisabpro.app.ui.theme.DeepNavyBlue
 import com.hisabpro.app.ui.theme.Emerald700
@@ -287,10 +290,77 @@ fun AddEditBusinessDialog(
     var state by remember { mutableStateOf(initialProfile?.state ?: "Maharashtra") }
     var upiId by remember { mutableStateOf(initialProfile?.upiId ?: "") }
 
+    var bankAccounts by remember {
+        mutableStateOf(
+            if (initialProfile?.effectiveBankAccounts.isNullOrEmpty()) {
+                listOf(BankDetails(initialProfile?.bankName ?: "", initialProfile?.accountNumber ?: "", initialProfile?.ifscCode ?: ""))
+            } else {
+                initialProfile!!.effectiveBankAccounts
+            }
+        )
+    }
+
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
+    val hasUnsavedChanges = remember(
+        shopName, ownerName, phone, email, isGst, gstin, address, city, state, upiId, bankAccounts, initialProfile
+    ) {
+        if (initialProfile == null) {
+            shopName.isNotBlank() || ownerName.isNotBlank() || phone.isNotBlank() || email.isNotBlank() || gstin.isNotBlank() || address.isNotBlank() || city.isNotBlank() || upiId.isNotBlank() || isGst || bankAccounts.any { it.bankName.isNotBlank() || it.accountNumber.isNotBlank() || it.ifscCode.isNotBlank() }
+        } else {
+            shopName != initialProfile.shopName ||
+                ownerName != initialProfile.ownerName ||
+                phone != initialProfile.phone ||
+                email != initialProfile.email ||
+                isGst != initialProfile.isGstRegistered ||
+                gstin != initialProfile.gstin ||
+                address != initialProfile.address ||
+                city != initialProfile.city ||
+                state != initialProfile.state ||
+                upiId != initialProfile.upiId ||
+                bankAccounts != initialProfile.effectiveBankAccounts
+        }
+    }
+
+    var showDiscardConfirmDialog by remember { mutableStateOf(false) }
+
+    fun handleDismissAttempt() {
+        if (hasUnsavedChanges) {
+            showDiscardConfirmDialog = true
+        } else {
+            onDismiss()
+        }
+    }
+
+    BackHandler(enabled = true) {
+        handleDismissAttempt()
+    }
+
+    if (showDiscardConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirmDialog = false },
+            title = { Text("Discard changes?") },
+            text = { Text("You have unsaved changes in your business profile. Are you sure you want to discard them?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirmDialog = false
+                        onDismiss()
+                    }
+                ) {
+                    Text("Discard", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirmDialog = false }) {
+                    Text("Cancel", fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { handleDismissAttempt() },
         title = {
             Text(
                 text = if (initialProfile == null) "Add New Company / Shop" else "Edit Business Profile",
@@ -299,88 +369,174 @@ fun AddEditBusinessDialog(
             )
         },
         text = {
-            Column(
+            androidx.compose.foundation.lazy.LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(400.dp)
             ) {
-                if (errorMsg != null) {
-                    Text(text = errorMsg!!, color = Color(0xFFDC2626), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        if (errorMsg != null) {
+                            Text(text = errorMsg!!, color = Color(0xFFDC2626), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
 
-                OutlinedTextField(
-                    value = shopName,
-                    onValueChange = { shopName = it; errorMsg = null },
-                    label = { Text("Shop / Business Name *") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("input_biz_name")
-                )
+                        OutlinedTextField(
+                            value = shopName,
+                            onValueChange = { shopName = it; errorMsg = null },
+                            label = { Text("Shop / Business Name *") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().testTag("input_biz_name")
+                        )
 
-                OutlinedTextField(
-                    value = ownerName,
-                    onValueChange = { ownerName = it },
-                    label = { Text("Owner Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                        OutlinedTextField(
+                            value = ownerName,
+                            onValueChange = { ownerName = it },
+                            label = { Text("Owner Name") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = phone,
-                        onValueChange = { phone = it },
-                        label = { Text("Phone") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = city,
-                        onValueChange = { city = it },
-                        label = { Text("City") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = phone,
+                                onValueChange = { phone = it },
+                                label = { Text("Phone") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = city,
+                                onValueChange = { city = it },
+                                label = { Text("City") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
 
-                OutlinedTextField(
-                    value = address,
-                    onValueChange = { address = it },
-                    label = { Text("Address") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                        OutlinedTextField(
+                            value = address,
+                            onValueChange = { address = it },
+                            label = { Text("Address") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("GST Registered Business?", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Text(if (isGst) "Tax Invoices with GSTIN" else "Non-GST Bills", fontSize = 11.sp, color = Color(0xFF64748B))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("GST Registered Business?", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(if (isGst) "Tax Invoices with GSTIN" else "Non-GST Bills", fontSize = 11.sp, color = Color(0xFF64748B))
+                            }
+                            Switch(
+                                checked = isGst,
+                                onCheckedChange = { isGst = it },
+                                colors = SwitchDefaults.colors(checkedThumbColor = PureWhite, checkedTrackColor = SaffronOrange)
+                            )
+                        }
+
+                        if (isGst) {
+                            OutlinedTextField(
+                                value = gstin,
+                                onValueChange = { gstin = it.uppercase() },
+                                label = { Text("GSTIN Number (15 Characters)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        OutlinedTextField(
+                            value = upiId,
+                            onValueChange = { upiId = it },
+                            label = { Text("UPI ID (for QR Code on Bills)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Bank Accounts (${bankAccounts.size})",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            TextButton(
+                                onClick = { bankAccounts = bankAccounts + BankDetails() }
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("+ Add Bank", fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
-                    Switch(
-                        checked = isGst,
-                        onCheckedChange = { isGst = it },
-                        colors = SwitchDefaults.colors(checkedThumbColor = PureWhite, checkedTrackColor = SaffronOrange)
-                    )
                 }
 
-                if (isGst) {
-                    OutlinedTextField(
-                        value = gstin,
-                        onValueChange = { gstin = it.uppercase() },
-                        label = { Text("GSTIN Number (15 Characters)") },
-                        singleLine = true,
+                items(bankAccounts.size) { index ->
+                    val bank = bankAccounts[index]
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
                         modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Bank #${index + 1}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (bankAccounts.size > 1) {
+                                    IconButton(
+                                        onClick = { bankAccounts = bankAccounts.filterIndexed { i, _ -> i != index } },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Remove Bank", tint = Color(0xFFDC2626), modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
 
-                OutlinedTextField(
-                    value = upiId,
-                    onValueChange = { upiId = it },
-                    label = { Text("UPI ID (for QR Code on Bills)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                            OutlinedTextField(
+                                value = bank.bankName,
+                                onValueChange = { newName ->
+                                    bankAccounts = bankAccounts.mapIndexed { i, b -> if (i == index) b.copy(bankName = newName) else b }
+                                },
+                                label = { Text("Bank Name (e.g. SBI, HDFC)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = bank.accountNumber,
+                                    onValueChange = { newAcc ->
+                                        bankAccounts = bankAccounts.mapIndexed { i, b -> if (i == index) b.copy(accountNumber = newAcc) else b }
+                                    },
+                                    label = { Text("A/C Number") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1.2f)
+                                )
+                                OutlinedTextField(
+                                    value = bank.ifscCode,
+                                    onValueChange = { newIfsc ->
+                                        bankAccounts = bankAccounts.mapIndexed { i, b -> if (i == index) b.copy(ifscCode = newIfsc.uppercase()) else b }
+                                    },
+                                    label = { Text("IFSC Code") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -390,6 +546,7 @@ fun AddEditBusinessDialog(
                         errorMsg = "Please enter business name"
                         return@Button
                     }
+                    val firstBank = bankAccounts.firstOrNull() ?: BankDetails()
                     val updated = (initialProfile ?: BusinessProfile()).copy(
                         shopName = shopName.trim(),
                         ownerName = ownerName.trim(),
@@ -400,7 +557,11 @@ fun AddEditBusinessDialog(
                         address = address.trim(),
                         city = city.trim(),
                         state = state.trim(),
-                        upiId = upiId.trim()
+                        upiId = upiId.trim(),
+                        bankAccounts = bankAccounts,
+                        bankName = firstBank.bankName.trim(),
+                        accountNumber = firstBank.accountNumber.trim(),
+                        ifscCode = firstBank.ifscCode.trim()
                     )
                     onSave(updated)
                 },
@@ -410,9 +571,10 @@ fun AddEditBusinessDialog(
             }
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
+            OutlinedButton(onClick = { handleDismissAttempt() }) {
                 Text("Cancel")
             }
         }
     )
 }
+

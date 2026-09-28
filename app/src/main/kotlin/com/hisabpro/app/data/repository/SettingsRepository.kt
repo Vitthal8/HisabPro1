@@ -2,10 +2,12 @@ package com.hisabpro.app.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.hisabpro.app.data.model.BankDetails
 import com.hisabpro.app.data.model.BusinessProfile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.json.JSONArray
 import org.json.JSONObject
 
 class SettingsRepository(context: Context) {
@@ -49,10 +51,33 @@ class SettingsRepository(context: Context) {
         } else {
             try {
                 val obj = JSONObject(json)
+                val bankAccountsArr = obj.optJSONArray("bankAccounts")
+                val loadedBankAccounts = mutableListOf<BankDetails>()
+                if (bankAccountsArr != null) {
+                    for (i in 0 until bankAccountsArr.length()) {
+                        val bObj = bankAccountsArr.optJSONObject(i)
+                        if (bObj != null) {
+                            loadedBankAccounts.add(
+                                BankDetails(
+                                    bankName = bObj.optString("bankName", ""),
+                                    accountNumber = bObj.optString("accountNumber", ""),
+                                    ifscCode = bObj.optString("ifscCode", "")
+                                )
+                            )
+                        }
+                    }
+                }
+                val primaryBank = obj.optString("bankName", "Yes Bank")
+                val primaryAcc = obj.optString("accountNumber", "041990200007430")
+                val primaryIfsc = obj.optString("ifscCode", "YESB0000740")
+                if (loadedBankAccounts.isEmpty()) {
+                    loadedBankAccounts.add(BankDetails(primaryBank, primaryAcc, primaryIfsc))
+                }
+
                 val loaded = BusinessProfile(
                     shopName = obj.optString("shopName", "HisabPro Enterprises"),
                     ownerName = obj.optString("ownerName", "Vittal Mali"),
-                    phone = obj.optString("phone", "+91 98765 43210"),
+                    phone = obj.optString("phone", "+91 79773 34282"),
                     email = obj.optString("email", "hisabpro@business.in"),
                     isGstRegistered = obj.optBoolean("isGstRegistered", false),
                     gstin = obj.optString("gstin", ""),
@@ -65,9 +90,10 @@ class SettingsRepository(context: Context) {
                     stateCode = obj.optString("stateCode", "27"),
                     pincode = obj.optString("pincode", "411037"),
                     upiId = obj.optString("upiId", "vittal@okhdfcbank"),
-                    bankName = obj.optString("bankName", "State Bank of India"),
-                    accountNumber = obj.optString("accountNumber", "987654321012"),
-                    ifscCode = obj.optString("ifscCode", "SBIN0001234"),
+                    bankName = primaryBank,
+                    accountNumber = primaryAcc,
+                    ifscCode = primaryIfsc,
+                    bankAccounts = loadedBankAccounts,
                     invoicePrefix = obj.optString("invoicePrefix", "INV"),
                     purchasePrefix = obj.optString("purchasePrefix", "PUR"),
                     termsAndConditions = obj.optString(
@@ -93,6 +119,18 @@ class SettingsRepository(context: Context) {
     }
 
     fun saveProfile(profile: BusinessProfile) {
+        val firstBank = profile.effectiveBankAccounts.firstOrNull() ?: BankDetails()
+        val bankArr = JSONArray()
+        for (b in profile.effectiveBankAccounts) {
+            bankArr.put(
+                JSONObject().apply {
+                    put("bankName", b.bankName)
+                    put("accountNumber", b.accountNumber)
+                    put("ifscCode", b.ifscCode)
+                }
+            )
+        }
+
         val obj = JSONObject().apply {
             put("shopName", profile.shopName)
             put("ownerName", profile.ownerName)
@@ -109,9 +147,10 @@ class SettingsRepository(context: Context) {
             put("stateCode", profile.stateCode)
             put("pincode", profile.pincode)
             put("upiId", profile.upiId)
-            put("bankName", profile.bankName)
-            put("accountNumber", profile.accountNumber)
-            put("ifscCode", profile.ifscCode)
+            put("bankName", firstBank.bankName)
+            put("accountNumber", firstBank.accountNumber)
+            put("ifscCode", firstBank.ifscCode)
+            put("bankAccounts", bankArr)
             put("invoicePrefix", profile.invoicePrefix)
             put("purchasePrefix", profile.purchasePrefix)
             put("termsAndConditions", profile.termsAndConditions)
@@ -129,3 +168,4 @@ class SettingsRepository(context: Context) {
         saveProfile(profile)
     }
 }
+

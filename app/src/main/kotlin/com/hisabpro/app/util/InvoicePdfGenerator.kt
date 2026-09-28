@@ -780,7 +780,7 @@ object InvoicePdfGenerator {
             val file = (fileResult as PdfResult.Success).file
             val uri: Uri = FileProvider.getUriForFile(
                 context,
-                "com.hisabpro.app.fileprovider",
+                "${context.packageName}.fileprovider",
                 file
             )
 

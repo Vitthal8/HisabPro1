@@ -406,7 +406,7 @@ object CashbookPdfGenerator {
             val file = generatePdf(context, transactions, dateRangeLabel, profile)
             val uri: Uri = FileProvider.getUriForFile(
                 context,
-                "com.hisabpro.app.fileprovider",
+                "${context.packageName}.fileprovider",
                 file
             )
 

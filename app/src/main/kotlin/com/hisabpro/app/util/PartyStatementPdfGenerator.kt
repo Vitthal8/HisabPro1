@@ -383,7 +383,7 @@ object PartyStatementPdfGenerator {
             val file = generatePdf(context, partyWithBalance, entries, profile)
             val uri: Uri = FileProvider.getUriForFile(
                 context,
-                "com.hisabpro.app.fileprovider",
+                "${context.packageName}.fileprovider",
                 file
             )
 

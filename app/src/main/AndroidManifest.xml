@@ -25,7 +25,7 @@
 
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.hisabpro.app.fileprovider"
+            android:authorities="com.aistudio.hisabpro.xkpqr.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data

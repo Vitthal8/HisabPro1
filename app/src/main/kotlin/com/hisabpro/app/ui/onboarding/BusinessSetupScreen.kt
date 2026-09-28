@@ -365,6 +365,7 @@ fun BusinessSetupScreen(
                                 bankName = bankName.trim(),
                                 accountNumber = accountNumber.trim(),
                                 ifscCode = ifscCode.trim(),
+                                logoPath = logoPath,
                                 appLanguage = selectedLanguage,
                                 hasCompletedOnboarding = true
                             )

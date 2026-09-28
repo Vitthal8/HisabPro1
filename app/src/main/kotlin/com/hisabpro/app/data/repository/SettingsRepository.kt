@@ -104,6 +104,8 @@ class SettingsRepository(context: Context) {
                     isThermalPrinterMode = obj.optBoolean("isThermalPrinterMode", false),
                     showUpiQrOnInvoice = obj.optBoolean("showUpiQrOnInvoice", true),
                     appLanguage = obj.optString("appLanguage", "en"),
+                    isDarkMode = obj.optBoolean("isDarkMode", false),
+                    themeAccent = obj.optString("themeAccent", "Saffron"),
                     hasCompletedOnboarding = obj.optBoolean("hasCompletedOnboarding", true)
                 )
                 _sharedProfile.value = loaded
@@ -158,6 +160,8 @@ class SettingsRepository(context: Context) {
             put("isThermalPrinterMode", profile.isThermalPrinterMode)
             put("showUpiQrOnInvoice", profile.showUpiQrOnInvoice)
             put("appLanguage", profile.appLanguage)
+            put("isDarkMode", profile.isDarkMode)
+            put("themeAccent", profile.themeAccent)
             put("hasCompletedOnboarding", profile.hasCompletedOnboarding)
         }
         prefs.edit().putString(KEY_PROFILE, obj.toString()).apply()

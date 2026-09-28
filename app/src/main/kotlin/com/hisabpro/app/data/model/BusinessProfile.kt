@@ -33,6 +33,8 @@ data class BusinessProfile(
     val isThermalPrinterMode: Boolean = false,
     val showUpiQrOnInvoice: Boolean = true,
     val appLanguage: String = "en", // "en", "hi", "mr"
+    val isDarkMode: Boolean = false,
+    val themeAccent: String = "Saffron", // "Saffron", "Emerald", "Navy"
     val hasCompletedOnboarding: Boolean = true
 ) {
     val fullAddress: String

@@ -11,6 +11,10 @@ import com.hisabpro.app.ui.HisabViewModel
 import com.hisabpro.app.ui.MainScreen
 import com.hisabpro.app.ui.party.PartyViewModel
 import com.hisabpro.app.ui.theme.HisabProTheme
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import com.hisabpro.app.data.repository.SettingsRepository
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -49,7 +53,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            HisabProTheme {
+            val settingsRepo = SettingsRepository.getInstance(application)
+            val profile by settingsRepo.profile.collectAsStateWithLifecycle()
+
+            HisabProTheme(
+                darkTheme = profile.isDarkMode,
+                themeAccent = profile.themeAccent
+            ) {
                 MainScreen(
                     partyViewModel = partyViewModel,
                     hisabViewModel = hisabViewModel,

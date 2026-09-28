@@ -59,6 +59,7 @@ dependencies {
 
     // QR Code Generator for UPI Payments (PhonePe, GPay, Paytm)
     implementation("com.google.zxing:core:3.5.3")
+    implementation("io.coil-kt:coil-compose:2.7.0")
 
     // Room Database & KTX
     val roomVersion = "2.8.5"

@@ -54,16 +54,31 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun HisabProTheme(
     darkTheme: Boolean = false,
+    themeAccent: String = "Saffron",
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val lightPrimary = when (themeAccent) {
+        "Emerald" -> Emerald700
+        "Navy" -> DeepNavyBlue
+        else -> SaffronOrange
+    }
+    val darkPrimary = when (themeAccent) {
+        "Emerald" -> Emerald200
+        "Navy" -> androidx.compose.ui.graphics.Color(0xFF90CAF9)
+        else -> SaffronLight
+    }
+
+    val customLight = LightColorScheme.copy(primary = lightPrimary)
+    val customDark = DarkColorScheme.copy(primary = darkPrimary)
+
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        darkTheme -> customDark
+        else -> customLight
     }
 
     val view = LocalView.current

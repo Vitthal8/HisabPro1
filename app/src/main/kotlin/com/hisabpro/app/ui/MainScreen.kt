@@ -97,9 +97,11 @@ fun MainScreen(
         context.createConfigurationContext(config)
     }
 
+    val registryOwner = androidx.activity.compose.LocalActivityResultRegistryOwner.current
     CompositionLocalProvider(
         LocalConfiguration provides updatedConfig,
-        LocalContext provides localizedContext
+        LocalContext provides localizedContext,
+        androidx.activity.compose.LocalActivityResultRegistryOwner provides (registryOwner ?: (context as androidx.activity.ComponentActivity))
     ) {
         MainScreenContent(
             businessProfile = businessProfile,

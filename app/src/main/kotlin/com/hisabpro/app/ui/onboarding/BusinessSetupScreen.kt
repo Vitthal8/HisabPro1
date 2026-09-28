@@ -1,7 +1,18 @@
 package com.hisabpro.app.ui.onboarding
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
+import android.content.Intent
+import android.net.Uri
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +50,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -91,6 +103,27 @@ fun BusinessSetupScreen(
     var phone by remember { mutableStateOf(currentProfile.phone) }
     var email by remember { mutableStateOf(currentProfile.email) }
     var selectedLanguage by remember { mutableStateOf(currentProfile.appLanguage) }
+
+    var logoPath by remember { mutableStateOf(currentProfile.logoPath) }
+    var logoAspectRatio by remember { mutableStateOf("Square (1:1)") }
+    var logoScaleMode by remember { mutableStateOf("Fit") }
+    var isDarkMode by remember { mutableStateOf(currentProfile.isDarkMode) }
+    var themeAccent by remember { mutableStateOf(currentProfile.themeAccent) }
+
+    val context = LocalContext.current
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {}
+            logoPath = uri.toString()
+        }
+    }
 
     // Core Requirement: GST vs Non-GST
     var isGstRegistered by remember { mutableStateOf(currentProfile.isGstRegistered) }
@@ -371,12 +404,11 @@ fun BusinessSetupScreen(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = DeepNavyBlue.copy(alpha = 0.06f))
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -390,12 +422,15 @@ fun BusinessSetupScreen(
                         )
                         Text(
                             text = stringResource(R.string.app_language),
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = Slate800
                         )
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         listOf(
                             "en" to stringResource(R.string.english),
                             "hi" to stringResource(R.string.hindi),
@@ -405,6 +440,7 @@ fun BusinessSetupScreen(
                                 selected = selectedLanguage == code,
                                 onClick = { selectedLanguage = code },
                                 label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                modifier = Modifier.weight(1f),
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = SaffronOrange,
                                     selectedLabelColor = PureWhite,
@@ -416,6 +452,185 @@ fun BusinessSetupScreen(
                     }
                 }
             }
+
+            // Advanced Company Logo & Aspect Ratio Studio Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Company Logo & Ratio Studio",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Upload your business logo for invoices and PDFs",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    if (logoPath.isBlank()) {
+                        OutlinedButton(
+                            onClick = {
+                                imagePickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SaffronOrange)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Image,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "Choose / Upload Logo from Gallery", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Aspect Ratio & Preview",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Slate800
+                            )
+                            OutlinedButton(
+                                onClick = {
+                                    imagePickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Image,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "Change Logo", fontSize = 12.sp)
+                            }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("Square (1:1)", "Banner (4:1)", "Compact (16:9)").forEach { ratio ->
+                                FilterChip(
+                                    selected = logoAspectRatio == ratio,
+                                    onClick = { logoAspectRatio = ratio },
+                                    label = { Text(ratio, fontSize = 10.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = DeepNavyBlue,
+                                        selectedLabelColor = PureWhite
+                                    )
+                                )
+                            }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("Fit", "Cover").forEach { mode ->
+                                FilterChip(
+                                    selected = logoScaleMode == mode,
+                                    onClick = { logoScaleMode = mode },
+                                    label = { Text("Scale: $mode", fontSize = 10.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SaffronOrange,
+                                        selectedLabelColor = PureWhite
+                                    )
+                                )
+                            }
+                        }
+
+                        val previewModifier = when (logoAspectRatio) {
+                            "Banner (4:1)" -> Modifier.fillMaxWidth().height(70.dp)
+                            "Compact (16:9)" -> Modifier.fillMaxWidth().height(100.dp)
+                            else -> Modifier.size(100.dp).align(Alignment.CenterHorizontally)
+                        }
+
+                        Box(
+                            modifier = previewModifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AsyncImage(
+                                model = logoPath,
+                                contentDescription = "Company Logo Preview",
+                                contentScale = if (logoScaleMode == "Cover") ContentScale.Crop else ContentScale.Fit,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+
+                        TextButton(
+                            onClick = { logoPath = "" },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Remove Logo", fontSize = 11.sp, color = ExpenseRed)
+                        }
+                    }
+                }
+            }
+
+            // Theme & Appearance Customization Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Theme & Appearance Look",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Dark Mode", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Switch(
+                            checked = isDarkMode,
+                            onCheckedChange = { isDarkMode = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = SaffronOrange)
+                        )
+                    }
+
+                    Text("Accent Theme Color", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Slate800)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("Saffron" to "Saffron Orange", "Emerald" to "Emerald Green", "Navy" to "Deep Navy").forEach { (accent, label) ->
+                            FilterChip(
+                                selected = themeAccent == accent,
+                                onClick = { themeAccent = accent },
+                                label = { Text(label, fontSize = 11.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = SaffronOrange,
+                                    selectedLabelColor = PureWhite
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
             // CORE REQUIREMENT: GST vs Non-GST Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -577,7 +792,7 @@ fun BusinessSetupScreen(
                             label = { Text(stringResource(R.string.state)) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isStateExpanded) },
                             modifier = Modifier
-                                .menuAnchor()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                                 .fillMaxWidth()
                         )
                         ExposedDropdownMenu(

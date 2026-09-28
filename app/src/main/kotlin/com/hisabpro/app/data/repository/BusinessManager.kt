@@ -156,6 +156,8 @@ class BusinessManager private constructor(private val context: Context) {
             isThermalPrinterMode = obj.optBoolean("isThermalPrinterMode", false),
             showUpiQrOnInvoice = obj.optBoolean("showUpiQrOnInvoice", true),
             appLanguage = obj.optString("appLanguage", "en"),
+            isDarkMode = obj.optBoolean("isDarkMode", false),
+            themeAccent = obj.optString("themeAccent", "Saffron"),
             hasCompletedOnboarding = true
         )
     }
@@ -208,6 +210,8 @@ class BusinessManager private constructor(private val context: Context) {
                 put("isThermalPrinterMode", p.isThermalPrinterMode)
                 put("showUpiQrOnInvoice", p.showUpiQrOnInvoice)
                 put("appLanguage", p.appLanguage)
+                put("isDarkMode", p.isDarkMode)
+                put("themeAccent", p.themeAccent)
             }
             array.put(obj)
         }

@@ -240,12 +240,12 @@ fun HisabApp(
                         }
                     }
                     IconButton(
-                        onClick = { viewModel.resetToDemo() },
-                        modifier = Modifier.testTag("reset_demo_btn")
+                        onClick = { viewModel.refresh() },
+                        modifier = Modifier.testTag("refresh_ledger_btn")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = "Reset demo ledger data"
+                            contentDescription = "Refresh ledger data"
                         )
                     }
                 },

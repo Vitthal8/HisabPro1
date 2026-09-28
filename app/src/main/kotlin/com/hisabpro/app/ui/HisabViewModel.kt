@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Calendar
 import java.util.Locale
@@ -243,6 +244,12 @@ class HisabViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteTransaction(id: String) {
         repository.deleteTransaction(id)
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            repository.reloadFromDatabase()
+        }
     }
 
     fun resetToDemo() {

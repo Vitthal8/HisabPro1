@@ -242,12 +242,12 @@ fun PartiesListScreen(
                     }
 
                     IconButton(
-                        onClick = { viewModel.resetToDemo() },
-                        modifier = Modifier.testTag("reset_parties_demo")
+                        onClick = { viewModel.refresh() },
+                        modifier = Modifier.testTag("refresh_parties_btn")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = "Reset demo parties"
+                            contentDescription = "Refresh parties"
                         )
                     }
                 },

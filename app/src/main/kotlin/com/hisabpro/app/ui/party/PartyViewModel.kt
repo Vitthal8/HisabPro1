@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.io.File
 
 enum class PartySortOption(val label: String) {
@@ -375,6 +376,12 @@ class PartyViewModel @JvmOverloads constructor(
 
     fun deleteKhataEntry(entryId: String) {
         repository.deleteKhataEntry(entryId)
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            repository.reloadFromDatabase()
+        }
     }
 
     fun resetToDemo() {

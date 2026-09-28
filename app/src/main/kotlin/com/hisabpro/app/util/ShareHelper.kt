@@ -9,6 +9,46 @@ import com.hisabpro.app.ui.HisabViewModel
 
 object ShareHelper {
 
+    fun sendPaymentReminder(
+        context: Context,
+        party: Party,
+        netBalance: Double,
+        businessName: String = "HisabPro Store",
+        upiId: String = ""
+    ) {
+        val dueAmountFormatted = HisabViewModel.formatAmount(kotlin.math.abs(netBalance))
+        val upiText = if (upiId.isNotBlank()) " You can pay instantly via UPI ID: $upiId" else ""
+        val message = "🔔 *PAYMENT REMINDER* 🔔\n\nNamaste ${party.name},\n\nThis is a friendly reminder that an amount of *₹$dueAmountFormatted* is pending on your account with *$businessName*.$upiText\n\nKindly clear the dues at your earliest convenience.\n\nThank you for your business!"
+
+        val cleanPhone = party.phone.replace(Regex("[^0-9]"), "")
+        val uri = if (cleanPhone.isNotBlank()) {
+            val phoneWithCountry = if (cleanPhone.length == 10) "91$cleanPhone" else cleanPhone
+            Uri.parse("https://api.whatsapp.com/send?phone=$phoneWithCountry&text=${Uri.encode(message)}")
+        } else {
+            Uri.parse("https://api.whatsapp.com/send?text=${Uri.encode(message)}")
+        }
+
+        val waIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+
+        try {
+            context.startActivity(waIntent)
+        } catch (e: Exception) {
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, message)
+                putExtra(Intent.EXTRA_SUBJECT, "Payment Reminder - $businessName")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            val chooser = Intent.createChooser(shareIntent, "Send Payment Reminder via")
+            chooser.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            try {
+                context.startActivity(chooser)
+            } catch (_: Exception) {}
+        }
+    }
+
     fun shareBalanceStatement(
         context: Context,
         party: Party,

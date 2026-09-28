@@ -423,10 +423,12 @@ fun PartyKhataScreen(
                 PartySummaryHeroCard(
                     partyWithBalance = partyWithBalance,
                     onShareWhatsApp = {
-                        ShareHelper.shareBalanceStatement(
+                        ShareHelper.sendPaymentReminder(
                             context = context,
                             party = party,
-                            netBalance = partyWithBalance.netBalance
+                            netBalance = partyWithBalance.netBalance,
+                            businessName = businessProfile.shopName.ifBlank { "HisabPro Store" },
+                            upiId = businessProfile.upiId
                         )
                     },
                     onShowUpiQr = { showUpiQrSheet = true },
@@ -808,10 +810,10 @@ private fun PartySummaryHeroCard(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "WhatsApp",
+                                text = "🔔 Send Reminder",
                                 fontWeight = FontWeight.Bold,
                                 color = IncomeGreen,
-                                fontSize = 13.sp
+                                fontSize = 12.sp
                             )
                         }
 

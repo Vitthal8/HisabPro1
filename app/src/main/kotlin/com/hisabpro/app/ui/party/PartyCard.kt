@@ -237,11 +237,13 @@ fun PartyCard(
 
                         IconButton(
                             onClick = {
-                                ShareHelper.shareBalanceStatement(
+                                val profile = SettingsRepository.getInstance(context).profile.value
+                                ShareHelper.sendPaymentReminder(
                                     context = context,
                                     party = party,
                                     netBalance = partyWithBalance.netBalance,
-                                    businessName = SettingsRepository.getInstance(context).profile.value.shopName.ifBlank { "HisabPro Store" }
+                                    businessName = profile.shopName.ifBlank { "HisabPro Store" },
+                                    upiId = profile.upiId
                                 )
                             },
                             modifier = Modifier

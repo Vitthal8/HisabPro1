@@ -15,8 +15,8 @@ object SupabaseConfig {
     private const val KEY_ANON_KEY = "supabase_anon_key"
 
     // Default Supabase project configuration (can be updated dynamically or via build config)
-    const val DEFAULT_PROJECT_URL = "https://hisabpro-cloud-sync.supabase.co"
-    const val DEFAULT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhpc2FicHJvLXN5bmMiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoyMDAwMDAwMDAwfQ.public-anon-key-placeholder"
+    const val DEFAULT_PROJECT_URL = "https://yadqiswozvcusgkcxsgy.supabase.co"
+    const val DEFAULT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhZHFpc3dvenZjdXNna2N4c2d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NzMwODEsImV4cCI6MjEwNjI0OTA4MX0.PRr-f86_zbOQ0Lp70FwV1Kf9gtl1JnL7NY45uUya_Jg"
 
     fun getProjectUrl(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

@@ -52,6 +52,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        com.hisabpro.app.ads.ConsentManager.getInstance(this).gatherConsent(
+            this,
+            object : com.hisabpro.app.ads.ConsentManager.OnConsentGatheringCompleteListener {
+                override fun consentGatheringComplete(error: com.google.android.ump.FormError?) {
+                    if (error != null) {
+                        error.message?.let { android.util.Log.d("ConsentManager", "Consent error: $it") }
+                    }
+                }
+            }
+        )
+
         setContent {
             val settingsRepo = SettingsRepository.getInstance(application)
             val profile by settingsRepo.profile.collectAsStateWithLifecycle()

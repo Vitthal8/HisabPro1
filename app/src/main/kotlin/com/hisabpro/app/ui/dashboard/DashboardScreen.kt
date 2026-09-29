@@ -503,6 +503,15 @@ fun DashboardScreen(
                 onDaybookClick = onDaybookClick
             )
         }
+
+        // =========================================================
+        // 8. ADMOB BANNER AD
+        // =========================================================
+        item {
+            com.hisabpro.app.ads.HisabProBannerAd(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
     }
 
     // =============================================================

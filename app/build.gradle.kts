@@ -61,6 +61,10 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3")
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // Google Mobile Ads & User Messaging Platform (UMP)
+    implementation("com.google.android.gms:play-services-ads:23.3.0")
+    implementation("com.google.android.ump:user-messaging-platform:2.2.0")
+
     // Room Database & KTX
     val roomVersion = "2.8.5"
     implementation("androidx.room:room-runtime:$roomVersion")

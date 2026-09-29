@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import com.hisabpro.app.data.local.AppDatabase
 import com.hisabpro.app.data.local.DatabaseMigrationHelper
+import com.hisabpro.app.ads.AdsManager
 
 class HisabProApp : Application() {
     override fun onCreate() {
@@ -11,6 +12,7 @@ class HisabProApp : Application() {
         val db = AppDatabase.getInstance(this)
         DatabaseMigrationHelper.migrateIfNecessary(this, db)
         clearDemoPrefs()
+        AdsManager.initialize(this)
     }
 
     private fun clearDemoPrefs() {

@@ -3,8 +3,13 @@ package com.hisabpro.app.ui.settings
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -31,6 +37,7 @@ import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Store
@@ -40,6 +47,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
@@ -70,6 +79,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -78,12 +88,16 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.hisabpro.app.data.model.BusinessProfile
+import com.hisabpro.app.ui.theme.DeepNavyBlue
 import com.hisabpro.app.ui.theme.Emerald700
 import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.PureWhite
+import com.hisabpro.app.ui.theme.SaffronOrange
 import com.hisabpro.app.ui.theme.Slate100
 import com.hisabpro.app.ui.theme.Slate200
+import com.hisabpro.app.ui.theme.Slate800
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,6 +132,24 @@ fun BusinessProfileSheet(
     var isThermalPrinterMode by remember { mutableStateOf(profile.isThermalPrinterMode) }
     var showUpiQrOnInvoice by remember { mutableStateOf(profile.showUpiQrOnInvoice) }
 
+    var logoPath by remember { mutableStateOf(profile.logoPath) }
+    var logoAspectRatio by remember { mutableStateOf("Square (1:1)") }
+    var logoScaleMode by remember { mutableStateOf("Fit") }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {}
+            logoPath = uri.toString()
+        }
+    }
+
     androidx.compose.runtime.LaunchedEffect(profile) {
         shopName = profile.shopName
         ownerName = profile.ownerName
@@ -139,12 +171,13 @@ fun BusinessProfileSheet(
         termsAndConditions = profile.termsAndConditions
         isThermalPrinterMode = profile.isThermalPrinterMode
         showUpiQrOnInvoice = profile.showUpiQrOnInvoice
+        logoPath = profile.logoPath
     }
 
     val hasUnsavedChanges = remember(
         shopName, ownerName, phone, email, isGstRegistered, gstin, address, city, state, stateCode, pincode,
         upiId, bankName, accountNumber, ifscCode, invoicePrefix, purchasePrefix, termsAndConditions,
-        isThermalPrinterMode, showUpiQrOnInvoice, profile
+        isThermalPrinterMode, showUpiQrOnInvoice, logoPath, profile
     ) {
         shopName != profile.shopName ||
                 ownerName != profile.ownerName ||
@@ -165,7 +198,8 @@ fun BusinessProfileSheet(
                 purchasePrefix != profile.purchasePrefix ||
                 termsAndConditions != profile.termsAndConditions ||
                 isThermalPrinterMode != profile.isThermalPrinterMode ||
-                showUpiQrOnInvoice != profile.showUpiQrOnInvoice
+                showUpiQrOnInvoice != profile.showUpiQrOnInvoice ||
+                logoPath != profile.logoPath
     }
 
     var showDiscardConfirmDialog by remember { mutableStateOf(false) }
@@ -319,6 +353,138 @@ fun BusinessProfileSheet(
             }
 
             HorizontalDivider(color = Slate200)
+
+            // Company Logo & Ratio Studio Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Company Logo & Ratio Studio",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Upload independent logo for this company",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    if (logoPath.isBlank()) {
+                        OutlinedButton(
+                            onClick = {
+                                imagePickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SaffronOrange)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Image,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "Choose / Upload Logo from Gallery", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Aspect Ratio & Preview",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Slate800
+                            )
+                            OutlinedButton(
+                                onClick = {
+                                    imagePickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Image,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "Change Logo", fontSize = 12.sp)
+                            }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("Square (1:1)", "Banner (4:1)", "Compact (16:9)").forEach { ratio ->
+                                FilterChip(
+                                    selected = logoAspectRatio == ratio,
+                                    onClick = { logoAspectRatio = ratio },
+                                    label = { Text(ratio, fontSize = 10.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = DeepNavyBlue,
+                                        selectedLabelColor = PureWhite
+                                    )
+                                )
+                            }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("Fit", "Cover").forEach { mode ->
+                                FilterChip(
+                                    selected = logoScaleMode == mode,
+                                    onClick = { logoScaleMode = mode },
+                                    label = { Text("Scale: $mode", fontSize = 10.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SaffronOrange,
+                                        selectedLabelColor = PureWhite
+                                    )
+                                )
+                            }
+                        }
+
+                        val previewModifier = when (logoAspectRatio) {
+                            "Banner (4:1)" -> Modifier.fillMaxWidth().height(70.dp)
+                            "Compact (16:9)" -> Modifier.fillMaxWidth().height(100.dp)
+                            else -> Modifier.size(100.dp).align(Alignment.CenterHorizontally)
+                        }
+
+                        Box(
+                            modifier = previewModifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AsyncImage(
+                                model = logoPath,
+                                contentDescription = "Company Logo Preview",
+                                contentScale = if (logoScaleMode == "Cover") ContentScale.Crop else ContentScale.Fit,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+
+                        TextButton(
+                            onClick = { logoPath = "" },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Remove Logo", fontSize = 11.sp, color = Color(0xFFDC2626))
+                        }
+                    }
+                }
+            }
 
             // Section 1: Business Identity
             Card(
@@ -755,7 +921,7 @@ fun BusinessProfileSheet(
             // Save Action
             Button(
                 onClick = {
-                    val updated = BusinessProfile(
+                    val updated = profile.copy(
                         shopName = shopName.ifBlank { "HisabPro Store" },
                         ownerName = ownerName,
                         phone = phone,
@@ -775,7 +941,8 @@ fun BusinessProfileSheet(
                         purchasePrefix = purchasePrefix.ifBlank { "PUR" },
                         termsAndConditions = termsAndConditions,
                         isThermalPrinterMode = isThermalPrinterMode,
-                        showUpiQrOnInvoice = showUpiQrOnInvoice
+                        showUpiQrOnInvoice = showUpiQrOnInvoice,
+                        logoPath = logoPath
                     )
                     onSaveProfile(updated)
                     Toast.makeText(context, "Business Profile & Settings Saved!", Toast.LENGTH_SHORT).show()

@@ -213,6 +213,38 @@ fun MoreScreen(
             )
         }
 
+        // Section: Privacy & Ad Settings
+        item {
+            SectionHeader(title = "Privacy & Consent")
+            val context = androidx.compose.ui.platform.LocalContext.current
+            SettingsItemRow(
+                icon = Icons.Default.Security,
+                title = "Ad Privacy Preferences",
+                subtitle = "Manage consent & personalized ad choices (Google UMP)",
+                tag = "more_item_privacy_options",
+                onClick = {
+                    var currentContext = context
+                    while (currentContext is android.content.ContextWrapper) {
+                        if (currentContext is android.app.Activity) break
+                        currentContext = currentContext.baseContext
+                    }
+                    val activity = currentContext as? android.app.Activity
+                    if (activity != null) {
+                        com.hisabpro.app.ads.ConsentManager.getInstance(context).showPrivacyOptionsForm(
+                            activity,
+                            object : com.hisabpro.app.ads.ConsentManager.OnConsentGatheringCompleteListener {
+                                override fun consentGatheringComplete(error: com.google.android.ump.FormError?) {
+                                    if (error != null) {
+                                        android.util.Log.d("MoreScreen", "Privacy form error: ${error.message}")
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+            )
+        }
+
         // Section: Language & Localization
         item {
             SectionHeader(title = stringResource(R.string.app_language))

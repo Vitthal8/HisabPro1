@@ -12,7 +12,7 @@ class HisabProApp : Application() {
         val db = AppDatabase.getInstance(this)
         DatabaseMigrationHelper.migrateIfNecessary(this, db)
         clearDemoPrefs()
-        AdsManager.initialize(this)
+        // MobileAds initialization is intentionally deferred to MainActivity after UMP consent resolution
     }
 
     private fun clearDemoPrefs() {

@@ -1,5 +1,13 @@
 package com.hisabpro.app.domain.subscription
 
+/**
+ * Subscription tiers for HisabPro.
+ *
+ * MONETIZATION SPECIFICATION:
+ * - FREE: 50 bills/month, 1 business, AdMob banners enabled, offline-first accounting, local backup.
+ * - PRO (Future): Unlimited bills, custom logo PDF, WhatsApp sharing, ad-free.
+ * - PREMIUM (Future): Up to 5 businesses, Supabase cloud sync, GSTR-1 export, priority support.
+ */
 enum class SubscriptionPlan(
     val title: String,
     val monthlyPrice: Int,
@@ -21,7 +29,12 @@ sealed class EntitlementCheck {
 
 /**
  * Centralized Entitlement & Monetization Layer for HisabPro.
- * Controls tier limits (50 invoices/month on Free tier, GSTR-1 export, cloud sync).
+ *
+ * ARCHITECTURAL NOTES FOR FUTURE PLAY BILLING INTEGRATION:
+ * 1. Never trust a local Boolean or SharedPreferences as proof of payment.
+ * 2. Future subscriptions must be verified server-side using Google Play Developer API
+ *    and Real-Time Developer Notifications (RTDN) connected to Supabase edge functions.
+ * 3. Free tier retains full offline-first functionality and core accounting workflows.
  */
 object SubscriptionManager {
 

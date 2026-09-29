@@ -54,16 +54,25 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        com.hisabpro.app.ads.ConsentManager.getInstance(this).gatherConsent(
+        val consentManager = com.hisabpro.app.ads.ConsentManager.getInstance(this)
+        consentManager.gatherConsent(
             this,
             object : com.hisabpro.app.ads.ConsentManager.OnConsentGatheringCompleteListener {
                 override fun consentGatheringComplete(error: com.google.android.ump.FormError?) {
                     if (error != null) {
-                        error.message?.let { android.util.Log.d("ConsentManager", "Consent error: $it") }
+                        android.util.Log.w("MainActivity", "Consent gathering warning: ${error.message}")
+                    }
+                    if (consentManager.canRequestAds) {
+                        com.hisabpro.app.ads.AdsManager.initialize(this@MainActivity)
                     }
                 }
             }
         )
+
+        // If consent was previously obtained or not required in this region, initialize immediately
+        if (consentManager.canRequestAds) {
+            com.hisabpro.app.ads.AdsManager.initialize(this)
+        }
 
         setContent {
             val settingsRepo = SettingsRepository.getInstance(application)

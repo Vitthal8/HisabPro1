@@ -103,6 +103,15 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             val result = authManager.signUpWithEmail(em, pass)
             _isLoading.value = false
             if (result.isSuccess) {
+                if (bizName.isNotBlank()) {
+                    val businessManager = com.hisabpro.app.data.repository.BusinessManager.getInstance(getApplication())
+                    val profile = com.hisabpro.app.data.model.BusinessProfile(
+                        shopName = bizName,
+                        ownerName = em.substringBefore("@"),
+                        email = em
+                    )
+                    businessManager.addBusiness(profile)
+                }
                 _successMessage.value = "Registration successful! Please check your email to verify your account before logging in."
                 _authMode.value = AuthMode.LOGIN
             } else {

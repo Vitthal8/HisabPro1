@@ -39,12 +39,11 @@ class BusinessManager private constructor(private val context: Context) {
 
     val activeBusinessDatabaseId: String
         get() {
-            val list = _businesses.value
-            val activeName = _activeBusiness.value.shopName.ifBlank { _activeBusinessId.value }
-            val idx = list.indexOfFirst { it.shopName == activeName || it.shopName == _activeBusinessId.value || it.gstin == activeName }
-            if (idx <= 0) return "default_business"
-            val p = list[idx]
-            return "biz_${p.shopName.lowercase().replace(" ", "_")}_$idx"
+            val active = _activeBusiness.value
+            val name = active.shopName.trim()
+            if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) return "default_business"
+            val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
+            return "biz_$sanitized"
         }
 
     init {
@@ -228,9 +227,16 @@ class BusinessManager private constructor(private val context: Context) {
 
     suspend fun syncToDatabase() {
         try {
-            val entities = _businesses.value.mapIndexed { idx, p ->
+            val entities = _businesses.value.map { p ->
+                val name = p.shopName.trim()
+                val bizId = if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) {
+                    "default_business"
+                } else {
+                    val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
+                    "biz_$sanitized"
+                }
                 BusinessEntity(
-                    id = if (idx == 0) "default_business" else "biz_${p.shopName.lowercase().replace(" ", "_")}_$idx",
+                    id = bizId,
                     name = p.shopName,
                     address = p.address,
                     phone = p.phone,

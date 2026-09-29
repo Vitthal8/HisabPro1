@@ -95,6 +95,58 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
         } else null
     }
 
+    suspend fun refreshTokenIfNeeded(): UserSession? = withContext(Dispatchers.IO) {
+        val state = _authState.value
+        if (state !is AuthState.Authenticated) return@withContext null
+        val session = state.session
+        if (session.expiresAt > 0 && System.currentTimeMillis() >= session.expiresAt - 60_000L) {
+            val refreshToken = session.refreshToken
+            if (refreshToken.isNullOrBlank()) {
+                signOut()
+                return@withContext null
+            }
+            try {
+                val projectUrl = SupabaseConfig.getProjectUrl(appContext)
+                val anonKey = SupabaseConfig.getAnonKey(appContext)
+                val authUrl = "$projectUrl/auth/v1/token?grant_type=refresh_token"
+                val payload = JSONObject().apply {
+                    put("refresh_token", refreshToken)
+                }
+                val response = executeAuthPost(authUrl, anonKey, payload.toString())
+                if (response.isSuccess) {
+                    val json = JSONObject(response.getOrThrow())
+                    val accessToken = json.getString("access_token")
+                    val newRefreshToken = json.optString("refresh_token", refreshToken)
+                    val expiresIn = json.optLong("expires_in", 3600L)
+                    val userObj = json.getJSONObject("user")
+                    val userId = userObj.getString("id")
+                    val userEmail = userObj.optString("email", session.email)
+                    val userPhone = userObj.optString("phone", session.phone)
+
+                    val newSession = UserSession(
+                        userId = userId,
+                        email = userEmail,
+                        phone = userPhone,
+                        accessToken = accessToken,
+                        refreshToken = newRefreshToken,
+                        expiresAt = System.currentTimeMillis() + (expiresIn * 1000L),
+                        isDemoAccount = false
+                    )
+                    saveSession(newSession)
+                    _authState.value = AuthState.Authenticated(newSession)
+                    return@withContext newSession
+                } else {
+                    signOut()
+                    return@withContext null
+                }
+            } catch (e: Exception) {
+                signOut()
+                return@withContext null
+            }
+        }
+        return@withContext session
+    }
+
     fun isAuthenticated(): Boolean {
         return getCurrentSession() != null
     }

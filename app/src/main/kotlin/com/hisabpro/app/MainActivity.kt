@@ -19,6 +19,7 @@ import java.io.File
 
 class MainActivity : ComponentActivity() {
 
+    private val authViewModel: com.hisabpro.app.ui.auth.AuthViewModel by viewModels()
     private val hisabViewModel: HisabViewModel by viewModels()
     private val partyViewModel: PartyViewModel by viewModels()
     private val invoiceViewModel: com.hisabpro.app.ui.sales.InvoiceViewModel by viewModels()
@@ -67,36 +68,47 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settingsRepo = SettingsRepository.getInstance(application)
             val profile by settingsRepo.profile.collectAsStateWithLifecycle()
+            val authManager = com.hisabpro.app.data.sync.SupabaseAuthManager.getInstance(application)
+            val authState by authManager.authState.collectAsStateWithLifecycle()
 
             HisabProTheme(
                 darkTheme = profile.isDarkMode,
                 themeAccent = profile.themeAccent
             ) {
-                MainScreen(
-                    partyViewModel = partyViewModel,
-                    hisabViewModel = hisabViewModel,
-                    invoiceViewModel = invoiceViewModel,
-                    itemViewModel = itemViewModel,
-                    reportsViewModel = reportsViewModel,
-                    purchaseViewModel = purchaseViewModel,
-                    backupViewModel = backupViewModel,
-                    cloudSyncViewModel = cloudSyncViewModel,
-                    onPickBackupFile = {
-                        try {
-                            restoreFilePickerLauncher.launch(arrayOf("*/*", "application/json", "application/octet-stream"))
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    },
-                    onSaveBackupToUri = { file ->
-                        try {
-                            pendingFileToExport = file
-                            saveDocumentLauncher.launch(file.name)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
+                when (authState) {
+                    is com.hisabpro.app.data.sync.AuthState.Authenticated -> {
+                        MainScreen(
+                            partyViewModel = partyViewModel,
+                            hisabViewModel = hisabViewModel,
+                            invoiceViewModel = invoiceViewModel,
+                            itemViewModel = itemViewModel,
+                            reportsViewModel = reportsViewModel,
+                            purchaseViewModel = purchaseViewModel,
+                            backupViewModel = backupViewModel,
+                            cloudSyncViewModel = cloudSyncViewModel,
+                            onPickBackupFile = {
+                                try {
+                                    restoreFilePickerLauncher.launch(arrayOf("*/*", "application/json", "application/octet-stream"))
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            },
+                            onSaveBackupToUri = { file ->
+                                try {
+                                    pendingFileToExport = file
+                                    saveDocumentLauncher.launch(file.name)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
+                        )
                     }
-                )
+                    else -> {
+                        com.hisabpro.app.ui.auth.AuthScreen(
+                            viewModel = authViewModel
+                        )
+                    }
+                }
             }
         }
     }

@@ -59,18 +59,24 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
     private fun loadSavedSession() {
         val userId = prefs.getString("user_id", null)
         val token = prefs.getString("access_token", null)
+        val expiresAt = prefs.getLong("expires_at", 0L)
 
         if (!userId.isNullOrBlank() && !token.isNullOrBlank()) {
-            val session = UserSession(
-                userId = userId,
-                email = prefs.getString("user_email", null),
-                phone = prefs.getString("user_phone", null),
-                accessToken = token,
-                refreshToken = prefs.getString("refresh_token", null),
-                expiresAt = prefs.getLong("expires_at", 0L),
-                isDemoAccount = prefs.getBoolean("is_demo_account", false)
-            )
-            _authState.value = AuthState.Authenticated(session)
+            if (expiresAt > 0 && System.currentTimeMillis() > expiresAt) {
+                // Expired session - clear credentials for security
+                signOut()
+            } else {
+                val session = UserSession(
+                    userId = userId,
+                    email = prefs.getString("user_email", null),
+                    phone = prefs.getString("user_phone", null),
+                    accessToken = token,
+                    refreshToken = prefs.getString("refresh_token", null),
+                    expiresAt = expiresAt,
+                    isDemoAccount = false
+                )
+                _authState.value = AuthState.Authenticated(session)
+            }
         } else {
             _authState.value = AuthState.Unauthenticated
         }
@@ -78,15 +84,29 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
 
     fun getCurrentSession(): UserSession? {
         val state = _authState.value
-        return if (state is AuthState.Authenticated) state.session else null
+        return if (state is AuthState.Authenticated) {
+            val session = state.session
+            if (session.expiresAt > 0 && System.currentTimeMillis() > session.expiresAt) {
+                signOut()
+                null
+            } else {
+                session
+            }
+        } else null
     }
 
-    fun isAuthenticated(): Boolean = _authState.value is AuthState.Authenticated
+    fun isAuthenticated(): Boolean {
+        return getCurrentSession() != null
+    }
 
     suspend fun signInWithEmail(email: String, pass: String): Result<UserSession> = withContext(Dispatchers.IO) {
         try {
             val projectUrl = SupabaseConfig.getProjectUrl(appContext)
             val anonKey = SupabaseConfig.getAnonKey(appContext)
+            if (SupabaseConfig.isLiveConfigured(appContext).not() && (projectUrl.contains("placeholder") || anonKey.contains("placeholder"))) {
+                return@withContext Result.failure(Exception("Supabase project is not configured with valid credentials."))
+            }
+
             val authUrl = "$projectUrl/auth/v1/token?grant_type=password"
 
             val payload = JSONObject().apply {
@@ -103,7 +123,7 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
                 val userObj = json.getJSONObject("user")
                 val userId = userObj.getString("id")
                 val userEmail = userObj.optString("email", email)
-                val userPhone = userObj.optString("phone", null)
+                val userPhone = if (userObj.has("phone") && !userObj.isNull("phone")) userObj.optString("phone").takeIf { it.isNotBlank() } else null
 
                 val session = UserSession(
                     userId = userId,
@@ -119,17 +139,10 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
                 _authState.value = AuthState.Authenticated(session)
                 Result.success(session)
             } else {
-                // If cloud is unreachable or mock mode, generate standard local verified session
-                val demoSession = createLocalConnectedSession(email = email.trim(), phone = null)
-                saveSession(demoSession)
-                _authState.value = AuthState.Authenticated(demoSession)
-                Result.success(demoSession)
+                Result.failure(Exception(response.exceptionOrNull()?.message ?: "Authentication failed."))
             }
         } catch (e: Exception) {
-            val demoSession = createLocalConnectedSession(email = email.trim(), phone = null)
-            saveSession(demoSession)
-            _authState.value = AuthState.Authenticated(demoSession)
-            Result.success(demoSession)
+            Result.failure(e)
         }
     }
 
@@ -137,6 +150,10 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
         try {
             val projectUrl = SupabaseConfig.getProjectUrl(appContext)
             val anonKey = SupabaseConfig.getAnonKey(appContext)
+            if (SupabaseConfig.isLiveConfigured(appContext).not() && (projectUrl.contains("placeholder") || anonKey.contains("placeholder"))) {
+                return@withContext Result.failure(Exception("Supabase project is not configured with valid credentials."))
+            }
+
             val authUrl = "$projectUrl/auth/v1/otp"
 
             val cleanPhone = if (!phone.startsWith("+91") && phone.length == 10) "+91$phone" else phone
@@ -144,11 +161,14 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
                 put("phone", cleanPhone)
             }
 
-            executeAuthPost(authUrl, anonKey, payload.toString())
-            Result.success(true)
+            val response = executeAuthPost(authUrl, anonKey, payload.toString())
+            if (response.isSuccess) {
+                Result.success(true)
+            } else {
+                Result.failure(Exception(response.exceptionOrNull()?.message ?: "Failed to send OTP."))
+            }
         } catch (e: Exception) {
-            // Success in local/offline fallback mode
-            Result.success(true)
+            Result.failure(e)
         }
     }
 
@@ -157,6 +177,10 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
         try {
             val projectUrl = SupabaseConfig.getProjectUrl(appContext)
             val anonKey = SupabaseConfig.getAnonKey(appContext)
+            if (SupabaseConfig.isLiveConfigured(appContext).not() && (projectUrl.contains("placeholder") || anonKey.contains("placeholder"))) {
+                return@withContext Result.failure(Exception("Supabase project is not configured with valid credentials."))
+            }
+
             val authUrl = "$projectUrl/auth/v1/verify"
 
             val payload = JSONObject().apply {
@@ -169,6 +193,8 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
             if (response.isSuccess) {
                 val json = JSONObject(response.getOrThrow())
                 val accessToken = json.getString("access_token")
+                val refreshToken = json.optString("refresh_token", "")
+                val expiresIn = json.optLong("expires_in", 3600L)
                 val userObj = json.getJSONObject("user")
                 val userId = userObj.getString("id")
 
@@ -177,55 +203,73 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
                     email = null,
                     phone = cleanPhone,
                     accessToken = accessToken,
-                    refreshToken = json.optString("refresh_token", null),
-                    expiresAt = System.currentTimeMillis() + 86400000L,
+                    refreshToken = refreshToken,
+                    expiresAt = System.currentTimeMillis() + (expiresIn * 1000L),
                     isDemoAccount = false
                 )
                 saveSession(session)
                 _authState.value = AuthState.Authenticated(session)
                 Result.success(session)
             } else {
-                val session = createLocalConnectedSession(email = null, phone = cleanPhone)
-                saveSession(session)
-                _authState.value = AuthState.Authenticated(session)
-                Result.success(session)
+                Result.failure(Exception(response.exceptionOrNull()?.message ?: "OTP verification failed."))
             }
         } catch (e: Exception) {
-            val session = createLocalConnectedSession(email = null, phone = cleanPhone)
-            saveSession(session)
-            _authState.value = AuthState.Authenticated(session)
-            Result.success(session)
+            Result.failure(e)
         }
     }
 
-    suspend fun connectCloudAccount(phoneOrEmail: String): UserSession = withContext(Dispatchers.IO) {
-        val isEmail = phoneOrEmail.contains("@")
-        val session = createLocalConnectedSession(
-            email = if (isEmail) phoneOrEmail.trim() else null,
-            phone = if (!isEmail) phoneOrEmail.trim() else null
-        )
-        saveSession(session)
-        _authState.value = AuthState.Authenticated(session)
-        session
+    suspend fun signUpWithEmail(email: String, pass: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val projectUrl = SupabaseConfig.getProjectUrl(appContext)
+            val anonKey = SupabaseConfig.getAnonKey(appContext)
+            if (SupabaseConfig.isLiveConfigured(appContext).not() && (projectUrl.contains("placeholder") || anonKey.contains("placeholder"))) {
+                return@withContext Result.failure(Exception("Supabase project is not configured with valid credentials."))
+            }
+
+            val authUrl = "$projectUrl/auth/v1/signup"
+            val payload = JSONObject().apply {
+                put("email", email.trim())
+                put("password", pass)
+            }
+
+            val response = executeAuthPost(authUrl, anonKey, payload.toString())
+            if (response.isSuccess) {
+                Result.success(true)
+            } else {
+                Result.failure(Exception(response.exceptionOrNull()?.message ?: "Registration failed."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun resetPasswordForEmail(email: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val projectUrl = SupabaseConfig.getProjectUrl(appContext)
+            val anonKey = SupabaseConfig.getAnonKey(appContext)
+            if (SupabaseConfig.isLiveConfigured(appContext).not() && (projectUrl.contains("placeholder") || anonKey.contains("placeholder"))) {
+                return@withContext Result.failure(Exception("Supabase project is not configured with valid credentials."))
+            }
+
+            val authUrl = "$projectUrl/auth/v1/recover"
+            val payload = JSONObject().apply {
+                put("email", email.trim())
+            }
+
+            val response = executeAuthPost(authUrl, anonKey, payload.toString())
+            if (response.isSuccess) {
+                Result.success(true)
+            } else {
+                Result.failure(Exception(response.exceptionOrNull()?.message ?: "Password recovery failed."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     fun signOut() {
         prefs.edit().clear().apply()
         _authState.value = AuthState.Unauthenticated
-    }
-
-    private fun createLocalConnectedSession(email: String?, phone: String?): UserSession {
-        val seed = (email ?: phone ?: "hisabpro_user").lowercase()
-        val stableId = UUID.nameUUIDFromBytes(seed.toByteArray(Charsets.UTF_8)).toString()
-        return UserSession(
-            userId = stableId,
-            email = email,
-            phone = phone,
-            accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.local-authenticated-session-$stableId",
-            refreshToken = "refresh-token-$stableId",
-            expiresAt = System.currentTimeMillis() + (30L * 24 * 3600 * 1000L),
-            isDemoAccount = false
-        )
     }
 
     private fun saveSession(session: UserSession) {

@@ -91,16 +91,6 @@ class CloudSyncViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun quickConnectAccount(phoneOrEmail: String) {
-        viewModelScope.launch {
-            _loginInProgress.value = true
-            _authError.value = null
-            authManager.connectCloudAccount(phoneOrEmail)
-            _loginInProgress.value = false
-            syncManager.triggerSync(isManual = true)
-        }
-    }
-
     fun signOut() {
         authManager.signOut()
         _otpSent.value = false

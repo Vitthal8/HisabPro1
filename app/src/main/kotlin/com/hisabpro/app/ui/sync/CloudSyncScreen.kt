@@ -398,11 +398,6 @@ fun CloudSyncScreen(
                                     onClick = { authTab = 1; viewModel.clearError() },
                                     text = { Text("Email", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                                 )
-                                Tab(
-                                    selected = authTab == 2,
-                                    onClick = { authTab = 2; viewModel.clearError() },
-                                    text = { Text("1-Click Connect", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-                                )
                             }
 
                             Spacer(modifier = Modifier.height(14.dp))
@@ -500,26 +495,6 @@ fun CloudSyncScreen(
                                         modifier = Modifier.fillMaxWidth().testTag("btn_email_signin")
                                     ) {
                                         Text("Sign In with Supabase", fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                                2 -> {
-                                    // 1-Click Quick Connect
-                                    Text(
-                                        text = "Instant 1-Click Sync for this business profile. Creates a secure hardware-anchored cloud tenant immediately.",
-                                        fontSize = 12.sp,
-                                        color = Slate700,
-                                        modifier = Modifier.padding(bottom = 12.dp)
-                                    )
-                                    Button(
-                                        onClick = { viewModel.quickConnectAccount("hisabpro_merchant@cloud.hisabpro") },
-                                        enabled = !loginInProgress,
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Emerald700),
-                                        modifier = Modifier.fillMaxWidth().testTag("btn_quick_connect")
-                                    ) {
-                                        Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text("1-Click Connect & Sync", fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }

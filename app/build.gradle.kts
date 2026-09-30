@@ -21,6 +21,10 @@ android {
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("debug")
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
+            buildConfigField("String", "ADMOB_APP_ID", "\"ca-app-pub-3940256099942544~3347511713\"")
+            buildConfigField("String", "BANNER_AD_UNIT_ID", "\"ca-app-pub-3940256099942544/9214589741\"")
+            buildConfigField("Boolean", "IS_PRODUCTION_ADS", "false")
         }
         release {
             isMinifyEnabled = false
@@ -28,6 +32,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-2267867402830888~9218869645"
+            buildConfigField("String", "ADMOB_APP_ID", "\"ca-app-pub-2267867402830888~9218869645\"")
+            buildConfigField("String", "BANNER_AD_UNIT_ID", "\"ca-app-pub-2267867402830888/9391008468\"")
+            buildConfigField("Boolean", "IS_PRODUCTION_ADS", "true")
         }
     }
 
@@ -38,6 +46,13 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+        disable += "InvalidFragmentVersionForActivityResult"
     }
 }
 

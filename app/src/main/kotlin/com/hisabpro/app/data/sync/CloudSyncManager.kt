@@ -16,6 +16,8 @@ import com.hisabpro.app.data.local.entity.PartyEntity
 import com.hisabpro.app.data.local.entity.PaymentEntity
 import com.hisabpro.app.data.local.entity.SyncMetadataEntity
 import com.hisabpro.app.data.local.entity.SyncQueueEntity
+import com.hisabpro.app.data.model.BusinessProfile
+import com.hisabpro.app.data.repository.BusinessManager
 import com.hisabpro.app.data.repository.InvoiceRepository
 import com.hisabpro.app.data.repository.ItemRepository
 import com.hisabpro.app.data.repository.PartyRepository
@@ -67,6 +69,16 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     userEmail = session?.email,
                     userPhone = session?.phone
                 )
+                if (session != null) {
+                    try {
+                        val bizCount = db.businessDao().getAllBusinessesSync().size
+                        if (bizCount == 0) {
+                            performSync(isManual = false)
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
             }
         }
 
@@ -291,6 +303,8 @@ class CloudSyncManager private constructor(private val appContext: Context) {
     private suspend fun applyRemoteRecords(table: String, records: JSONArray) {
         when (table) {
             "businesses" -> {
+                val list = mutableListOf<BusinessEntity>()
+                val businessProfiles = mutableListOf<BusinessProfile>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
                     val remote = BusinessEntity(
@@ -315,7 +329,33 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     )
                     val local = db.businessDao().getBusinessSync(remote.id)
                     val resolved = ConflictResolver.resolveBusiness(local, remote)
-                    db.businessDao().insertOrUpdate(resolved)
+                    list.add(resolved)
+
+                    businessProfiles.add(
+                        BusinessProfile(
+                            shopName = resolved.name,
+                            ownerName = resolved.ownerName,
+                            phone = resolved.phone,
+                            email = resolved.email,
+                            address = resolved.address,
+                            isGstRegistered = resolved.gstEnabled,
+                            gstin = resolved.gstin,
+                            pan = resolved.pan,
+                            upiId = resolved.upiId,
+                            bankName = resolved.bankName,
+                            accountNumber = resolved.accountNumber,
+                            ifscCode = resolved.ifscCode,
+                            termsAndConditions = resolved.termsAndConditions,
+                            logoPath = resolved.logoPath,
+                            hasCompletedOnboarding = true
+                        )
+                    )
+                }
+                if (list.isNotEmpty()) {
+                    db.businessDao().insertAllBusinesses(list)
+                    if (businessProfiles.isNotEmpty()) {
+                        BusinessManager.getInstance(appContext).restoreBusinessesFromCloud(businessProfiles)
+                    }
                 }
             }
             "parties" -> {

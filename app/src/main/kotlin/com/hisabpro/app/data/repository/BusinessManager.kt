@@ -272,6 +272,13 @@ class BusinessManager private constructor(private val context: Context) {
         saveBusinessesInternal(current, updatedProfile.shopName)
     }
 
+    fun restoreBusinessesFromCloud(profiles: List<BusinessProfile>) {
+        if (profiles.isNotEmpty()) {
+            val currentActiveId = profiles.first().shopName
+            saveBusinessesInternal(profiles, currentActiveId)
+        }
+    }
+
     fun deleteBusiness(shopName: String): Boolean {
         if (_businesses.value.size <= 1) return false // Cannot delete the only business
         val updated = _businesses.value.filterNot { it.shopName == shopName }

@@ -230,16 +230,34 @@ fun MoreScreen(
                     }
                     val activity = currentContext as? android.app.Activity
                     if (activity != null) {
-                        com.hisabpro.app.ads.ConsentManager.getInstance(context).showPrivacyOptionsForm(
+                        val consentManager = com.hisabpro.app.ads.ConsentManager.getInstance(context)
+                        consentManager.showPrivacyOptionsForm(
                             activity,
                             object : com.hisabpro.app.ads.ConsentManager.OnConsentGatheringCompleteListener {
                                 override fun consentGatheringComplete(error: com.google.android.ump.FormError?) {
                                     if (error != null) {
-                                        android.util.Log.d("MoreScreen", "Privacy form error: ${error.message}")
+                                        android.util.Log.w("MoreScreen", "Privacy form error: ${error.message}")
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            "Privacy options form unavailable: ${error.message ?: "Not required in current region"}",
+                                            android.widget.Toast.LENGTH_LONG
+                                        ).show()
+                                    } else {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            "Privacy preferences updated successfully.",
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show()
                                     }
                                 }
                             }
                         )
+                    } else {
+                        android.widget.Toast.makeText(
+                            context,
+                            "Privacy options require an active activity context.",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }
             )

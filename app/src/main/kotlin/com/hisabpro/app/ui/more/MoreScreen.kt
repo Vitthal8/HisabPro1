@@ -229,7 +229,7 @@ fun MoreScreen(
                         currentContext = currentContext.baseContext
                     }
                     val activity = currentContext as? android.app.Activity
-                    if (activity != null) {
+                    if (activity != null && !activity.isFinishing && !activity.isDestroyed) {
                         val consentManager = com.hisabpro.app.ads.ConsentManager.getInstance(context)
                         consentManager.showPrivacyOptionsForm(
                             activity,

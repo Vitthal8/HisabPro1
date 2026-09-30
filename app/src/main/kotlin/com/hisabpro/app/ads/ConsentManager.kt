@@ -83,6 +83,12 @@ class ConsentManager private constructor(context: Context) {
         activity: Activity,
         onConsentGatheringCompleteListener: OnConsentGatheringCompleteListener
     ) {
+        if (activity.isFinishing || activity.isDestroyed) {
+            onConsentGatheringCompleteListener.consentGatheringComplete(
+                FormError(1, "Activity is finishing or destroyed.")
+            )
+            return
+        }
         try {
             UserMessagingPlatform.showPrivacyOptionsForm(
                 activity
@@ -94,7 +100,9 @@ class ConsentManager private constructor(context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Unexpected exception showing privacy options form: ${e.message}", e)
-            onConsentGatheringCompleteListener.consentGatheringComplete(null)
+            onConsentGatheringCompleteListener.consentGatheringComplete(
+                FormError(2, e.message ?: "Privacy options form unavailable")
+            )
         }
     }
 

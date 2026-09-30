@@ -48,6 +48,13 @@ data class CloudSyncUiState(
     val totalSyncedRecords: Int = 0
 )
 
+data class PullResultSummary(
+    val totalPulled: Int,
+    val successCount: Int,
+    val failureCount: Int,
+    val tableStatuses: Map<String, String>
+)
+
 class CloudSyncManager private constructor(private val appContext: Context) {
 
     private val db = AppDatabase.getInstance(appContext)
@@ -174,15 +181,27 @@ class CloudSyncManager private constructor(private val appContext: Context) {
             ItemRepository.getInstance(appContext).reloadFromDatabase()
             TransactionRepository.getInstance(appContext).reloadFromDatabase()
 
+            val statusMsg = when {
+                pullResult.failureCount == 0 -> "Cloud Sync Complete"
+                pullResult.successCount > 0 -> "Cloud Sync Partial Failure (${pullResult.failureCount} tables failed)"
+                else -> "Cloud Sync Failed"
+            }
+            val errStr = if (pullResult.failureCount > 0) "Errors in ${pullResult.failureCount} tables: ${pullResult.tableStatuses.filter { it.value.startsWith("ERROR") }}" else null
+
             val now = System.currentTimeMillis()
             _syncState.value = _syncState.value.copy(
                 isSyncing = false,
                 lastSyncTimeMillis = now,
-                statusMessage = "Cloud Sync Complete",
-                lastError = null
+                statusMessage = statusMsg,
+                lastError = errStr,
+                totalSyncedRecords = pullResult.totalPulled
             )
 
-            Result.success("Sync completed successfully")
+            if (pullResult.failureCount > 0) {
+                Result.failure(Exception(errStr))
+            } else {
+                Result.success("Sync completed successfully")
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             _syncState.value = _syncState.value.copy(
@@ -264,7 +283,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
         return syncedIds.size
     }
 
-    private suspend fun executePull(session: UserSession): Int {
+    private suspend fun executePull(session: UserSession): PullResultSummary {
         val tables = listOf(
             "businesses", "parties", "accounts", "items", "invoices",
             "invoice_items", "payments", "expenses", "khata_entries",
@@ -272,6 +291,9 @@ class CloudSyncManager private constructor(private val appContext: Context) {
         )
 
         var totalPulled = 0
+        var successCount = 0
+        var failureCount = 0
+        val tableStatuses = mutableMapOf<String, String>()
 
         for (table in tables) {
             val metadata = db.syncMetadataDao().getMetadata(table)
@@ -280,6 +302,9 @@ class CloudSyncManager private constructor(private val appContext: Context) {
             val result = apiClient.fetchDelta(table, session.accessToken, lastPulled)
             if (result.isSuccess) {
                 val records = result.getOrThrow()
+                successCount++
+                tableStatuses[table] = "200 (${records.length()} records)"
+                android.util.Log.i("CloudSyncManager", "PULL SUCCESS table=$table records=${records.length()}")
                 if (records.length() > 0) {
                     db.withTransaction {
                         applyRemoteRecords(table, records)
@@ -294,10 +319,16 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                         lastSyncStatus = "SUCCESS"
                     )
                 )
+            } else {
+                failureCount++
+                val ex = result.exceptionOrNull()
+                val errMsg = ex?.localizedMessage ?: "Unknown error"
+                tableStatuses[table] = "ERROR: $errMsg"
+                android.util.Log.e("CloudSyncManager", "PULL FAILURE table=$table error=$errMsg")
             }
         }
 
-        return totalPulled
+        return PullResultSummary(totalPulled, successCount, failureCount, tableStatuses)
     }
 
     private suspend fun applyRemoteRecords(table: String, records: JSONArray) {

@@ -97,7 +97,7 @@ class SupabaseApiClient(private val context: Context) {
                 ""
             }
 
-            val urlString = "$projectUrl/rest/v1/$table?select=*&limit=$limit&order=updated_at.asc$queryParam"
+            val urlString = "$projectUrl/rest/v1/$table?select=*&limit=$limit&order=id.asc$queryParam"
             val url = URL(urlString)
 
             connection = (url.openConnection() as HttpURLConnection).apply {
@@ -109,17 +109,25 @@ class SupabaseApiClient(private val context: Context) {
                 setRequestProperty("Accept", "application/json")
             }
 
+            val isAuthAttached = !token.isBlank()
+            val isAuthenticated = isAuthAttached && !token.contains("placeholder")
+            android.util.Log.d("SupabaseApiClient", "SUPABASE_FETCH table=$table url=$urlString authAttached=$isAuthAttached authenticated=$isAuthenticated")
+
             val statusCode = connection.responseCode
+            android.util.Log.d("SupabaseApiClient", "SUPABASE_RESPONSE table=$table status=$statusCode")
+
             if (statusCode in 200..299) {
                 val stream = connection.inputStream
                 val response = BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { it.readText() }
                 val array = JSONArray(response)
+                android.util.Log.d("SupabaseApiClient", "SUPABASE_SUCCESS table=$table recordCount=${array.length()}")
                 Result.success(array)
             } else {
                 val errorStream = connection.errorStream ?: connection.inputStream
                 val errorBody = errorStream?.use {
                     BufferedReader(InputStreamReader(it, Charsets.UTF_8)).readText()
                 } ?: "Unknown error"
+                android.util.Log.e("SupabaseApiClient", "SUPABASE_ERROR table=$table status=$statusCode error=$errorBody")
                 Result.failure(Exception("PostgREST Fetch Error $statusCode on $table: $errorBody"))
             }
         } catch (e: Exception) {

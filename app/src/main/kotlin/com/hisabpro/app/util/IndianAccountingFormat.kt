@@ -1,10 +1,21 @@
 package com.hisabpro.app.util
 
+import com.hisabpro.app.data.model.GstMode
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+/**
+ * Indian State Information for GST Compliance
+ */
+data class IndianStateInfo(
+    val code: String,          // 2-digit GST State Code (e.g. "27", "24")
+    val name: String,          // Official State Name (e.g. "Maharashtra", "Gujarat")
+    val shortCode: String,     // 2-letter Postal Code (e.g. "MH", "GJ")
+    val majorCities: List<String> = emptyList()
+)
 
 /**
  * Standard Indian Accounting Utilities:
@@ -13,8 +24,191 @@ import java.util.Locale
  * 3. Dr / Cr (Debit / Credit) Ledger labels
  * 4. DD/MM/YYYY Indian Date formatting
  * 5. Multi-language dictionary (English, Hindi, Marathi)
+ * 6. Pan-India State Identification & Inter-State (IGST) vs Intra-State (CGST+SGST) resolution
  */
 object IndianAccountingFormat {
+
+    val INDIAN_STATES = listOf(
+        IndianStateInfo("01", "Jammu and Kashmir", "JK", listOf("Srinagar", "Jammu")),
+        IndianStateInfo("02", "Himachal Pradesh", "HP", listOf("Shimla", "Dharamshala", "Manali", "Mandi")),
+        IndianStateInfo("03", "Punjab", "PB", listOf("Ludhiana", "Amritsar", "Jalandhar", "Patiala", "Mohali")),
+        IndianStateInfo("04", "Chandigarh", "CH", listOf("Chandigarh")),
+        IndianStateInfo("05", "Uttarakhand", "UK", listOf("Dehradun", "Haridwar", "Rishikesh", "Haldwani")),
+        IndianStateInfo("06", "Haryana", "HR", listOf("Gurgaon", "Gurugram", "Faridabad", "Panipat", "Ambala")),
+        IndianStateInfo("07", "Delhi", "DL", listOf("Delhi", "New Delhi", "Noida")),
+        IndianStateInfo("08", "Rajasthan", "RJ", listOf("Jaipur", "Jodhpur", "Udaipur", "Kota", "Bikaner")),
+        IndianStateInfo("09", "Uttar Pradesh", "UP", listOf("Lucknow", "Kanpur", "Varanasi", "Agra", "Prayagraj", "Noida", "Ghaziabad")),
+        IndianStateInfo("10", "Bihar", "BR", listOf("Patna", "Gaya", "Bhagalpur", "Muzaffarpur")),
+        IndianStateInfo("11", "Sikkim", "SK", listOf("Gangtok")),
+        IndianStateInfo("12", "Arunachal Pradesh", "AR", listOf("Itanagar")),
+        IndianStateInfo("13", "Nagaland", "NL", listOf("Kohima", "Dimapur")),
+        IndianStateInfo("14", "Manipur", "MN", listOf("Imphal")),
+        IndianStateInfo("15", "Mizoram", "MZ", listOf("Aizawl")),
+        IndianStateInfo("16", "Tripura", "TR", listOf("Agartala")),
+        IndianStateInfo("17", "Meghalaya", "ML", listOf("Shillong")),
+        IndianStateInfo("18", "Assam", "AS", listOf("Guwahati", "Silchar", "Dibrugarh", "Jorhat")),
+        IndianStateInfo("19", "West Bengal", "WB", listOf("Kolkata", "Howrah", "Siliguri", "Durgapur", "Asansol")),
+        IndianStateInfo("20", "Jharkhand", "JH", listOf("Ranchi", "Jamshedpur", "Dhanbad", "Bokaro")),
+        IndianStateInfo("21", "Odisha", "OD", listOf("Bhubaneswar", "Cuttack", "Rourkela", "Puri")),
+        IndianStateInfo("22", "Chhattisgarh", "CG", listOf("Raipur", "Bhilai", "Bilaspur", "Korba")),
+        IndianStateInfo("23", "Madhya Pradesh", "MP", listOf("Bhopal", "Indore", "Gwalior", "Jabalpur", "Ujjain")),
+        IndianStateInfo("24", "Gujarat", "GJ", listOf("Ahmedabad", "Surat", "Vadodara", "Rajkot", "Bhavnagar", "Jamnagar", "Gandhinagar")),
+        IndianStateInfo("25", "Daman and Diu", "DD", listOf("Daman", "Diu")),
+        IndianStateInfo("26", "Dadra and Nagar Haveli", "DN", listOf("Silvassa")),
+        IndianStateInfo("27", "Maharashtra", "MH", listOf("Mumbai", "Pune", "Nagpur", "Thane", "Nashik", "Aurangabad", "Solapur", "Kolhapur")),
+        IndianStateInfo("28", "Andhra Pradesh (Old)", "AP", emptyList()),
+        IndianStateInfo("29", "Karnataka", "KA", listOf("Bengaluru", "Bangalore", "Mysuru", "Mysore", "Hubli", "Mangaluru", "Belagavi")),
+        IndianStateInfo("30", "Goa", "GA", listOf("Panaji", "Margao", "Vasco")),
+        IndianStateInfo("31", "Lakshadweep", "LD", listOf("Kavaratti")),
+        IndianStateInfo("32", "Kerala", "KL", listOf("Thiruvananthapuram", "Kochi", "Cochin", "Kozhikode", "Thrissur")),
+        IndianStateInfo("33", "Tamil Nadu", "TN", listOf("Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Salem")),
+        IndianStateInfo("34", "Puducherry", "PY", listOf("Puducherry", "Pondicherry")),
+        IndianStateInfo("35", "Andaman and Nicobar Islands", "AN", listOf("Port Blair")),
+        IndianStateInfo("36", "Telangana", "TS", listOf("Hyderabad", "Warangal", "Nizamabad", "Karimnagar")),
+        IndianStateInfo("37", "Andhra Pradesh", "AP", listOf("Visakhapatnam", "Vijayawada", "Guntur", "Nellore", "Tirupati")),
+        IndianStateInfo("38", "Ladakh", "LA", listOf("Leh", "Kargil")),
+        IndianStateInfo("97", "Other Territory", "OT", emptyList())
+    )
+
+    /**
+     * Resolves canonical 2-digit GST state code from any representation:
+     * - GSTIN (first 2 digits e.g. "24AAAAA1234A1Z5" -> "24")
+     * - State Name (e.g. "Gujarat", "Maharashtra")
+     * - State Code string (e.g. "24", "27")
+     * - State Code with Parentheses (e.g. "Gujarat (24)")
+     * - 2-letter postal code (e.g. "GJ", "MH")
+     * - Address substring containing state name or abbreviation or major city
+     */
+    fun resolveStateCode(
+        state: String? = null,
+        stateCode: String? = null,
+        gstin: String? = null,
+        address: String? = null
+    ): String? {
+        // 1. Try GSTIN first (highest priority, legal standard in Indian GST)
+        val cleanGstin = gstin?.trim()?.uppercase() ?: ""
+        if (cleanGstin.length >= 2 && cleanGstin.take(2).all { it.isDigit() }) {
+            val candidateCode = cleanGstin.take(2)
+            if (INDIAN_STATES.any { it.code == candidateCode }) {
+                return candidateCode
+            }
+        }
+
+        // 2. Try explicit stateCode
+        val cleanCode = stateCode?.trim() ?: ""
+        if (cleanCode.isNotBlank()) {
+            val padded = if (cleanCode.length == 1) "0$cleanCode" else cleanCode
+            if (INDIAN_STATES.any { it.code == padded }) {
+                return padded
+            }
+        }
+
+        // 3. Try state string (e.g. "Gujarat", "GJ", "24", "Gujarat (24)")
+        val cleanState = state?.trim() ?: ""
+        if (cleanState.isNotBlank()) {
+            // Check parentheses e.g. "Gujarat (24)"
+            val insideParens = cleanState.substringAfter("(", "").substringBefore(")", "").trim()
+            if (insideParens.isNotBlank()) {
+                val padded = if (insideParens.length == 1) "0$insideParens" else insideParens
+                if (INDIAN_STATES.any { it.code == padded }) return padded
+            }
+
+            // Direct digit code match: "24", "27"
+            if (cleanState.all { it.isDigit() }) {
+                val padded = if (cleanState.length == 1) "0$cleanState" else cleanState
+                if (INDIAN_STATES.any { it.code == padded }) return padded
+            }
+
+            // Match full state name (case-insensitive)
+            val nameMatch = INDIAN_STATES.find {
+                it.name.equals(cleanState, ignoreCase = true) ||
+                cleanState.startsWith(it.name, ignoreCase = true)
+            }
+            if (nameMatch != null) return nameMatch.code
+
+            // Match 2-letter postal code: "GJ", "MH"
+            val shortMatch = INDIAN_STATES.find {
+                it.shortCode.equals(cleanState, ignoreCase = true)
+            }
+            if (shortMatch != null) return shortMatch.code
+        }
+
+        // 4. Try scanning address for state name or state code or major cities
+        val cleanAddress = address?.trim() ?: ""
+        if (cleanAddress.isNotBlank()) {
+            // Check for state name in address
+            for (st in INDIAN_STATES) {
+                val pattern = "\\b${Regex.escape(st.name)}\\b".toRegex(RegexOption.IGNORE_CASE)
+                if (pattern.containsMatchIn(cleanAddress)) {
+                    return st.code
+                }
+            }
+            // Check for state 2-letter code in address (e.g. "Surat, GJ", "Pune, MH")
+            for (st in INDIAN_STATES) {
+                val pattern = "\\b${st.shortCode}\\b".toRegex(RegexOption.IGNORE_CASE)
+                if (pattern.containsMatchIn(cleanAddress)) {
+                    return st.code
+                }
+            }
+            // Check for major cities in address
+            for (st in INDIAN_STATES) {
+                for (city in st.majorCities) {
+                    val pattern = "\\b${Regex.escape(city)}\\b".toRegex(RegexOption.IGNORE_CASE)
+                    if (pattern.containsMatchIn(cleanAddress)) {
+                        return st.code
+                    }
+                }
+            }
+        }
+
+        return null
+    }
+
+    /**
+     * Determines whether a supply is Inter-State (IGST) or Intra-State (CGST + SGST).
+     * Compares the resolved business state code with customer state code.
+     */
+    fun isInterStateSupply(
+        businessState: String? = null,
+        businessStateCode: String? = null,
+        businessGstin: String? = null,
+        customerState: String? = null,
+        customerStateCode: String? = null,
+        customerGstin: String? = null,
+        customerAddress: String? = null
+    ): Boolean {
+        val bCode = resolveStateCode(state = businessState, stateCode = businessStateCode, gstin = businessGstin) ?: "27"
+        val cCode = resolveStateCode(state = customerState, stateCode = customerStateCode, gstin = customerGstin, address = customerAddress)
+        return cCode != null && cCode != bCode
+    }
+
+    /**
+     * Determines GstMode (INTER_STATE vs INTRA_STATE) based on business and customer state data.
+     */
+    fun determineGstMode(
+        businessState: String? = null,
+        businessStateCode: String? = null,
+        businessGstin: String? = null,
+        customerState: String? = null,
+        customerStateCode: String? = null,
+        customerGstin: String? = null,
+        customerAddress: String? = null
+    ): GstMode {
+        return if (isInterStateSupply(
+                businessState = businessState,
+                businessStateCode = businessStateCode,
+                businessGstin = businessGstin,
+                customerState = customerState,
+                customerStateCode = customerStateCode,
+                customerGstin = customerGstin,
+                customerAddress = customerAddress
+            )
+        ) {
+            GstMode.INTER_STATE
+        } else {
+            GstMode.INTRA_STATE
+        }
+    }
 
     /**
      * Calculates the Indian Financial Year string, e.g. "2025-26".

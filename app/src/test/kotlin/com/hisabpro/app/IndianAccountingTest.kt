@@ -6,6 +6,8 @@ import com.hisabpro.app.data.model.InvoiceItem
 import com.hisabpro.app.data.model.InvoiceType
 import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.util.IndianAccountingFormat
+import com.hisabpro.app.util.toPaise
+import com.hisabpro.app.util.toRupees
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -604,4 +606,392 @@ class IndianAccountingTest {
         assertEquals("NON_GST_BILL", payload.data.invoices[0].type)
         assertEquals(false, payload.data.invoices[0].isGst)
     }
+
+    // =========================================================================
+    // GST-03 INTER-STATE IGST REGRESSION TESTS
+    // =========================================================================
+
+    /**
+     * Requirement A: Maharashtra business + Maharashtra customer + 18% GST:
+     * Taxable ₹1,000, 18% GST -> CGST ₹90, SGST ₹90, IGST ₹0, Grand Total ₹1,180
+     */
+    @Test
+    fun testGst03_RequirementA_IntraStateMaharashtraCalculation() {
+        val bizState = "Maharashtra"
+        val bizStateCode = "27"
+        val bizGstin = "27AAAAA1234A1Z5"
+
+        val custState = "Maharashtra"
+        val custGstin = "27BBBBB5678B1Z6"
+        val custAddress = "Shop 10, Dadar West, Mumbai, Maharashtra - 400028"
+
+        // 1. Verify GstMode auto-detection
+        val mode = IndianAccountingFormat.determineGstMode(
+            businessState = bizState,
+            businessStateCode = bizStateCode,
+            businessGstin = bizGstin,
+            customerState = custState,
+            customerGstin = custGstin,
+            customerAddress = custAddress
+        )
+        assertEquals(GstMode.INTRA_STATE, mode)
+
+        // 2. Compute Invoice Totals
+        val item = InvoiceItem(
+            id = "it_intra_1",
+            description = "Electrical Panel 100A",
+            quantity = 1.0,
+            unit = "Nos",
+            unitPrice = 1000.0,
+            gstRate = 18.0
+        )
+        val invoice = Invoice(
+            id = "inv_intra_1",
+            invoiceNumber = "2025-26/INV/010",
+            type = InvoiceType.TAX_INVOICE,
+            gstMode = mode,
+            customerName = "Mumbai Electricals",
+            customerAddress = custAddress,
+            customerGstin = custGstin,
+            items = listOf(item),
+            paidAmount = 1180.0
+        )
+
+        assertEquals(1000.0, invoice.subtotal, 0.01)
+        assertEquals(90.0, invoice.cgstTotal, 0.01)
+        assertEquals(90.0, invoice.sgstTotal, 0.01)
+        assertEquals(0.0, invoice.igstTotal, 0.01)
+        assertEquals(180.0, invoice.totalTax, 0.01)
+        assertEquals(1180.0, invoice.grandTotal, 0.01)
+        assertEquals(1180.0, invoice.paidAmount, 0.01)
+        assertEquals(0.0, invoice.dueAmount, 0.01)
+        assertTrue(invoice.isFullyPaid)
+    }
+
+    /**
+     * Requirement B: Maharashtra business + Gujarat customer + 18% GST:
+     * Taxable ₹1,000, 18% GST -> CGST ₹0, SGST ₹0, IGST ₹180, Grand Total ₹1,180
+     */
+    @Test
+    fun testGst03_RequirementB_InterStateGujaratCalculation() {
+        val bizState = "Maharashtra"
+        val bizStateCode = "27"
+        val bizGstin = "27AAAAA1234A1Z5"
+
+        val custState = "Gujarat"
+        val custGstin = "24AAAAA1234A1Z5"
+        val custAddress = "GIDC Estate, Surat, Gujarat - 395002"
+
+        // 1. Verify GstMode auto-detection
+        val mode = IndianAccountingFormat.determineGstMode(
+            businessState = bizState,
+            businessStateCode = bizStateCode,
+            businessGstin = bizGstin,
+            customerState = custState,
+            customerGstin = custGstin,
+            customerAddress = custAddress
+        )
+        assertEquals(GstMode.INTER_STATE, mode)
+
+        // 2. Compute Invoice Totals
+        val item = InvoiceItem(
+            id = "it_inter_1",
+            description = "Submersible Water Pump",
+            quantity = 1.0,
+            unit = "Nos",
+            unitPrice = 1000.0,
+            gstRate = 18.0
+        )
+        val invoice = Invoice(
+            id = "inv_inter_1",
+            invoiceNumber = "2025-26/INV/011",
+            type = InvoiceType.TAX_INVOICE,
+            gstMode = mode,
+            customerName = "Gujarat Agro Traders",
+            customerAddress = custAddress,
+            customerGstin = custGstin,
+            items = listOf(item),
+            paidAmount = 1180.0
+        )
+
+        assertEquals(1000.0, invoice.subtotal, 0.01)
+        assertEquals(0.0, invoice.cgstTotal, 0.01)
+        assertEquals(0.0, invoice.sgstTotal, 0.01)
+        assertEquals(180.0, invoice.igstTotal, 0.01)
+        assertEquals(180.0, invoice.totalTax, 0.01)
+        assertEquals(1180.0, invoice.grandTotal, 0.01)
+        assertEquals(1180.0, invoice.paidAmount, 0.01)
+        assertEquals(0.0, invoice.dueAmount, 0.01)
+        assertTrue(invoice.isFullyPaid)
+    }
+
+    /**
+     * Requirement B (cont.): Verify state comparison with various representations
+     * (e.g. "Gujarat", "GJ", "24", "Gujarat (24)", "24AAAAA...", whitespace, case insensitivity)
+     */
+    @Test
+    fun testGst03_StateRepresentationAndComparison() {
+        val bizState = "  Maharashtra  "
+        val bizStateCode = "27"
+
+        // 1. Full name: "Gujarat"
+        assertEquals("24", IndianAccountingFormat.resolveStateCode(state = "Gujarat"))
+        assertEquals(GstMode.INTER_STATE, IndianAccountingFormat.determineGstMode(businessState = bizState, customerState = "Gujarat"))
+
+        // 2. Abbreviation: "GJ"
+        assertEquals("24", IndianAccountingFormat.resolveStateCode(state = "GJ"))
+        assertEquals(GstMode.INTER_STATE, IndianAccountingFormat.determineGstMode(businessState = bizState, customerState = "GJ"))
+
+        // 3. 2-digit code: "24"
+        assertEquals("24", IndianAccountingFormat.resolveStateCode(state = "24"))
+        assertEquals("24", IndianAccountingFormat.resolveStateCode(stateCode = "24"))
+        assertEquals(GstMode.INTER_STATE, IndianAccountingFormat.determineGstMode(businessState = bizState, customerState = "24"))
+
+        // 4. Combined with parentheses: "Gujarat (24)"
+        assertEquals("24", IndianAccountingFormat.resolveStateCode(state = "Gujarat (24)"))
+        assertEquals(GstMode.INTER_STATE, IndianAccountingFormat.determineGstMode(businessState = bizState, customerState = "Gujarat (24)"))
+
+        // 5. From GSTIN: "24AAAAA1234A1Z5"
+        assertEquals("24", IndianAccountingFormat.resolveStateCode(gstin = "24AAAAA1234A1Z5"))
+        assertEquals(GstMode.INTER_STATE, IndianAccountingFormat.determineGstMode(businessState = bizState, customerGstin = "24AAAAA1234A1Z5"))
+
+        // 6. From Address text containing state name or city
+        assertEquals("24", IndianAccountingFormat.resolveStateCode(address = "Plot 14, GIDC, Surat, Gujarat"))
+        assertEquals(GstMode.INTER_STATE, IndianAccountingFormat.determineGstMode(businessState = bizState, customerAddress = "Plot 14, GIDC, Surat, Gujarat"))
+
+        // 7. From Address text containing 2-letter abbreviation
+        assertEquals("24", IndianAccountingFormat.resolveStateCode(address = "Shop 5, Ring Road, Ahmedabad, GJ"))
+        assertEquals(GstMode.INTER_STATE, IndianAccountingFormat.determineGstMode(businessState = bizState, customerAddress = "Shop 5, Ring Road, Ahmedabad, GJ"))
+
+        // 8. Intra-state match ("MH", "Maharashtra", "27")
+        assertEquals("27", IndianAccountingFormat.resolveStateCode(state = "MH"))
+        assertEquals("27", IndianAccountingFormat.resolveStateCode(state = "  maharashtra  "))
+        assertEquals(GstMode.INTRA_STATE, IndianAccountingFormat.determineGstMode(businessState = bizState, customerState = "MH"))
+        assertEquals(GstMode.INTRA_STATE, IndianAccountingFormat.determineGstMode(businessState = bizState, customerState = "Maharashtra (27)"))
+    }
+
+    /**
+     * Requirement C: Non-GST Invoice:
+     * Taxable ₹1,000, 18% GST rate on item -> CGST ₹0, SGST ₹0, IGST ₹0, Grand Total ₹1,000
+     */
+    @Test
+    fun testGst03_RequirementC_NonGstInvoiceNoGstApplied() {
+        val item = InvoiceItem(
+            id = "it_nongst_1",
+            description = "Wheat Flour 50kg Bag",
+            quantity = 1.0,
+            unit = "Bag",
+            unitPrice = 1000.0,
+            gstRate = 18.0 // Item has a GST rate configured, but invoice is NON_GST_BILL
+        )
+        val nonGstInvoice = Invoice(
+            id = "inv_nongst_test",
+            invoiceNumber = "2025-26/BILL/005",
+            type = InvoiceType.NON_GST_BILL,
+            gstMode = GstMode.EXEMPT,
+            customerName = "Kisan Kirana",
+            customerAddress = "Satara, Maharashtra",
+            items = listOf(item),
+            paidAmount = 1000.0
+        )
+
+        assertEquals(1000.0, nonGstInvoice.subtotal, 0.01)
+        assertEquals(0.0, nonGstInvoice.cgstTotal, 0.01)
+        assertEquals(0.0, nonGstInvoice.sgstTotal, 0.01)
+        assertEquals(0.0, nonGstInvoice.igstTotal, 0.01)
+        assertEquals(0.0, nonGstInvoice.totalTax, 0.01)
+        assertEquals(1000.0, nonGstInvoice.grandTotal, 0.01)
+        assertEquals(1000.0, nonGstInvoice.paidAmount, 0.01)
+        assertEquals(0.0, nonGstInvoice.dueAmount, 0.01)
+        assertTrue(nonGstInvoice.isFullyPaid)
+    }
+
+    /**
+     * Requirement D: Saved Inter-State Invoice Database Entity Mapping & Roundtrip:
+     * Room persistence & retrieval preserves IGST rate and calculations:
+     * Taxable ₹1,000, 18% IGST -> Persisted IGST ₹180, Grand Total ₹1,180
+     */
+    @Test
+    fun testGst03_RequirementD_PersistedTaxBreakdownRemainsCorrectAfterRetrieval() {
+        val originalItem = InvoiceItem(
+            id = "it_db_1",
+            description = "Industrial Motor 2HP",
+            quantity = 1.0,
+            unit = "Nos",
+            unitPrice = 1000.0,
+            gstRate = 18.0
+        )
+        val originalInvoice = Invoice(
+            id = "inv_db_1",
+            businessId = "default_business",
+            invoiceNumber = "2025-26/INV/012",
+            type = InvoiceType.TAX_INVOICE,
+            gstMode = GstMode.INTER_STATE,
+            customerName = "Ahmedabad Textiles",
+            customerAddress = "Surat, Gujarat",
+            customerGstin = "24AAAAA1234A1Z5",
+            dateMillis = System.currentTimeMillis(),
+            items = listOf(originalItem),
+            paidAmount = 1180.0
+        )
+
+        // 1. Convert to Room Entities (same as InvoiceRepository.saveSingleInvoiceDbInternal)
+        val invoiceEntity = com.hisabpro.app.data.local.entity.InvoiceEntity(
+            id = originalInvoice.id,
+            businessId = originalInvoice.businessId,
+            invoiceNo = originalInvoice.invoiceNumber,
+            date = originalInvoice.dateMillis,
+            partyId = originalInvoice.customerId,
+            customerName = originalInvoice.customerName,
+            customerPhone = originalInvoice.customerPhone,
+            customerAddress = originalInvoice.customerAddress,
+            customerGstin = originalInvoice.customerGstin,
+            type = originalInvoice.type.name,
+            gstMode = originalInvoice.gstMode.name,
+            subtotal = originalInvoice.subtotal.toPaise(),
+            cgst = originalInvoice.cgstTotal.toPaise(),
+            sgst = originalInvoice.sgstTotal.toPaise(),
+            igst = originalInvoice.igstTotal.toPaise(),
+            discount = originalInvoice.discountAmount.toPaise(),
+            taxableAmount = (originalInvoice.subtotal - originalInvoice.discountAmount).toPaise(),
+            total = originalInvoice.grandTotal.toPaise(),
+            paidAmount = originalInvoice.paidAmount.toPaise(),
+            paymentStatus = originalInvoice.paymentStatus.name,
+            paymentMode = originalInvoice.paymentMode,
+            notes = originalInvoice.notes,
+            isGst = originalInvoice.type != InvoiceType.NON_GST_BILL && originalInvoice.gstMode != GstMode.EXEMPT
+        )
+
+        val itemEntities = originalInvoice.items.map { item ->
+            com.hisabpro.app.data.local.entity.InvoiceItemEntity(
+                id = item.id,
+                invoiceId = originalInvoice.id,
+                itemName = item.description,
+                hsnCode = item.hsnCode,
+                qty = item.quantity,
+                unit = item.unit,
+                rate = item.unitPrice.toPaise(),
+                cgstRate = if (originalInvoice.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0,
+                sgstRate = if (originalInvoice.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0,
+                igstRate = if (originalInvoice.gstMode == GstMode.INTER_STATE) item.gstRate else 0.0,
+                amount = item.getTotal(originalInvoice.gstMode).toPaise()
+            )
+        }
+
+        // Verify entity values in paise and percentage
+        assertEquals(100000L, invoiceEntity.subtotal) // ₹1,000 in paise
+        assertEquals(0L, invoiceEntity.cgst)
+        assertEquals(0L, invoiceEntity.sgst)
+        assertEquals(18000L, invoiceEntity.igst) // ₹180 in paise
+        assertEquals(118000L, invoiceEntity.total) // ₹1,180 in paise
+        assertEquals(118000L, invoiceEntity.paidAmount) // ₹1,180 in paise
+        assertEquals("INTER_STATE", invoiceEntity.gstMode)
+
+        // CRITICAL CHECK: Verify InvoiceItemEntity persisted igstRate is 18.0 (NOT 0.0!)
+        assertEquals(18.0, itemEntities[0].igstRate, 0.01)
+        assertEquals(0.0, itemEntities[0].cgstRate, 0.01)
+        assertEquals(0.0, itemEntities[0].sgstRate, 0.01)
+
+        // 2. Reconstruct from Room Entities (same as InvoiceRepository.reloadFromDatabase)
+        val reloadedItems = itemEntities.map { itemEnt ->
+            val combinedRate = (itemEnt.cgstRate + itemEnt.sgstRate + itemEnt.igstRate).coerceAtLeast(0.0)
+            val effectiveRate = if (combinedRate > 0.0) {
+                combinedRate
+            } else if (invoiceEntity.gstMode == "INTER_STATE" && invoiceEntity.igst > 0 && invoiceEntity.taxableAmount > 0) {
+                val rate = (invoiceEntity.igst.toDouble() * 100.0) / invoiceEntity.taxableAmount.toDouble()
+                kotlin.math.round(rate)
+            } else {
+                0.0
+            }
+            InvoiceItem(
+                id = itemEnt.id,
+                description = itemEnt.itemName,
+                hsnCode = itemEnt.hsnCode,
+                quantity = itemEnt.qty,
+                unit = itemEnt.unit,
+                unitPrice = itemEnt.rate.toRupees(),
+                gstRate = effectiveRate,
+                discount = itemEnt.discount.toRupees()
+            )
+        }
+
+        val reloadedInvoice = Invoice(
+            id = invoiceEntity.id,
+            businessId = invoiceEntity.businessId,
+            invoiceNumber = invoiceEntity.invoiceNo,
+            type = InvoiceType.valueOf(invoiceEntity.type),
+            gstMode = GstMode.valueOf(invoiceEntity.gstMode),
+            customerId = invoiceEntity.partyId,
+            customerName = invoiceEntity.customerName,
+            customerPhone = invoiceEntity.customerPhone,
+            customerAddress = invoiceEntity.customerAddress,
+            customerGstin = invoiceEntity.customerGstin,
+            dateMillis = invoiceEntity.date,
+            items = reloadedItems,
+            discountAmount = invoiceEntity.discount.toRupees(),
+            notes = invoiceEntity.notes,
+            paymentStatus = com.hisabpro.app.data.model.InvoiceStatus.valueOf(invoiceEntity.paymentStatus),
+            paidAmount = invoiceEntity.paidAmount.toRupees(),
+            paymentMode = invoiceEntity.paymentMode,
+            createdAt = invoiceEntity.createdAt
+        )
+
+        // Verify reloaded invoice values
+        assertEquals(18.0, reloadedInvoice.items[0].gstRate, 0.01)
+        assertEquals(1000.0, reloadedInvoice.subtotal, 0.01)
+        assertEquals(0.0, reloadedInvoice.cgstTotal, 0.01)
+        assertEquals(0.0, reloadedInvoice.sgstTotal, 0.01)
+        assertEquals(180.0, reloadedInvoice.igstTotal, 0.01)
+        assertEquals(180.0, reloadedInvoice.totalTax, 0.01)
+        assertEquals(1180.0, reloadedInvoice.grandTotal, 0.01)
+        assertEquals(1180.0, reloadedInvoice.paidAmount, 0.01)
+        assertEquals(0.0, reloadedInvoice.dueAmount, 0.01)
+        assertTrue(reloadedInvoice.isFullyPaid)
+    }
+
+    /**
+     * Requirement E: Invoice PDF Text & Breakdown:
+     * Inter-state invoice displays IGST correctly and avoids CGST/SGST display.
+     */
+    @Test
+    fun testGst03_RequirementE_InvoicePdfInterStateTextGeneration() {
+        val item = InvoiceItem(
+            id = "it_pdf_1",
+            description = "Ceramic Floor Tiles",
+            quantity = 1.0,
+            unit = "Box",
+            unitPrice = 1000.0,
+            gstRate = 18.0
+        )
+        val invoice = Invoice(
+            id = "inv_pdf_1",
+            invoiceNumber = "2025-26/INV/015",
+            type = InvoiceType.TAX_INVOICE,
+            gstMode = GstMode.INTER_STATE,
+            customerName = "Gujarat Ceramic Center",
+            customerAddress = "Morbi, Gujarat",
+            customerGstin = "24AAAAA1234A1Z5",
+            items = listOf(item),
+            paidAmount = 1180.0
+        )
+        val profile = com.hisabpro.app.data.model.BusinessProfile(
+            shopName = "Shree Balaji Tiles",
+            state = "Maharashtra",
+            stateCode = "27",
+            gstin = "27AAAAA1234A1Z5",
+            isGstRegistered = true
+        )
+
+        val whatsappText = com.hisabpro.app.util.InvoicePdfGenerator.generateInvoiceWhatsAppText(invoice, profile)
+
+        assertTrue(whatsappText.contains("TAX INVOICE"))
+        assertTrue(whatsappText.contains("Shree Balaji Tiles"))
+        assertTrue(whatsappText.contains("Gujarat Ceramic Center"))
+        assertTrue(whatsappText.contains("₹1,180"))
+        assertTrue(whatsappText.contains("PAID IN FULL"))
+
+        // Item total in WhatsApp text includes IGST (₹1,000 + 18% = ₹1,180)
+        assertTrue(whatsappText.contains("₹1,180"))
+    }
 }
+

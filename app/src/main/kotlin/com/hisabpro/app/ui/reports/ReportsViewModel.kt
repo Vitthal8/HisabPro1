@@ -777,7 +777,14 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
         var b2cTaxable = 0.0
         var b2cTax = 0.0
 
-        val slabMap = mutableMapOf<Double, MutableList<Pair<Double, Double>>>()
+        data class TaxSlabEntry(
+            val taxable: Double,
+            val cgst: Double,
+            val sgst: Double,
+            val igst: Double,
+            val tax: Double
+        )
+        val slabMap = mutableMapOf<Double, MutableList<TaxSlabEntry>>()
         val hsnMap = mutableMapOf<String, HsnAccumulator>()
 
         for (inv in invoices) {
@@ -805,9 +812,12 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
 
             for (line in inv.items) {
                 val lineTax = line.getTaxAmount(inv.gstMode)
+                val cgst = line.getCgst(inv.gstMode)
+                val sgst = line.getSgst(inv.gstMode)
+                val igst = line.getIgst(inv.gstMode)
                 val rate = line.gstRate
                 val list = slabMap.getOrPut(rate) { mutableListOf() }
-                list.add(Pair(line.taxableAmount, lineTax))
+                list.add(TaxSlabEntry(line.taxableAmount, cgst, sgst, igst, lineTax))
 
                 val hsn = if (line.hsnCode.isNotBlank()) line.hsnCode else "NA"
                 val acc = hsnMap.getOrPut(hsn) {
@@ -828,11 +838,11 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
             val entries = slabMap[rate] ?: emptyList()
             TaxSlabSummary(
                 gstRate = rate,
-                taxableAmount = entries.sumOf { it.first },
-                cgstAmount = entries.sumOf { it.second / 2.0 },
-                sgstAmount = entries.sumOf { it.second / 2.0 },
-                igstAmount = 0.0,
-                totalTax = entries.sumOf { it.second },
+                taxableAmount = entries.sumOf { it.taxable },
+                cgstAmount = entries.sumOf { it.cgst },
+                sgstAmount = entries.sumOf { it.sgst },
+                igstAmount = entries.sumOf { it.igst },
+                totalTax = entries.sumOf { it.tax },
                 itemCount = entries.size
             )
         }

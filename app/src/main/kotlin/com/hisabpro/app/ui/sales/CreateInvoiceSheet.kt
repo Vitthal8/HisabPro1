@@ -564,7 +564,9 @@ fun CreateInvoiceSheet(
                             selected = gstMode == GstMode.INTRA_STATE,
                             onClick = { gstMode = GstMode.INTRA_STATE },
                             label = { Text("Intra-State (CGST + SGST)") },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("chip_gst_mode_intra"),
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = Emerald700.copy(alpha = 0.15f),
                                 selectedLabelColor = Emerald800
@@ -574,7 +576,9 @@ fun CreateInvoiceSheet(
                             selected = gstMode == GstMode.INTER_STATE,
                             onClick = { gstMode = GstMode.INTER_STATE },
                             label = { Text("Inter-State (IGST)") },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("chip_gst_mode_inter"),
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = Emerald700.copy(alpha = 0.15f),
                                 selectedLabelColor = Emerald800
@@ -650,6 +654,16 @@ fun CreateInvoiceSheet(
                                         customerAddress = party.address
                                         customerGstin = party.gstin
                                         showPartyDropdown = false
+
+                                        if (isGstRegistered && selectedType == InvoiceType.TAX_INVOICE && invoiceToEdit == null) {
+                                            gstMode = com.hisabpro.app.util.IndianAccountingFormat.determineGstMode(
+                                                businessState = businessProfile.state,
+                                                businessStateCode = businessProfile.stateCode,
+                                                businessGstin = businessProfile.gstin,
+                                                customerGstin = party.gstin,
+                                                customerAddress = party.address
+                                            )
+                                        }
                                     }
                                 )
                             }
@@ -686,7 +700,19 @@ fun CreateInvoiceSheet(
                         if (isGstRegistered && selectedType == InvoiceType.TAX_INVOICE) {
                             OutlinedTextField(
                                 value = customerGstin,
-                                onValueChange = { customerGstin = it.uppercase() },
+                                onValueChange = {
+                                    val upper = it.uppercase()
+                                    customerGstin = upper
+                                    if (invoiceToEdit == null && upper.length >= 2) {
+                                        gstMode = com.hisabpro.app.util.IndianAccountingFormat.determineGstMode(
+                                            businessState = businessProfile.state,
+                                            businessStateCode = businessProfile.stateCode,
+                                            businessGstin = businessProfile.gstin,
+                                            customerGstin = upper,
+                                            customerAddress = customerAddress
+                                        )
+                                    }
+                                },
                                 label = { Text("GSTIN (Optional)") },
                                 modifier = Modifier
                                     .weight(1f)
@@ -700,9 +726,22 @@ fun CreateInvoiceSheet(
 
                     OutlinedTextField(
                         value = customerAddress,
-                        onValueChange = { customerAddress = it },
+                        onValueChange = {
+                            customerAddress = it
+                            if (isGstRegistered && selectedType == InvoiceType.TAX_INVOICE && invoiceToEdit == null && customerGstin.isBlank()) {
+                                gstMode = com.hisabpro.app.util.IndianAccountingFormat.determineGstMode(
+                                    businessState = businessProfile.state,
+                                    businessStateCode = businessProfile.stateCode,
+                                    businessGstin = businessProfile.gstin,
+                                    customerGstin = customerGstin,
+                                    customerAddress = it
+                                )
+                            }
+                        },
                         label = { Text("Billing Address (Optional)") },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_customer_address"),
                         maxLines = 2,
                         shape = RoundedCornerShape(10.dp)
                     )

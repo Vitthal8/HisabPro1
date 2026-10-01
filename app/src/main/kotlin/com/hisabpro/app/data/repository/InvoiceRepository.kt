@@ -181,6 +181,19 @@ class InvoiceRepository(private val context: Context) {
             for (ent in dbInvoices) {
                 val dbItems = db.invoiceDao().getItemsForInvoiceSync(ent.id)
                 val items = dbItems.map { itemEnt ->
+                    val combinedRate = (itemEnt.cgstRate + itemEnt.sgstRate + itemEnt.igstRate).coerceAtLeast(0.0)
+                    val effectiveGstRate = if (combinedRate > 0.0) {
+                        combinedRate
+                    } else if (ent.gstMode == "INTER_STATE" && ent.igst > 0 && ent.taxableAmount > 0) {
+                        // Fallback for legacy database records where item igstRate was not persisted
+                        val rate = (ent.igst.toDouble() * 100.0) / ent.taxableAmount.toDouble()
+                        kotlin.math.round(rate)
+                    } else if (ent.gstMode == "INTRA_STATE" && (ent.cgst > 0 || ent.sgst > 0) && ent.taxableAmount > 0) {
+                        val rate = ((ent.cgst + ent.sgst).toDouble() * 100.0) / ent.taxableAmount.toDouble()
+                        kotlin.math.round(rate)
+                    } else {
+                        0.0
+                    }
                     InvoiceItem(
                         id = itemEnt.id,
                         description = itemEnt.itemName,
@@ -188,7 +201,7 @@ class InvoiceRepository(private val context: Context) {
                         quantity = itemEnt.qty,
                         unit = itemEnt.unit,
                         unitPrice = itemEnt.rate.toRupees(),
-                        gstRate = (itemEnt.cgstRate + itemEnt.sgstRate + itemEnt.igstRate).coerceAtLeast(0.0),
+                        gstRate = effectiveGstRate,
                         discount = itemEnt.discount.toRupees()
                     )
                 }
@@ -296,6 +309,7 @@ class InvoiceRepository(private val context: Context) {
                     rate = item.unitPrice.toPaise(),
                     cgstRate = if (inv.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0,
                     sgstRate = if (inv.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0,
+                    igstRate = if (inv.gstMode == GstMode.INTER_STATE) item.gstRate else 0.0,
                     amount = item.getTotal(inv.gstMode).toPaise()
                 )
             }
@@ -337,6 +351,30 @@ class InvoiceRepository(private val context: Context) {
                         operation = "UPSERT",
                         payloadJson = payload.toString()
                     )
+
+                    for (itemEnt in itemEntities) {
+                        val itemPayload = JSONObject().apply {
+                            put("id", itemEnt.id)
+                            put("invoice_id", itemEnt.invoiceId)
+                            put("item_id", itemEnt.itemId ?: "")
+                            put("item_name", itemEnt.itemName)
+                            put("hsn_code", itemEnt.hsnCode)
+                            put("qty", itemEnt.qty)
+                            put("unit", itemEnt.unit)
+                            put("rate", itemEnt.rate)
+                            put("discount", itemEnt.discount)
+                            put("cgst_rate", itemEnt.cgstRate)
+                            put("sgst_rate", itemEnt.sgstRate)
+                            put("igst_rate", itemEnt.igstRate)
+                            put("amount", itemEnt.amount)
+                        }
+                        com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                            entityType = "invoice_item",
+                            entityId = itemEnt.id,
+                            operation = "UPSERT",
+                            payloadJson = itemPayload.toString()
+                        )
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }

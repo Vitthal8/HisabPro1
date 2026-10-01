@@ -39,6 +39,9 @@ interface JournalDao {
         insertJournalLines(lines)
     }
 
+    @Query("SELECT * FROM journal_entries WHERE id = :id LIMIT 1")
+    suspend fun getJournalEntryByIdSync(id: String): JournalEntryEntity?
+
     @Query("SELECT * FROM journal_entries ORDER BY date DESC")
     suspend fun getAllJournalEntriesGlobalSync(): List<JournalEntryEntity>
 

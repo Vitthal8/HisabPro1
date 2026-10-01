@@ -92,41 +92,65 @@ data class Invoice(
     val paymentStatus: InvoiceStatus = InvoiceStatus.PAID,
     val paidAmount: Double = 0.0,
     val paymentMode: String = "Cash",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val fallbackSubtotal: Double? = null,
+    val fallbackTaxableAmount: Double? = null,
+    val fallbackCgst: Double? = null,
+    val fallbackSgst: Double? = null,
+    val fallbackIgst: Double? = null,
+    val fallbackTotal: Double? = null
 ) {
     val subtotal: Double
-        get() = items.sumOf { it.taxableAmount }
+        get() = if (items.isNotEmpty()) {
+            items.sumOf { it.taxableAmount }
+        } else {
+            fallbackSubtotal ?: 0.0
+        }
 
     val totalTax: Double
         get() = if (type == InvoiceType.NON_GST_BILL || gstMode == GstMode.EXEMPT) {
             0.0
-        } else {
+        } else if (items.isNotEmpty()) {
             items.sumOf { it.getTaxAmount(gstMode) }
+        } else {
+            (fallbackCgst ?: 0.0) + (fallbackSgst ?: 0.0) + (fallbackIgst ?: 0.0)
         }
 
     val cgstTotal: Double
         get() = if (type == InvoiceType.NON_GST_BILL || gstMode != GstMode.INTRA_STATE) {
             0.0
-        } else {
+        } else if (items.isNotEmpty()) {
             items.sumOf { it.getCgst(gstMode) }
+        } else {
+            fallbackCgst ?: 0.0
         }
 
     val sgstTotal: Double
         get() = if (type == InvoiceType.NON_GST_BILL || gstMode != GstMode.INTRA_STATE) {
             0.0
-        } else {
+        } else if (items.isNotEmpty()) {
             items.sumOf { it.getSgst(gstMode) }
+        } else {
+            fallbackSgst ?: 0.0
         }
 
     val igstTotal: Double
         get() = if (type == InvoiceType.NON_GST_BILL || gstMode != GstMode.INTER_STATE) {
             0.0
-        } else {
+        } else if (items.isNotEmpty()) {
             items.sumOf { it.getIgst(gstMode) }
+        } else {
+            fallbackIgst ?: 0.0
         }
 
     val grandTotal: Double
-        get() = kotlin.math.max(0.0, subtotal + totalTax - discountAmount)
+        get() = if (items.isNotEmpty()) {
+            kotlin.math.max(0.0, subtotal + totalTax - discountAmount)
+        } else if (fallbackTotal != null) {
+            fallbackTotal
+        } else {
+            kotlin.math.max(0.0, subtotal + totalTax - discountAmount)
+        }
 
     val dueAmount: Double
         get() = kotlin.math.max(0.0, grandTotal - paidAmount)

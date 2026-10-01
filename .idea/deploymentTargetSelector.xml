@@ -4,10 +4,10 @@
     <selectionStates>
       <SelectionState runConfigName="HisabPro">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-09-25T11:19:25.050048100Z">
+        <DropdownSelection timestamp="2026-09-30T09:35:09.146348800Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="PhysicalDevice" identifier="serial=ZA223G9ZJW" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\SAM\.android\avd\Pixel_5.avd" />
             </handle>
           </Target>
         </DropdownSelection>

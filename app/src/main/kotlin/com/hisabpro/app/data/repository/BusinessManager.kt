@@ -38,21 +38,11 @@ class BusinessManager private constructor(private val context: Context) {
     private val _activeBusiness = MutableStateFlow(BusinessProfile())
     val activeBusiness: StateFlow<BusinessProfile> = _activeBusiness.asStateFlow()
 
+    private val _activeBusinessDatabaseId = MutableStateFlow("default_business")
+    val activeBusinessDatabaseIdFlow: StateFlow<String> = _activeBusinessDatabaseId.asStateFlow()
+
     val activeBusinessDatabaseId: String
-        get() {
-            val active = _activeBusiness.value
-            val name = active.shopName.trim()
-            if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) {
-                // Never allow writes to land in default_business once a real custom business exists!
-                val realBiz = _businesses.value.firstOrNull { !it.shopName.equals("HisabPro Enterprises", ignoreCase = true) }
-                if (realBiz != null) {
-                    return getBusinessDatabaseId(realBiz)
-                }
-                return "default_business"
-            }
-            val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
-            return "biz_$sanitized"
-        }
+        get() = _activeBusinessDatabaseId.value
 
     init {
         loadBusinesses()
@@ -96,14 +86,16 @@ class BusinessManager private constructor(private val context: Context) {
                     list.add(BusinessProfile())
                 }
                 _businesses.value = list
-                val matched = list.find { it.shopName == activeId || it.gstin == activeId } ?: list.first()
+                val matched = list.find { it.shopName == activeId || it.gstin == activeId || it.id == activeId } ?: list.first()
                 _activeBusiness.value = matched
+                _activeBusinessDatabaseId.value = getBusinessDatabaseId(matched)
                 SettingsRepository.getInstance(appContext).updateProfile(matched)
             } catch (e: Exception) {
                 e.printStackTrace()
                 val fallback = listOf(BusinessProfile())
                 _businesses.value = fallback
                 _activeBusiness.value = fallback.first()
+                _activeBusinessDatabaseId.value = getBusinessDatabaseId(fallback.first())
             }
         }
 
@@ -171,14 +163,20 @@ class BusinessManager private constructor(private val context: Context) {
     }
 
     private fun saveBusinessesInternal(list: List<BusinessProfile>, activeId: String) {
-        _businesses.value = list
-        _activeBusinessId.value = activeId
-        val active = list.find { it.shopName == activeId || it.gstin == activeId } ?: list.firstOrNull() ?: BusinessProfile()
+        val sanitizedList = list.map { p ->
+            if (p.id.isBlank()) p.copy(id = getBusinessDatabaseId(p)) else p
+        }
+        _businesses.value = sanitizedList
+        val active = sanitizedList.find { it.shopName == activeId || it.gstin == activeId || it.id == activeId }
+            ?: sanitizedList.firstOrNull() ?: BusinessProfile(id = "default_business")
+        val activeDbId = getBusinessDatabaseId(active)
         _activeBusiness.value = active
+        _activeBusinessDatabaseId.value = activeDbId
+        _activeBusinessId.value = active.shopName
         SettingsRepository.getInstance(appContext).updateProfile(active)
 
         val array = JSONArray()
-        for (p in list) {
+        for (p in sanitizedList) {
             val firstBank = p.effectiveBankAccounts.firstOrNull() ?: BankDetails()
             val bankArr = JSONArray()
             for (b in p.effectiveBankAccounts) {

@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.util.Calendar
 import kotlin.math.abs
 import kotlin.math.max
@@ -48,6 +49,15 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
     private val _selectedCustomerPartyId = MutableStateFlow<String?>(null)
     private val _selectedSupplierPartyId = MutableStateFlow<String?>(null)
     private val _isCashBookBankMode = MutableStateFlow(false)
+
+    init {
+        viewModelScope.launch {
+            com.hisabpro.app.data.repository.BusinessManager.getInstance(application).activeBusinessDatabaseIdFlow.collect {
+                _selectedCustomerPartyId.value = null
+                _selectedSupplierPartyId.value = null
+            }
+        }
+    }
 
     private data class BusinessEntities(
         val invoices: List<Invoice>,

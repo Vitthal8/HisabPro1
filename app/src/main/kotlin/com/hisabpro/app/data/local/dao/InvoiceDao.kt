@@ -13,22 +13,25 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface InvoiceDao {
     @Query("SELECT * FROM invoices WHERE business_id = :businessId ORDER BY date DESC")
-    fun getAllInvoices(businessId: String = "default_business"): Flow<List<InvoiceEntity>>
+    fun getAllInvoices(businessId: String): Flow<List<InvoiceEntity>>
 
     @Query("SELECT * FROM invoices WHERE business_id = :businessId ORDER BY date DESC")
-    suspend fun getAllInvoicesSync(businessId: String = "default_business"): List<InvoiceEntity>
+    suspend fun getAllInvoicesSync(businessId: String): List<InvoiceEntity>
 
     @Query("SELECT * FROM invoices WHERE business_id = :businessId AND date BETWEEN :startDate AND :endDate ORDER BY date DESC")
-    fun getInvoicesByDateRange(businessId: String = "default_business", startDate: Long, endDate: Long): Flow<List<InvoiceEntity>>
+    fun getInvoicesByDateRange(businessId: String, startDate: Long, endDate: Long): Flow<List<InvoiceEntity>>
 
     @Query("SELECT * FROM invoices WHERE business_id = :businessId AND party_id = :partyId ORDER BY date DESC")
-    fun getInvoicesForParty(businessId: String = "default_business", partyId: String): Flow<List<InvoiceEntity>>
+    fun getInvoicesForParty(businessId: String, partyId: String): Flow<List<InvoiceEntity>>
 
     @Query("SELECT * FROM invoices WHERE id = :id LIMIT 1")
     fun getInvoiceById(id: String): Flow<InvoiceEntity?>
 
     @Query("SELECT * FROM invoices WHERE id = :id LIMIT 1")
     suspend fun getInvoiceByIdSync(id: String): InvoiceEntity?
+
+    @Query("SELECT * FROM invoices WHERE id = :id AND business_id = :businessId LIMIT 1")
+    suspend fun getInvoiceByIdAndBusinessSync(id: String, businessId: String): InvoiceEntity?
 
     @Query("SELECT * FROM invoice_items WHERE invoice_id = :invoiceId")
     fun getItemsForInvoice(invoiceId: String): Flow<List<InvoiceItemEntity>>
@@ -37,7 +40,7 @@ interface InvoiceDao {
     suspend fun getItemsForInvoiceSync(invoiceId: String): List<InvoiceItemEntity>
 
     @Query("SELECT COALESCE(SUM(total), 0) FROM invoices WHERE business_id = :businessId AND date BETWEEN :startDate AND :endDate")
-    fun getTotalSalesByDateRange(businessId: String = "default_business", startDate: Long, endDate: Long): Flow<Long>
+    fun getTotalSalesByDateRange(businessId: String, startDate: Long, endDate: Long): Flow<Long>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertInvoice(invoice: InvoiceEntity)
@@ -51,8 +54,11 @@ interface InvoiceDao {
     @Query("DELETE FROM invoice_items WHERE invoice_id = :invoiceId")
     suspend fun deleteItemsForInvoice(invoiceId: String)
 
+    @Query("DELETE FROM invoices WHERE id = :id AND business_id = :businessId")
+    suspend fun deleteInvoice(id: String, businessId: String): Int
+
     @Query("DELETE FROM invoices WHERE id = :id")
-    suspend fun deleteInvoice(id: String)
+    suspend fun deleteInvoiceLegacy(id: String)
 
     @Transaction
     suspend fun insertInvoiceWithItems(invoice: InvoiceEntity, items: List<InvoiceItemEntity>) {
@@ -62,9 +68,9 @@ interface InvoiceDao {
     }
 
     @Transaction
-    suspend fun deleteInvoiceWithItems(invoiceId: String) {
+    suspend fun deleteInvoiceWithItems(invoiceId: String, businessId: String) {
         deleteItemsForInvoice(invoiceId)
-        deleteInvoice(invoiceId)
+        deleteInvoice(invoiceId, businessId)
     }
 
     @Query("SELECT * FROM invoices ORDER BY date DESC")

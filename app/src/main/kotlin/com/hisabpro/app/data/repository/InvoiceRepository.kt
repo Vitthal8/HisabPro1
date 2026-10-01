@@ -39,8 +39,9 @@ class InvoiceRepository(private val context: Context) {
 
     init {
         scope.launch {
-            BusinessManager.getInstance(context).activeBusinessId.collect {
-                reloadFromDatabase()
+            BusinessManager.getInstance(context).activeBusinessDatabaseIdFlow.collect { bizId ->
+                _invoices.value = emptyList()
+                reloadFromDatabase(bizId)
             }
         }
     }
@@ -173,9 +174,9 @@ class InvoiceRepository(private val context: Context) {
         }
     }
 
-    suspend fun reloadFromDatabase() {
+    suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
-            val dbInvoices = db.invoiceDao().getAllInvoicesSync(activeBizId)
+            val dbInvoices = db.invoiceDao().getAllInvoicesSync(targetBizId)
             val reloaded = mutableListOf<Invoice>()
             for (ent in dbInvoices) {
                 val dbItems = db.invoiceDao().getItemsForInvoiceSync(ent.id)
@@ -217,7 +218,9 @@ class InvoiceRepository(private val context: Context) {
                     )
                 )
             }
-            _invoices.value = reloaded.sortedByDescending { it.dateMillis }
+            if (targetBizId == activeBizId) {
+                _invoices.value = reloaded.sortedByDescending { it.dateMillis }
+            }
             saveInternal(reloaded, syncAllRoom = false)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -397,11 +400,12 @@ class InvoiceRepository(private val context: Context) {
     }
 
     fun deleteInvoice(invoiceId: String) {
+        val currentBizId = activeBizId
         val updated = _invoices.value.filterNot { it.id == invoiceId }
         saveInternal(updated, syncAllRoom = false)
         scope.launch {
             try {
-                db.invoiceDao().deleteInvoiceWithItems(invoiceId)
+                db.invoiceDao().deleteInvoiceWithItems(invoiceId, currentBizId)
                 com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
                     entityType = "invoice",
                     entityId = invoiceId,

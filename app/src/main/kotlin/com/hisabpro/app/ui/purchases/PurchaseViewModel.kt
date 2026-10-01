@@ -63,6 +63,16 @@ class PurchaseViewModel(application: Application) : AndroidViewModel(application
     private val _selectedPurchase = MutableStateFlow<PurchaseBill?>(null)
     val selectedPurchase: StateFlow<PurchaseBill?> = _selectedPurchase.asStateFlow()
 
+    init {
+        viewModelScope.launch {
+            com.hisabpro.app.data.repository.BusinessManager.getInstance(application).activeBusinessDatabaseIdFlow.collect {
+                _selectedFilter.value = PurchaseFilter.ALL
+                _searchQuery.value = ""
+                _selectedPurchase.value = null
+            }
+        }
+    }
+
     val uiState: StateFlow<PurchaseUiState> = combine(
         purchaseRepo.purchases,
         _selectedFilter,

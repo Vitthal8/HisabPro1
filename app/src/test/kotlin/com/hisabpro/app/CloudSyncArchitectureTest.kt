@@ -31,6 +31,7 @@ class CloudSyncArchitectureTest {
         val now = System.currentTimeMillis()
         val localParty = PartyEntity(
             id = "party_123",
+            businessId = "default_business",
             name = "Ramesh Kumar",
             phone = "9822011111",
             address = "Pune",
@@ -38,6 +39,7 @@ class CloudSyncArchitectureTest {
         )
         val remoteParty = PartyEntity(
             id = "party_123",
+            businessId = "default_business",
             name = "Ramesh Kumar Sharma",
             phone = "9822099999",
             address = "Shivajinagar Pune",

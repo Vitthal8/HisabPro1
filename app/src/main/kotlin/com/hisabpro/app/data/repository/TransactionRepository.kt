@@ -37,8 +37,9 @@ class TransactionRepository(private val context: Context) {
 
     init {
         scope.launch {
-            BusinessManager.getInstance(context).activeBusinessId.collect {
-                reloadFromDatabase()
+            BusinessManager.getInstance(context).activeBusinessDatabaseIdFlow.collect { bizId ->
+                _transactions.value = emptyList()
+                reloadFromDatabase(bizId)
             }
         }
     }
@@ -121,10 +122,10 @@ class TransactionRepository(private val context: Context) {
         }
     }
 
-    suspend fun reloadFromDatabase() {
+    suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
-            val payments = db.paymentDao().getAllPaymentsSync(activeBizId)
-            val expenses = db.expenseDao().getAllExpensesSync(activeBizId)
+            val payments = db.paymentDao().getAllPaymentsSync(targetBizId)
+            val expenses = db.expenseDao().getAllExpensesSync(targetBizId)
             val list = mutableListOf<Transaction>()
             for (p in payments) {
                 val mode = try { PaymentMode.valueOf(p.mode) } catch (e: Exception) { PaymentMode.CASH }
@@ -158,7 +159,9 @@ class TransactionRepository(private val context: Context) {
                 )
             }
             val sorted = list.sortedByDescending { it.dateMillis }
-            _transactions.value = sorted
+            if (targetBizId == activeBizId) {
+                _transactions.value = sorted
+            }
             saveTransactions(sorted, syncAllRoom = false)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -324,12 +327,13 @@ class TransactionRepository(private val context: Context) {
     }
 
     fun deleteTransaction(id: String) {
+        val currentBizId = activeBizId
         val updated = _transactions.value.filterNot { it.id == id }
         saveTransactions(updated, syncAllRoom = false)
         scope.launch {
             try {
-                db.expenseDao().deleteExpense(id)
-                db.paymentDao().deletePayment(id)
+                db.expenseDao().deleteExpense(id, currentBizId)
+                db.paymentDao().deletePayment(id, currentBizId)
                 com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
                     entityType = "payment",
                     entityId = id,

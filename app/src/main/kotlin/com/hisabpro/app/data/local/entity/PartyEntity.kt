@@ -25,7 +25,7 @@ data class PartyEntity(
     @PrimaryKey
     val id: String,
     @ColumnInfo(name = "business_id")
-    val businessId: String = "default_business",
+    val businessId: String,
     val name: String,
     val phone: String,
     val email: String = "",

@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface JournalDao {
     @Query("SELECT * FROM journal_entries WHERE business_id = :businessId ORDER BY date DESC")
-    fun getAllJournalEntries(businessId: String = "default_business"): Flow<List<JournalEntryEntity>>
+    fun getAllJournalEntries(businessId: String): Flow<List<JournalEntryEntity>>
 
     @Query("SELECT * FROM journal_entry_lines WHERE journal_entry_id = :journalEntryId")
     fun getLinesForJournalEntry(journalEntryId: String): Flow<List<JournalEntryLineEntity>>
@@ -29,14 +29,23 @@ interface JournalDao {
     @Query("DELETE FROM journal_entry_lines WHERE journal_entry_id = :journalEntryId")
     suspend fun deleteLinesForJournalEntry(journalEntryId: String)
 
+    @Query("DELETE FROM journal_entries WHERE id = :id AND business_id = :businessId")
+    suspend fun deleteJournalEntry(id: String, businessId: String): Int
+
     @Query("DELETE FROM journal_entries WHERE id = :id")
-    suspend fun deleteJournalEntry(id: String)
+    suspend fun deleteJournalEntryLegacy(id: String)
 
     @Transaction
     suspend fun insertEntryWithLines(entry: JournalEntryEntity, lines: List<JournalEntryLineEntity>) {
         insertJournalEntry(entry)
         deleteLinesForJournalEntry(entry.id)
         insertJournalLines(lines)
+    }
+
+    @Transaction
+    suspend fun deleteEntryWithLines(id: String, businessId: String) {
+        deleteLinesForJournalEntry(id)
+        deleteJournalEntry(id, businessId)
     }
 
     @Query("SELECT * FROM journal_entries ORDER BY date DESC")

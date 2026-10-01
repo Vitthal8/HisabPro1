@@ -47,6 +47,17 @@ class ItemViewModel(application: Application) : AndroidViewModel(application) {
     private val _sortOption = MutableStateFlow(ItemSortOption.NAME_ASC)
     val sortOption: StateFlow<ItemSortOption> = _sortOption.asStateFlow()
 
+    init {
+        viewModelScope.launch {
+            com.hisabpro.app.data.repository.BusinessManager.getInstance(application).activeBusinessDatabaseIdFlow.collect {
+                _searchQuery.value = ""
+                _selectedCategory.value = "All"
+                _onlyLowStock.value = false
+                _sortOption.value = ItemSortOption.NAME_ASC
+            }
+        }
+    }
+
     val filteredItems: StateFlow<List<Item>> = combine(
         rawItems,
         _searchQuery,

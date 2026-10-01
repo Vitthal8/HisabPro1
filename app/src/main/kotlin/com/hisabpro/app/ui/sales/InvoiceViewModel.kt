@@ -75,6 +75,17 @@ class InvoiceViewModel @JvmOverloads constructor(
     private val _statusFilter = MutableStateFlow<InvoiceStatus?>(null)
     private val _selectedInvoiceId = savedStateHandle.getStateFlow<String?>(KEY_SELECTED_INVOICE_ID, null)
 
+    init {
+        viewModelScope.launch {
+            com.hisabpro.app.data.repository.BusinessManager.getInstance(application).activeBusinessDatabaseIdFlow.collect {
+                savedStateHandle[KEY_SELECTED_INVOICE_ID] = null
+                _searchQuery.value = ""
+                _typeFilter.value = null
+                _statusFilter.value = null
+            }
+        }
+    }
+
     val parties = partyRepository.parties
 
     val uiState: StateFlow<SalesUiState> = combine(

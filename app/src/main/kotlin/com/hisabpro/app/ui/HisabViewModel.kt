@@ -66,6 +66,18 @@ class HisabViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedPaymentMode = MutableStateFlow<PaymentMode?>(null)
     private val _searchQuery = MutableStateFlow("")
 
+    init {
+        viewModelScope.launch {
+            com.hisabpro.app.data.repository.BusinessManager.getInstance(application).activeBusinessDatabaseIdFlow.collect {
+                _filterType.value = FilterType.ALL
+                _dateFilterType.value = DateFilterType.ALL_TIME
+                _selectedCategory.value = null
+                _selectedPaymentMode.value = null
+                _searchQuery.value = ""
+            }
+        }
+    }
+
     val uiState: StateFlow<HisabUiState> = combine(
         repository.transactions,
         _filterType,

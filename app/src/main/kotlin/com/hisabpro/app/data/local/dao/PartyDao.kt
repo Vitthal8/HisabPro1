@@ -1,10 +1,9 @@
 package com.hisabpro.app.data.local.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 import com.hisabpro.app.data.local.entity.PartyEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -28,10 +27,10 @@ interface PartyDao {
     @Query("SELECT * FROM parties WHERE business_id = :businessId AND (name LIKE '%' || :query || '%' OR phone LIKE '%' || :query || '%') ORDER BY name ASC")
     fun searchParties(businessId: String = "default_business", query: String): Flow<List<PartyEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertParty(party: PartyEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertAllParties(parties: List<PartyEntity>)
 
     @Update

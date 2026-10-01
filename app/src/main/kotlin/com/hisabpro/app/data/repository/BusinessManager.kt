@@ -6,6 +6,7 @@ import com.hisabpro.app.data.local.AppDatabase
 import com.hisabpro.app.data.local.entity.BusinessEntity
 import com.hisabpro.app.data.model.BankDetails
 import com.hisabpro.app.data.model.BusinessProfile
+import com.hisabpro.app.data.sync.CloudSyncManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -225,29 +226,69 @@ class BusinessManager private constructor(private val context: Context) {
         }
     }
 
+    fun getBusinessDatabaseId(profile: BusinessProfile): String {
+        val name = profile.shopName.trim()
+        if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) return "default_business"
+        val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
+        return "biz_$sanitized"
+    }
+
     suspend fun syncToDatabase() {
         try {
             val entities = _businesses.value.map { p ->
-                val name = p.shopName.trim()
-                val bizId = if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) {
-                    "default_business"
-                } else {
-                    val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
-                    "biz_$sanitized"
-                }
+                val bizId = getBusinessDatabaseId(p)
+                val firstBank = p.effectiveBankAccounts.firstOrNull() ?: BankDetails()
                 BusinessEntity(
                     id = bizId,
                     name = p.shopName,
+                    ownerName = p.ownerName,
                     address = p.address,
                     phone = p.phone,
+                    email = p.email,
                     gstin = p.gstin,
                     pan = p.pan,
                     logoPath = p.logoPath,
                     gstEnabled = p.isGstRegistered,
-                    financialYearStart = "01-04"
+                    financialYearStart = "01-04",
+                    upiId = p.upiId,
+                    bankName = firstBank.bankName,
+                    accountNumber = firstBank.accountNumber,
+                    ifscCode = firstBank.ifscCode,
+                    termsAndConditions = p.termsAndConditions,
+                    createdAt = System.currentTimeMillis(),
+                    updatedAt = System.currentTimeMillis()
                 )
             }
             db.businessDao().insertAllBusinesses(entities)
+
+            for (entity in entities) {
+                val payload = JSONObject().apply {
+                    put("id", entity.id)
+                    put("name", entity.name)
+                    put("owner_name", entity.ownerName)
+                    put("address", entity.address)
+                    put("phone", entity.phone)
+                    put("email", entity.email)
+                    put("gstin", entity.gstin)
+                    put("pan", entity.pan)
+                    put("logo_path", entity.logoPath)
+                    put("gst_enabled", entity.gstEnabled)
+                    put("financial_year_start", entity.financialYearStart)
+                    put("upi_id", entity.upiId)
+                    put("bank_name", entity.bankName)
+                    put("account_number", entity.accountNumber)
+                    put("ifsc_code", entity.ifscCode)
+                    put("terms_and_conditions", entity.termsAndConditions)
+                    put("created_at", entity.createdAt)
+                    put("updated_at", entity.updatedAt)
+                }
+                CloudSyncManager.getInstance(appContext).enqueueChange(
+                    entityType = "business",
+                    entityId = entity.id,
+                    operation = "UPSERT",
+                    payloadJson = payload.toString()
+                )
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -281,9 +322,27 @@ class BusinessManager private constructor(private val context: Context) {
 
     fun deleteBusiness(shopName: String): Boolean {
         if (_businesses.value.size <= 1) return false // Cannot delete the only business
+        val toDelete = _businesses.value.find { it.shopName == shopName }
         val updated = _businesses.value.filterNot { it.shopName == shopName }
         val newActive = updated.first().shopName
         saveBusinessesInternal(updated, newActive)
+
+        if (toDelete != null) {
+            val deletedId = getBusinessDatabaseId(toDelete)
+            scope.launch {
+                try {
+                    db.businessDao().deleteBusiness(deletedId)
+                    CloudSyncManager.getInstance(appContext).enqueueChange(
+                        entityType = "business",
+                        entityId = deletedId,
+                        operation = "DELETE",
+                        payloadJson = "{}"
+                    )
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
         return true
     }
 }

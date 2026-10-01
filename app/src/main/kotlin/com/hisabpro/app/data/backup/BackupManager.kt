@@ -118,7 +118,7 @@ class BackupManager private constructor(private val appContext: Context) {
             val accounts = db.accountDao().getAllAccountsGlobalSync()
             val journalEntries = db.journalDao().getAllJournalEntriesGlobalSync()
             val journalLines = db.journalDao().getAllJournalEntryLinesGlobalSync()
-            val khataEntries = db.khataDao().getAllEntriesSync()
+            val khataEntries = db.khataDao().getAllEntriesGlobalSync()
 
             onProgress?.invoke("Assembling backup payload...")
 

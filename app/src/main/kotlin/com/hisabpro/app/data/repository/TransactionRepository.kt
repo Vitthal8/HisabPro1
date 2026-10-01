@@ -37,8 +37,9 @@ class TransactionRepository(private val context: Context) {
 
     init {
         scope.launch {
-            BusinessManager.getInstance(context).activeBusinessId.collect {
-                reloadFromDatabase()
+            BusinessManager.getInstance(context).activeBusinessDatabaseIdFlow.collect { bizId ->
+                _transactions.value = emptyList()
+                reloadFromDatabase(bizId)
             }
         }
     }
@@ -121,10 +122,10 @@ class TransactionRepository(private val context: Context) {
         }
     }
 
-    suspend fun reloadFromDatabase() {
+    suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
-            val payments = db.paymentDao().getAllPaymentsSync(activeBizId)
-            val expenses = db.expenseDao().getAllExpensesSync(activeBizId)
+            val payments = db.paymentDao().getAllPaymentsSync(targetBizId)
+            val expenses = db.expenseDao().getAllExpensesSync(targetBizId)
             val list = mutableListOf<Transaction>()
             for (p in payments) {
                 val mode = try { PaymentMode.valueOf(p.mode) } catch (e: Exception) { PaymentMode.CASH }
@@ -158,7 +159,9 @@ class TransactionRepository(private val context: Context) {
                 )
             }
             val sorted = list.sortedByDescending { it.dateMillis }
-            _transactions.value = sorted
+            if (targetBizId == activeBizId) {
+                _transactions.value = sorted
+            }
             saveTransactions(sorted, syncAllRoom = false)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -187,13 +190,19 @@ class TransactionRepository(private val context: Context) {
         }
     }
 
-    private suspend fun saveSingleTransactionDbInternal(item: Transaction, enqueueForSync: Boolean = false) {
+    private suspend fun saveSingleTransactionDbInternal(
+        item: Transaction,
+        enqueueForSync: Boolean = false,
+        overrideBizId: String? = null,
+        linkedPartyId: String? = null
+    ) {
         try {
             ensureActiveBusiness()
+            val targetBiz = overrideBizId ?: activeBizId
             if (item.type == TransactionType.EXPENSE) {
                 val exp = ExpenseEntity(
                     id = item.id,
-                    businessId = activeBizId,
+                    businessId = targetBiz,
                     date = item.dateMillis,
                     category = item.category.name,
                     amount = item.amount.toPaise(),
@@ -225,8 +234,8 @@ class TransactionRepository(private val context: Context) {
             } else {
                 val pay = PaymentEntity(
                     id = item.id,
-                    businessId = activeBizId,
-                    partyId = null,
+                    businessId = targetBiz,
+                    partyId = linkedPartyId,
                     date = item.dateMillis,
                     amount = item.amount.toPaise(),
                     mode = item.paymentMode.name,
@@ -269,8 +278,27 @@ class TransactionRepository(private val context: Context) {
         category: Category,
         dateMillis: Long,
         paymentMode: PaymentMode,
-        note: String
+        note: String,
+        explicitBusinessId: String? = null,
+        partyId: String? = null
     ) {
+        val targetBiz = if (!explicitBusinessId.isNullOrBlank()) {
+            explicitBusinessId
+        } else if (!partyId.isNullOrBlank()) {
+            kotlinx.coroutines.runBlocking { db.partyDao().getPartyByIdSync(partyId)?.businessId ?: activeBizId }
+        } else {
+            activeBizId
+        }
+
+        if (!partyId.isNullOrBlank()) {
+            val party = kotlinx.coroutines.runBlocking { db.partyDao().getPartyByIdSync(partyId) }
+            if (party != null && party.businessId.isNotBlank()) {
+                require(targetBiz == party.businessId) {
+                    "Multi-business violation: Transaction targets business '$targetBiz', but party '${party.name}' belongs to '${party.businessId}'!"
+                }
+            }
+        }
+
         val newTx = Transaction(
             id = UUID.randomUUID().toString(),
             title = title.trim(),
@@ -284,7 +312,7 @@ class TransactionRepository(private val context: Context) {
         val updated = listOf(newTx) + _transactions.value
         saveTransactions(updated, syncAllRoom = false)
         scope.launch {
-            saveSingleTransactionDbInternal(newTx, enqueueForSync = true)
+            saveSingleTransactionDbInternal(newTx, enqueueForSync = true, overrideBizId = targetBiz, linkedPartyId = partyId)
         }
     }
 
@@ -299,12 +327,13 @@ class TransactionRepository(private val context: Context) {
     }
 
     fun deleteTransaction(id: String) {
+        val currentBizId = activeBizId
         val updated = _transactions.value.filterNot { it.id == id }
         saveTransactions(updated, syncAllRoom = false)
         scope.launch {
             try {
-                db.expenseDao().deleteExpense(id)
-                db.paymentDao().deletePayment(id)
+                db.expenseDao().deleteExpense(id, currentBizId)
+                db.paymentDao().deletePayment(id, currentBizId)
                 com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
                     entityType = "payment",
                     entityId = id,

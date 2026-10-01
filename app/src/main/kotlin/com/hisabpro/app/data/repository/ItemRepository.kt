@@ -38,8 +38,10 @@ class ItemRepository(private val context: Context) {
 
     init {
         scope.launch {
-            BusinessManager.getInstance(context).activeBusinessId.collect {
-                reloadFromDatabase()
+            BusinessManager.getInstance(context).activeBusinessDatabaseIdFlow.collect { bizId ->
+                _items.value = emptyList()
+                _stockHistory.value = emptyList()
+                reloadFromDatabase(bizId)
             }
         }
     }
@@ -227,9 +229,10 @@ class ItemRepository(private val context: Context) {
         val hist = _stockHistory.value.filter { it.itemId != itemId }
         saveHistoryInternal(hist)
 
+        val currentBizId = activeBizId
         scope.launch {
             try {
-                db.itemDao().deleteItem(itemId)
+                db.itemDao().deleteItem(itemId, currentBizId)
                 com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
                     entityType = "item",
                     entityId = itemId,
@@ -630,9 +633,9 @@ class ItemRepository(private val context: Context) {
         }
     }
 
-    suspend fun reloadFromDatabase() {
+    suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
-            val dbItems = db.itemDao().getAllItemsSync(activeBizId)
+            val dbItems = db.itemDao().getAllItemsSync(targetBizId)
             val itemsList = dbItems.map { item ->
                 Item(
                     id = item.id,
@@ -649,7 +652,9 @@ class ItemRepository(private val context: Context) {
                     updatedAtMillis = item.createdAt
                 )
             }
-            _items.value = itemsList
+            if (targetBizId == activeBizId) {
+                _items.value = itemsList
+            }
             val array = JSONArray()
             for (item in itemsList) {
                 val obj = JSONObject().apply {

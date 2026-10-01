@@ -224,6 +224,48 @@ object AccountingEngine {
     }
 
     /**
+     * Helper to determine GST mode (Inter-State vs Intra-State) based on supply state rules.
+     */
+    fun determineGstMode(
+        businessState: String? = null,
+        businessStateCode: String? = null,
+        businessGstin: String? = null,
+        customerState: String? = null,
+        customerStateCode: String? = null,
+        customerGstin: String? = null,
+        customerAddress: String? = null
+    ): GstMode = com.hisabpro.app.util.IndianAccountingFormat.determineGstMode(
+        businessState = businessState,
+        businessStateCode = businessStateCode,
+        businessGstin = businessGstin,
+        customerState = customerState,
+        customerStateCode = customerStateCode,
+        customerGstin = customerGstin,
+        customerAddress = customerAddress
+    )
+
+    /**
+     * Determines whether supply is inter-state based on state identification.
+     */
+    fun isInterStateSupply(
+        businessState: String? = null,
+        businessStateCode: String? = null,
+        businessGstin: String? = null,
+        customerState: String? = null,
+        customerStateCode: String? = null,
+        customerGstin: String? = null,
+        customerAddress: String? = null
+    ): Boolean = com.hisabpro.app.util.IndianAccountingFormat.isInterStateSupply(
+        businessState = businessState,
+        businessStateCode = businessStateCode,
+        businessGstin = businessGstin,
+        customerState = customerState,
+        customerStateCode = customerStateCode,
+        customerGstin = customerGstin,
+        customerAddress = customerAddress
+    )
+
+    /**
      * Calculates invoice grand total = (Subtotal + Tax) - Discount
      */
     fun calculateGrandTotal(

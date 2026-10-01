@@ -162,7 +162,6 @@ class CloudSyncManager private constructor(private val appContext: Context) {
 
         try {
             // Step 1: Ensure repositories flush uncommitted state to database
-            BusinessManager.getInstance(appContext).syncToDatabase()
             InvoiceRepository.getInstance(appContext).syncToDatabase()
             PartyRepository.getInstance(appContext).syncToDatabase()
             ItemRepository.getInstance(appContext).syncToDatabase()
@@ -175,6 +174,12 @@ class CloudSyncManager private constructor(private val appContext: Context) {
             // Step 3: Pull remote updates from Supabase (Delta Sync)
             _syncState.value = _syncState.value.copy(statusMessage = "Downloading updates from Cloud...")
             val pullResult = executePull(session)
+
+            // Step 4: Refresh active in-memory repositories
+            InvoiceRepository.getInstance(appContext).reloadFromDatabase()
+            PartyRepository.getInstance(appContext).reloadFromDatabase()
+            ItemRepository.getInstance(appContext).reloadFromDatabase()
+            TransactionRepository.getInstance(appContext).reloadFromDatabase()
 
             val statusMsg = when {
                 pullResult.failureCount == 0 -> "Cloud Sync Complete"
@@ -205,12 +210,6 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 statusMessage = "Sync failed"
             )
             Result.failure(e)
-        } finally {
-            // Step 4: Refresh active in-memory repositories
-            InvoiceRepository.getInstance(appContext).reloadFromDatabase()
-            PartyRepository.getInstance(appContext).reloadFromDatabase()
-            ItemRepository.getInstance(appContext).reloadFromDatabase()
-            TransactionRepository.getInstance(appContext).reloadFromDatabase()
         }
     }
 
@@ -307,34 +306,19 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 tableStatuses[table] = "200 (${records.length()} records)"
                 android.util.Log.i("CloudSyncManager", "PULL SUCCESS table=$table records=${records.length()}")
                 if (records.length() > 0) {
-                    try {
-                        db.withTransaction {
-                            applyRemoteRecords(table, records)
-                        }
-                        totalPulled += records.length()
-                        db.syncMetadataDao().insertOrUpdate(
-                            SyncMetadataEntity(
-                                tableName = table,
-                                lastPulledAt = System.currentTimeMillis(),
-                                lastSyncStatus = "SUCCESS"
-                            )
-                        )
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                        failureCount++
-                        val errMsg = e.localizedMessage ?: "DB Apply Error"
-                        tableStatuses[table] = "ERROR: $errMsg"
-                        android.util.Log.e("CloudSyncManager", "PULL DB APPLY FAILURE table=$table error=$errMsg")
+                    db.withTransaction {
+                        applyRemoteRecords(table, records)
                     }
-                } else {
-                    db.syncMetadataDao().insertOrUpdate(
-                        SyncMetadataEntity(
-                            tableName = table,
-                            lastPulledAt = System.currentTimeMillis(),
-                            lastSyncStatus = "SUCCESS"
-                        )
-                    )
+                    totalPulled += records.length()
                 }
+
+                db.syncMetadataDao().insertOrUpdate(
+                    SyncMetadataEntity(
+                        tableName = table,
+                        lastPulledAt = System.currentTimeMillis(),
+                        lastSyncStatus = "SUCCESS"
+                    )
+                )
             } else {
                 failureCount++
                 val ex = result.exceptionOrNull()
@@ -345,40 +329,6 @@ class CloudSyncManager private constructor(private val appContext: Context) {
         }
 
         return PullResultSummary(totalPulled, successCount, failureCount, tableStatuses)
-    }
-
-    private fun optJsonLong(json: JSONObject, key: String, default: Long = 0L): Long {
-        if (json.isNull(key)) return default
-        val value = json.opt(key) ?: return default
-        return when (value) {
-            is Number -> value.toLong()
-            is String -> value.toDoubleOrNull()?.toLong() ?: default
-            else -> default
-        }
-    }
-
-    private suspend fun ensureBusinessExists(businessId: String) {
-        if (businessId.isBlank()) return
-        val existing = db.businessDao().getBusinessSync(businessId)
-        if (existing == null) {
-            val displayName = if (businessId == "default_business") {
-                "Default Business"
-            } else {
-                businessId.removePrefix("biz_").replace("_", " ")
-                    .split(" ")
-                    .joinToString(" ") { word ->
-                        word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }
-                    }
-            }
-            val fallback = BusinessEntity(
-                id = businessId,
-                name = displayName,
-                createdAt = System.currentTimeMillis(),
-                updatedAt = System.currentTimeMillis()
-            )
-            db.businessDao().insertOrUpdate(fallback)
-            BusinessManager.getInstance(appContext).syncToDatabase()
-        }
     }
 
     private suspend fun applyRemoteRecords(table: String, records: JSONArray) {
@@ -443,12 +393,10 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val list = mutableListOf<PartyEntity>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val bizId = obj.optString("business_id", "default_business")
-                    ensureBusinessExists(bizId)
                     list.add(
                         PartyEntity(
                             id = obj.getString("id"),
-                            businessId = bizId,
+                            businessId = obj.optString("business_id", "default_business"),
                             name = obj.getString("name"),
                             phone = obj.optString("phone", ""),
                             email = obj.optString("email", ""),
@@ -465,39 +413,14 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 }
                 if (list.isNotEmpty()) db.partyDao().insertAllParties(list)
             }
-            "accounts" -> {
-                val list = mutableListOf<AccountEntity>()
-                for (i in 0 until records.length()) {
-                    val obj = records.getJSONObject(i)
-                    val bizId = obj.optString("business_id", "default_business")
-                    ensureBusinessExists(bizId)
-                    list.add(
-                        AccountEntity(
-                            id = obj.getString("id"),
-                            businessId = bizId,
-                            name = obj.getString("name"),
-                            type = obj.optString("type", "CASH"),
-                            openingBalance = obj.optLong("opening_balance", 0L),
-                            accountNumber = obj.optString("account_number", ""),
-                            ifscCode = obj.optString("ifsc_code", ""),
-                            createdAt = obj.optLong("created_at", System.currentTimeMillis()),
-                            updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
-                            deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
-                        )
-                    )
-                }
-                if (list.isNotEmpty()) db.accountDao().insertAllAccounts(list)
-            }
             "items" -> {
                 val list = mutableListOf<ItemEntity>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val bizId = obj.optString("business_id", "default_business")
-                    ensureBusinessExists(bizId)
                     list.add(
                         ItemEntity(
                             id = obj.getString("id"),
-                            businessId = bizId,
+                            businessId = obj.optString("business_id", "default_business"),
                             name = obj.getString("name"),
                             itemCode = obj.optString("item_code", ""),
                             unit = obj.optString("unit", "Pcs"),
@@ -520,35 +443,27 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val list = mutableListOf<InvoiceEntity>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val bizId = obj.optString("business_id", "default_business")
-                    ensureBusinessExists(bizId)
-
-                    val rawPartyId = obj.optString("party_id", "").ifBlank { null }
-                    val resolvedPartyId = if (rawPartyId != null && db.partyDao().getPartyByIdSync(rawPartyId) != null) {
-                        rawPartyId
-                    } else null
-
                     list.add(
                         InvoiceEntity(
                             id = obj.getString("id"),
-                            businessId = bizId,
+                            businessId = obj.optString("business_id", "default_business"),
                             invoiceNo = obj.getString("invoice_no"),
                             date = obj.optLong("date", System.currentTimeMillis()),
-                            partyId = resolvedPartyId,
+                            partyId = obj.optString("party_id", "").ifBlank { null },
                             customerName = obj.optString("customer_name", ""),
                             customerPhone = obj.optString("customer_phone", ""),
                             customerAddress = obj.optString("customer_address", ""),
                             customerGstin = obj.optString("customer_gstin", ""),
                             type = obj.optString("type", "NON_GST_BILL"),
                             gstMode = obj.optString("gst_mode", "EXEMPT"),
-                            subtotal = optJsonLong(obj, "subtotal"),
-                            discount = optJsonLong(obj, "discount"),
-                            taxableAmount = optJsonLong(obj, "taxable_amount"),
-                            cgst = optJsonLong(obj, "cgst"),
-                            sgst = optJsonLong(obj, "sgst"),
-                            igst = optJsonLong(obj, "igst"),
-                            total = optJsonLong(obj, "total"),
-                            paidAmount = optJsonLong(obj, "paid_amount"),
+                            subtotal = obj.optLong("subtotal", 0L),
+                            discount = obj.optLong("discount", 0L),
+                            taxableAmount = obj.optLong("taxable_amount", 0L),
+                            cgst = obj.optLong("cgst", 0L),
+                            sgst = obj.optLong("sgst", 0L),
+                            igst = obj.optLong("igst", 0L),
+                            total = obj.optLong("total", 0L),
+                            paidAmount = obj.optLong("paid_amount", 0L),
                             paymentStatus = obj.optString("payment_status", "PAID"),
                             paymentMode = obj.optString("payment_mode", "Cash"),
                             notes = obj.optString("notes", ""),
@@ -561,67 +476,21 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 }
                 if (list.isNotEmpty()) db.invoiceDao().insertAllInvoices(list)
             }
-            "invoice_items" -> {
-                val list = mutableListOf<InvoiceItemEntity>()
-                for (i in 0 until records.length()) {
-                    val obj = records.getJSONObject(i)
-                    val invId = obj.getString("invoice_id")
-                    if (db.invoiceDao().getInvoiceByIdSync(invId) == null) continue
-
-                    val rawItemId = obj.optString("item_id", "").ifBlank { null }
-                    val resolvedItemId = if (rawItemId != null && db.itemDao().getItemByIdSync(rawItemId) != null) {
-                        rawItemId
-                    } else null
-
-                    list.add(
-                        InvoiceItemEntity(
-                            id = obj.getString("id"),
-                            invoiceId = invId,
-                            itemId = resolvedItemId,
-                            itemName = obj.optString("item_name", ""),
-                            hsnCode = obj.optString("hsn_code", ""),
-                            qty = obj.optDouble("qty", 1.0),
-                            unit = obj.optString("unit", "Pcs"),
-                            rate = optJsonLong(obj, "rate"),
-                            discount = optJsonLong(obj, "discount"),
-                            cgstRate = obj.optDouble("cgst_rate", 0.0),
-                            sgstRate = obj.optDouble("sgst_rate", 0.0),
-                            igstRate = obj.optDouble("igst_rate", 0.0),
-                            amount = optJsonLong(obj, "amount"),
-                            deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
-                        )
-                    )
-                }
-                if (list.isNotEmpty()) db.invoiceDao().insertInvoiceItems(list)
-            }
             "payments" -> {
                 val list = mutableListOf<PaymentEntity>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val bizId = obj.optString("business_id", "default_business")
-                    ensureBusinessExists(bizId)
-
-                    val rawPartyId = obj.optString("party_id", "").ifBlank { null }
-                    val resolvedPartyId = if (rawPartyId != null && db.partyDao().getPartyByIdSync(rawPartyId) != null) {
-                        rawPartyId
-                    } else null
-
-                    val rawInvoiceId = obj.optString("linked_invoice_id", "").ifBlank { null }
-                    val resolvedInvoiceId = if (rawInvoiceId != null && db.invoiceDao().getInvoiceByIdSync(rawInvoiceId) != null) {
-                        rawInvoiceId
-                    } else null
-
                     list.add(
                         PaymentEntity(
                             id = obj.getString("id"),
-                            businessId = bizId,
-                            partyId = resolvedPartyId,
+                            businessId = obj.optString("business_id", "default_business"),
+                            partyId = obj.optString("party_id", "").ifBlank { null },
                             date = obj.optLong("date", System.currentTimeMillis()),
                             amount = obj.optLong("amount", 0L),
                             mode = obj.optString("mode", "Cash"),
                             referenceNo = obj.optString("reference_no", ""),
                             notes = obj.optString("notes", ""),
-                            linkedInvoiceId = resolvedInvoiceId,
+                            linkedInvoiceId = obj.optString("linked_invoice_id", "").ifBlank { null },
                             createdAt = obj.optLong("created_at", System.currentTimeMillis()),
                             updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
                             deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
@@ -634,12 +503,10 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val list = mutableListOf<ExpenseEntity>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val bizId = obj.optString("business_id", "default_business")
-                    ensureBusinessExists(bizId)
                     list.add(
                         ExpenseEntity(
                             id = obj.getString("id"),
-                            businessId = bizId,
+                            businessId = obj.optString("business_id", "default_business"),
                             date = obj.optLong("date", System.currentTimeMillis()),
                             category = obj.getString("category"),
                             amount = obj.optLong("amount", 0L),
@@ -658,16 +525,10 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val list = mutableListOf<KhataEntryEntity>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val bizId = obj.optString("business_id", "default_business")
-                    ensureBusinessExists(bizId)
-                    val partyId = obj.getString("party_id")
-                    if (db.partyDao().getPartyByIdSync(partyId) == null) continue
-
                     list.add(
                         KhataEntryEntity(
                             id = obj.getString("id"),
-                            businessId = bizId,
-                            partyId = partyId,
+                            partyId = obj.getString("party_id"),
                             amount = obj.optLong("amount", 0L),
                             type = obj.getString("type"),
                             date = obj.optLong("date", System.currentTimeMillis()),
@@ -680,53 +541,6 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     )
                 }
                 if (list.isNotEmpty()) db.khataDao().insertAllEntries(list)
-            }
-            "journal_entries" -> {
-                val list = mutableListOf<JournalEntryEntity>()
-                for (i in 0 until records.length()) {
-                    val obj = records.getJSONObject(i)
-                    val bizId = obj.optString("business_id", "default_business")
-                    ensureBusinessExists(bizId)
-                    list.add(
-                        JournalEntryEntity(
-                            id = obj.getString("id"),
-                            businessId = bizId,
-                            date = obj.optLong("date", System.currentTimeMillis()),
-                            voucherNo = obj.optString("voucher_no", ""),
-                            narration = obj.optString("narration", ""),
-                            createdAt = obj.optLong("created_at", System.currentTimeMillis()),
-                            updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
-                            deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
-                        )
-                    )
-                }
-                if (list.isNotEmpty()) db.journalDao().insertAllJournalEntries(list)
-            }
-            "journal_entry_lines" -> {
-                val list = mutableListOf<JournalEntryLineEntity>()
-                for (i in 0 until records.length()) {
-                    val obj = records.getJSONObject(i)
-                    val jeId = obj.getString("journal_entry_id")
-                    val accId = obj.getString("account_id")
-                    if (db.journalDao().getJournalEntryByIdSync(jeId) == null) continue
-                    if (db.accountDao().getAccountByIdSync(accId) == null) continue
-
-                    list.add(
-                        JournalEntryLineEntity(
-                            id = obj.getString("id"),
-                            journalEntryId = jeId,
-                            accountId = accId,
-                            accountName = obj.optString("account_name", ""),
-                            isDebit = obj.optBoolean("is_debit", true),
-                            debit = obj.optLong("debit", 0L),
-                            credit = obj.optLong("credit", 0L),
-                            createdAt = obj.optLong("created_at", System.currentTimeMillis()),
-                            updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
-                            deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
-                        )
-                    )
-                }
-                if (list.isNotEmpty()) db.journalDao().insertJournalLines(list)
             }
         }
     }

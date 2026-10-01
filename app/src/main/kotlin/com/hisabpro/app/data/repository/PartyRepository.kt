@@ -43,15 +43,18 @@ class PartyRepository(private val context: Context) {
 
     init {
         scope.launch {
-            BusinessManager.getInstance(context).activeBusinessId.collect {
-                reloadFromDatabase()
+            BusinessManager.getInstance(context).activeBusinessDatabaseIdFlow.collect { bizId ->
+                // Immediately clear state so no stale data from previous business is visible
+                _parties.value = emptyList()
+                _entries.value = emptyList()
+                reloadFromDatabase(bizId)
             }
         }
     }
 
-    suspend fun reloadFromDatabase() {
+    suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
-            val dbParties = db.partyDao().getAllPartiesSync(activeBizId)
+            val dbParties = db.partyDao().getAllPartiesSync(targetBizId)
             val partiesList = dbParties.map { p ->
                 val type = try { PartyType.valueOf(p.type) } catch (e: Exception) { PartyType.CUSTOMER }
                 val tag = try { PartyTag.valueOf(p.tag) } catch (e: Exception) { PartyTag.REGULAR }
@@ -66,10 +69,8 @@ class PartyRepository(private val context: Context) {
                     createdAt = p.createdAt
                 )
             }
-            _parties.value = partiesList
-            savePartiesInternal(partiesList)
 
-            val dbEntries = db.khataDao().getAllEntriesSync(activeBizId)
+            val dbEntries = db.khataDao().getAllEntriesSync(targetBizId)
             val entriesList = dbEntries.map { e ->
                 val type = try { KhataEntryType.valueOf(e.type) } catch (e: Exception) { KhataEntryType.YOU_GAVE }
                 KhataEntry(
@@ -82,8 +83,12 @@ class PartyRepository(private val context: Context) {
                     note = e.note
                 )
             }
-            _entries.value = entriesList
-            saveEntriesInternal(entriesList)
+
+            // Only update if targetBizId is still active to avoid race conditions
+            if (targetBizId == activeBizId) {
+                _parties.value = partiesList
+                _entries.value = entriesList
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -130,7 +135,7 @@ class PartyRepository(private val context: Context) {
         }
     }
 
-    private fun saveEntriesInternal(list: List<KhataEntry>) {
+    private fun saveEntriesInternal(list: List<KhataEntry>, explicitBizId: String? = null) {
         val array = JSONArray()
         for (e in list) {
             val obj = JSONObject().apply {
@@ -150,10 +155,11 @@ class PartyRepository(private val context: Context) {
         scope.launch {
             try {
                 ensureActiveBusiness()
+                val targetBiz = explicitBizId ?: activeBizId
                 val entities = list.map { e ->
-                    KhataEntryEntity(
+                    val rawEntity = KhataEntryEntity(
                         id = e.id,
-                        businessId = activeBizId,
+                        businessId = targetBiz,
                         partyId = e.partyId,
                         amount = e.amount.toPaise(),
                         type = e.type.name,
@@ -161,6 +167,7 @@ class PartyRepository(private val context: Context) {
                         billNumber = e.billNumber,
                         note = e.note
                     )
+                    com.hisabpro.app.data.local.KhataAlignment.alignBusinessId(rawEntity, db.partyDao())
                 }
                 db.khataDao().insertAllEntries(entities)
             } catch (e: Exception) {
@@ -189,8 +196,10 @@ class PartyRepository(private val context: Context) {
                 db.partyDao().insertAllParties(partyEntities)
             }
             val entryEntities = _entries.value.map { e ->
-                KhataEntryEntity(
+                val partyBiz = getPartyBusinessId(e.partyId)
+                val rawEntity = KhataEntryEntity(
                     id = e.id,
+                    businessId = partyBiz,
                     partyId = e.partyId,
                     amount = e.amount.toPaise(),
                     type = e.type.name,
@@ -198,6 +207,7 @@ class PartyRepository(private val context: Context) {
                     billNumber = e.billNumber,
                     note = e.note
                 )
+                com.hisabpro.app.data.local.KhataAlignment.alignBusinessId(rawEntity, db.partyDao())
             }
             if (entryEntities.isNotEmpty()) {
                 db.khataDao().insertAllEntries(entryEntities)
@@ -205,6 +215,16 @@ class PartyRepository(private val context: Context) {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    fun getPartyBusinessId(partyId: String): String {
+        return kotlinx.coroutines.runBlocking {
+            db.partyDao().getPartyByIdSync(partyId)?.businessId ?: activeBizId
+        }
+    }
+
+    suspend fun getPartyByIdSync(partyId: String): PartyEntity? {
+        return db.partyDao().getPartyByIdSync(partyId)
     }
 
     private suspend fun ensureActiveBusiness() {
@@ -237,6 +257,7 @@ class PartyRepository(private val context: Context) {
         type: PartyType,
         tag: PartyTag
     ): Party {
+        val currentBizId = activeBizId
         val newParty = Party(
             id = UUID.randomUUID().toString(),
             name = name.trim(),
@@ -248,13 +269,27 @@ class PartyRepository(private val context: Context) {
             createdAt = System.currentTimeMillis()
         )
         val updated = listOf(newParty) + _parties.value
-        savePartiesInternal(updated)
+        _parties.value = updated
         
         scope.launch {
             try {
+                ensureActiveBusiness()
+                val entity = PartyEntity(
+                    id = newParty.id,
+                    businessId = currentBizId,
+                    name = newParty.name,
+                    phone = newParty.phone,
+                    address = newParty.address,
+                    gstin = newParty.gstin,
+                    type = newParty.type.name,
+                    tag = newParty.tag.name,
+                    createdAt = newParty.createdAt
+                )
+                db.partyDao().insertParty(entity)
+
                 val payload = JSONObject().apply {
                     put("id", newParty.id)
-                    put("business_id", activeBizId)
+                    put("business_id", currentBizId)
                     put("name", newParty.name)
                     put("phone", newParty.phone)
                     put("email", "")
@@ -280,16 +315,30 @@ class PartyRepository(private val context: Context) {
     }
 
     fun updateParty(party: Party) {
+        val currentBizId = activeBizId
         val updated = _parties.value.map {
             if (it.id == party.id) party else it
         }
-        savePartiesInternal(updated)
+        _parties.value = updated
         
         scope.launch {
             try {
+                db.partyDao().updatePartyScoped(
+                    id = party.id,
+                    businessId = currentBizId,
+                    name = party.name,
+                    phone = party.phone,
+                    email = "",
+                    address = party.address,
+                    gstin = party.gstin,
+                    type = party.type.name,
+                    tag = party.tag.name,
+                    updatedAt = System.currentTimeMillis()
+                )
+
                 val payload = JSONObject().apply {
                     put("id", party.id)
-                    put("business_id", activeBizId)
+                    put("business_id", currentBizId)
                     put("name", party.name)
                     put("phone", party.phone)
                     put("email", "")
@@ -314,14 +363,15 @@ class PartyRepository(private val context: Context) {
     }
 
     fun deleteParty(partyId: String) {
+        val currentBizId = activeBizId
         val updatedParties = _parties.value.filterNot { it.id == partyId }
         val updatedEntries = _entries.value.filterNot { it.partyId == partyId }
-        savePartiesInternal(updatedParties)
-        saveEntriesInternal(updatedEntries)
+        _parties.value = updatedParties
+        _entries.value = updatedEntries
         scope.launch {
             try {
-                db.partyDao().deleteParty(partyId)
-                db.khataDao().deleteEntriesForParty(partyId)
+                db.partyDao().deleteParty(partyId, currentBizId)
+                db.khataDao().deleteEntriesForParty(partyId, currentBizId)
                 com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
                     entityType = "party",
                     entityId = partyId,
@@ -338,10 +388,19 @@ class PartyRepository(private val context: Context) {
         partyId: String,
         amount: Double,
         type: KhataEntryType,
-        dateMillis: Long,
-        billNumber: String,
-        note: String
+        dateMillis: Long = System.currentTimeMillis(),
+        billNumber: String = "",
+        note: String = "",
+        explicitBusinessId: String? = null
     ): KhataEntry {
+        val partyBiz = getPartyBusinessId(partyId)
+        val targetBiz = explicitBusinessId ?: partyBiz
+
+        // Strict architectural assertion: Khata entry business MUST match party's business!
+        require(targetBiz == partyBiz) {
+            "Multi-business violation: Attempted to add Khata entry for party $partyId (business='$partyBiz') under business '$targetBiz'!"
+        }
+
         val newEntry = KhataEntry(
             id = UUID.randomUUID().toString(),
             partyId = partyId,
@@ -352,12 +411,26 @@ class PartyRepository(private val context: Context) {
             note = note.trim()
         )
         val updated = listOf(newEntry) + _entries.value
-        saveEntriesInternal(updated)
+        _entries.value = updated
         
         scope.launch {
             try {
+                ensureActiveBusiness()
+                val rawEntity = KhataEntryEntity(
+                    id = newEntry.id,
+                    businessId = targetBiz,
+                    partyId = newEntry.partyId,
+                    amount = newEntry.amount.toPaise(),
+                    type = newEntry.type.name,
+                    date = newEntry.dateMillis,
+                    billNumber = newEntry.billNumber,
+                    note = newEntry.note
+                )
+                db.khataDao().insertEntry(rawEntity)
+
                 val payload = JSONObject().apply {
                     put("id", newEntry.id)
+                    put("business_id", targetBiz)
                     put("party_id", newEntry.partyId)
                     put("amount", newEntry.amount.toPaise())
                     put("type", newEntry.type.name)
@@ -381,11 +454,12 @@ class PartyRepository(private val context: Context) {
     }
 
     fun deleteKhataEntry(entryId: String) {
+        val currentBizId = activeBizId
         val updated = _entries.value.filterNot { it.id == entryId }
-        saveEntriesInternal(updated)
+        _entries.value = updated
         scope.launch {
             try {
-                db.khataDao().deleteEntry(entryId)
+                db.khataDao().deleteEntry(entryId, currentBizId)
                 com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
                     entityType = "khata_entry",
                     entityId = entryId,

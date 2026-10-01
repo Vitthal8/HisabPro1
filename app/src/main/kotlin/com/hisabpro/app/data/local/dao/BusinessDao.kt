@@ -1,9 +1,8 @@
 package com.hisabpro.app.data.local.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import com.hisabpro.app.data.local.entity.BusinessEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -21,10 +20,10 @@ interface BusinessDao {
     @Query("SELECT * FROM businesses ORDER BY name ASC")
     suspend fun getAllBusinessesSync(): List<BusinessEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertOrUpdate(business: BusinessEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertAllBusinesses(businesses: List<BusinessEntity>)
 
     @Query("DELETE FROM businesses WHERE id = :id")

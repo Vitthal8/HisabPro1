@@ -235,58 +235,17 @@ class BusinessManager private constructor(private val context: Context) {
                     val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
                     "biz_$sanitized"
                 }
-                val entity = BusinessEntity(
+                BusinessEntity(
                     id = bizId,
                     name = p.shopName,
-                    ownerName = p.ownerName,
                     address = p.address,
                     phone = p.phone,
-                    email = p.email,
                     gstin = p.gstin,
                     pan = p.pan,
                     logoPath = p.logoPath,
                     gstEnabled = p.isGstRegistered,
-                    financialYearStart = "01-04",
-                    upiId = p.upiId,
-                    bankName = p.bankName,
-                    accountNumber = p.accountNumber,
-                    ifscCode = p.ifscCode,
-                    termsAndConditions = p.termsAndConditions
+                    financialYearStart = "01-04"
                 )
-
-                val payload = JSONObject().apply {
-                    put("id", entity.id)
-                    put("name", entity.name)
-                    put("owner_name", entity.ownerName)
-                    put("address", entity.address)
-                    put("phone", entity.phone)
-                    put("email", entity.email)
-                    put("gstin", entity.gstin)
-                    put("pan", entity.pan)
-                    put("logo_path", entity.logoPath)
-                    put("gst_enabled", entity.gstEnabled)
-                    put("financial_year_start", entity.financialYearStart)
-                    put("upi_id", entity.upiId)
-                    put("bank_name", entity.bankName)
-                    put("account_number", entity.accountNumber)
-                    put("ifsc_code", entity.ifscCode)
-                    put("terms_and_conditions", entity.termsAndConditions)
-                    put("created_at", entity.createdAt)
-                    put("updated_at", entity.updatedAt)
-                }
-
-                try {
-                    com.hisabpro.app.data.sync.CloudSyncManager.getInstance(appContext).enqueueChange(
-                        entityType = "business",
-                        entityId = entity.id,
-                        operation = "UPSERT",
-                        payloadJson = payload.toString()
-                    )
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-
-                entity
             }
             db.businessDao().insertAllBusinesses(entities)
         } catch (e: Exception) {

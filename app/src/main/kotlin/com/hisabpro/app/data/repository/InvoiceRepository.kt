@@ -212,13 +212,7 @@ class InvoiceRepository(private val context: Context) {
                         paymentStatus = status,
                         paidAmount = ent.paidAmount.toRupees(),
                         paymentMode = ent.paymentMode,
-                        createdAt = ent.createdAt,
-                        fallbackSubtotal = ent.subtotal.toRupees(),
-                        fallbackTaxableAmount = ent.taxableAmount.toRupees(),
-                        fallbackCgst = ent.cgst.toRupees(),
-                        fallbackSgst = ent.sgst.toRupees(),
-                        fallbackIgst = ent.igst.toRupees(),
-                        fallbackTotal = ent.total.toRupees()
+                        createdAt = ent.createdAt
                     )
                 )
             }
@@ -339,36 +333,6 @@ class InvoiceRepository(private val context: Context) {
                         operation = "UPSERT",
                         payloadJson = payload.toString()
                     )
-
-                    for (itemEntity in itemEntities) {
-                        try {
-                            val itemPayload = JSONObject().apply {
-                                put("id", itemEntity.id)
-                                put("invoice_id", itemEntity.invoiceId)
-                                put("item_id", itemEntity.itemId ?: "")
-                                put("item_name", itemEntity.itemName)
-                                put("hsn_code", itemEntity.hsnCode)
-                                put("qty", itemEntity.qty)
-                                put("unit", itemEntity.unit)
-                                put("rate", itemEntity.rate)
-                                put("discount", itemEntity.discount)
-                                put("cgst_rate", itemEntity.cgstRate)
-                                put("sgst_rate", itemEntity.sgstRate)
-                                put("igst_rate", itemEntity.igstRate)
-                                put("amount", itemEntity.amount)
-                                put("created_at", System.currentTimeMillis())
-                                put("updated_at", System.currentTimeMillis())
-                            }
-                            com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
-                                entityType = "invoice_item",
-                                entityId = itemEntity.id,
-                                operation = "UPSERT",
-                                payloadJson = itemPayload.toString()
-                            )
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -430,7 +394,6 @@ class InvoiceRepository(private val context: Context) {
         saveInternal(updated, syncAllRoom = false)
         scope.launch {
             try {
-                val itemsToDelete = db.invoiceDao().getItemsForInvoiceSync(invoiceId)
                 db.invoiceDao().deleteInvoiceWithItems(invoiceId)
                 com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
                     entityType = "invoice",
@@ -438,14 +401,6 @@ class InvoiceRepository(private val context: Context) {
                     operation = "DELETE",
                     payloadJson = "{}"
                 )
-                for (item in itemsToDelete) {
-                    com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
-                        entityType = "invoice_item",
-                        entityId = item.id,
-                        operation = "DELETE",
-                        payloadJson = "{}"
-                    )
-                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }

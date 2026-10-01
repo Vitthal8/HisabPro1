@@ -78,6 +78,17 @@ class PartyViewModel @JvmOverloads constructor(
     private val _sortOption = MutableStateFlow(PartySortOption.MOST_DUE)
     private val _selectedPartyId = savedStateHandle.getStateFlow<String?>(KEY_SELECTED_PARTY_ID, null)
 
+    init {
+        viewModelScope.launch {
+            com.hisabpro.app.data.repository.BusinessManager.getInstance(application).activeBusinessDatabaseIdFlow.collect {
+                savedStateHandle[KEY_SELECTED_PARTY_ID] = null
+                _searchQuery.value = ""
+                _typeFilter.value = null
+                _tagFilter.value = null
+            }
+        }
+    }
+
     private data class FilterParams(
         val query: String,
         val typeFilter: PartyType?,

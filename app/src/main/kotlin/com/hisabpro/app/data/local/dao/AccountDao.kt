@@ -11,13 +11,16 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface AccountDao {
     @Query("SELECT * FROM accounts WHERE business_id = :businessId ORDER BY name ASC")
-    fun getAllAccounts(businessId: String = "default_business"): Flow<List<AccountEntity>>
+    fun getAllAccounts(businessId: String): Flow<List<AccountEntity>>
 
     @Query("SELECT * FROM accounts WHERE business_id = :businessId AND type = :type ORDER BY name ASC")
-    fun getAccountsByType(businessId: String = "default_business", type: String): Flow<List<AccountEntity>>
+    fun getAccountsByType(businessId: String, type: String): Flow<List<AccountEntity>>
 
     @Query("SELECT * FROM accounts WHERE id = :id LIMIT 1")
     suspend fun getAccountByIdSync(id: String): AccountEntity?
+
+    @Query("SELECT * FROM accounts WHERE id = :id AND business_id = :businessId LIMIT 1")
+    suspend fun getAccountByIdAndBusinessSync(id: String, businessId: String): AccountEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAccount(account: AccountEntity)
@@ -25,8 +28,11 @@ interface AccountDao {
     @Update
     suspend fun updateAccount(account: AccountEntity)
 
+    @Query("DELETE FROM accounts WHERE id = :id AND business_id = :businessId")
+    suspend fun deleteAccount(id: String, businessId: String): Int
+
     @Query("DELETE FROM accounts WHERE id = :id")
-    suspend fun deleteAccount(id: String)
+    suspend fun deleteAccountLegacy(id: String)
 
     @Query("SELECT * FROM accounts ORDER BY name ASC")
     suspend fun getAllAccountsGlobalSync(): List<AccountEntity>

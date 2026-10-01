@@ -32,7 +32,8 @@ class PurchaseRepository(private val context: Context) {
 
     init {
         scope.launch {
-            BusinessManager.getInstance(appContext).activeBusinessId.collect {
+            BusinessManager.getInstance(appContext).activeBusinessDatabaseIdFlow.collect {
+                _purchases.value = emptyList()
                 loadData()
             }
         }

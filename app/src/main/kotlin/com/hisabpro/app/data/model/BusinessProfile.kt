@@ -7,6 +7,7 @@ data class BankDetails(
 )
 
 data class BusinessProfile(
+    val id: String = "",
     val shopName: String = "HisabPro Enterprises",
     val ownerName: String = "Vittal Mali",
     val phone: String = "+91 79773 34282",

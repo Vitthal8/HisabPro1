@@ -164,20 +164,29 @@ class CloudSyncManager private constructor(private val appContext: Context) {
 
         var pullResult = PullResultSummary(0, 0, 0, emptyMap())
         try {
-            // Step 1: Pre-sync active business and repository states to database
-            BusinessManager.getInstance(appContext).syncToDatabase()
-            InvoiceRepository.getInstance(appContext).syncToDatabase()
-            PartyRepository.getInstance(appContext).syncToDatabase()
-            ItemRepository.getInstance(appContext).syncToDatabase()
-            TransactionRepository.getInstance(appContext).syncToDatabase()
+            val isFreshLocal = db.invoiceDao().getAllInvoicesGlobalSync().isEmpty() &&
+                               db.partyDao().getAllPartiesGlobalSync().isEmpty()
 
-            // Step 2: Push pending local changes to Supabase (Topological Order)
-            _syncState.value = _syncState.value.copy(statusMessage = "Uploading changes to Cloud...")
-            val pushResult = executePush(session)
+            if (!isFreshLocal) {
+                // Step 1: Pre-sync active business and repository states to database
+                BusinessManager.getInstance(appContext).syncToDatabase()
+                InvoiceRepository.getInstance(appContext).syncToDatabase()
+                PartyRepository.getInstance(appContext).syncToDatabase()
+                ItemRepository.getInstance(appContext).syncToDatabase()
+                TransactionRepository.getInstance(appContext).syncToDatabase()
+
+                // Step 2: Push pending local changes to Supabase (Topological Order)
+                _syncState.value = _syncState.value.copy(statusMessage = "Uploading changes to Cloud...")
+                executePush(session)
+            }
 
             // Step 3: Pull remote updates from Supabase (Delta Sync)
             _syncState.value = _syncState.value.copy(statusMessage = "Downloading updates from Cloud...")
             pullResult = executePull(session)
+
+            if (isFreshLocal) {
+                executePush(session)
+            }
 
             val statusMsg = when {
                 pullResult.failureCount == 0 -> "Cloud Sync Complete"
@@ -469,6 +478,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
 
                     businessProfiles.add(
                         BusinessProfile(
+                            id = resolved.id,
                             shopName = resolved.name,
                             ownerName = resolved.ownerName,
                             phone = resolved.phone,

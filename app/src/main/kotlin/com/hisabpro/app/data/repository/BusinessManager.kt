@@ -137,6 +137,7 @@ class BusinessManager private constructor(private val context: Context) {
         }
 
         return BusinessProfile(
+            id = obj.optString("id", ""),
             shopName = obj.optString("shopName", "HisabPro Enterprises"),
             ownerName = obj.optString("ownerName", "Vittal Mali"),
             phone = obj.optString("phone", "+91 98765 43210"),
@@ -191,6 +192,7 @@ class BusinessManager private constructor(private val context: Context) {
             }
 
             val obj = JSONObject().apply {
+                put("id", p.id.ifBlank { getBusinessDatabaseId(p) })
                 put("shopName", p.shopName)
                 put("ownerName", p.ownerName)
                 put("phone", p.phone)
@@ -234,6 +236,7 @@ class BusinessManager private constructor(private val context: Context) {
     }
 
     fun getBusinessDatabaseId(profile: BusinessProfile): String {
+        if (profile.id.isNotBlank() && profile.id != "default_business") return profile.id
         val name = profile.shopName.trim()
         if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) return "default_business"
         val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
@@ -336,12 +339,41 @@ class BusinessManager private constructor(private val context: Context) {
                 profiles
             }
             val primary = resolvedProfiles.first()
+            val primaryBizId = getBusinessDatabaseId(primary)
             saveBusinessesInternal(resolvedProfiles, primary.shopName)
 
             if (hasCustom) {
                 scope.launch {
                     try {
-                        db.businessDao().deleteBusiness("default_business")
+                        db.runInTransaction {
+                            db.openHelper.writableDatabase.execSQL(
+                                "UPDATE OR IGNORE invoices SET business_id = ? WHERE business_id = 'default_business'",
+                                arrayOf(primaryBizId)
+                            )
+                            db.openHelper.writableDatabase.execSQL(
+                                "UPDATE OR IGNORE parties SET business_id = ? WHERE business_id = 'default_business'",
+                                arrayOf(primaryBizId)
+                            )
+                            db.openHelper.writableDatabase.execSQL(
+                                "UPDATE OR IGNORE items SET business_id = ? WHERE business_id = 'default_business'",
+                                arrayOf(primaryBizId)
+                            )
+                            db.openHelper.writableDatabase.execSQL(
+                                "UPDATE OR IGNORE khata_entries SET business_id = ? WHERE business_id = 'default_business'",
+                                arrayOf(primaryBizId)
+                            )
+                            db.openHelper.writableDatabase.execSQL(
+                                "UPDATE OR IGNORE payments SET business_id = ? WHERE business_id = 'default_business'",
+                                arrayOf(primaryBizId)
+                            )
+                            db.openHelper.writableDatabase.execSQL(
+                                "UPDATE OR IGNORE expenses SET business_id = ? WHERE business_id = 'default_business'",
+                                arrayOf(primaryBizId)
+                            )
+                            db.openHelper.writableDatabase.execSQL(
+                                "DELETE FROM businesses WHERE id = 'default_business'"
+                            )
+                        }
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }

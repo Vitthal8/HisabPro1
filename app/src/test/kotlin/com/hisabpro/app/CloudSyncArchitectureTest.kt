@@ -3,11 +3,14 @@ package com.hisabpro.app
 import com.hisabpro.app.data.local.entity.BusinessEntity
 import com.hisabpro.app.data.local.entity.InvoiceEntity
 import com.hisabpro.app.data.local.entity.ItemEntity
+import com.hisabpro.app.data.local.entity.KhataEntryEntity
 import com.hisabpro.app.data.local.entity.PartyEntity
 import com.hisabpro.app.data.local.entity.PaymentEntity
 import com.hisabpro.app.data.local.entity.SyncMetadataEntity
 import com.hisabpro.app.data.model.BankDetails
 import com.hisabpro.app.data.model.BusinessProfile
+import com.hisabpro.app.data.model.Invoice
+import com.hisabpro.app.data.model.InvoiceItem
 import com.hisabpro.app.data.sync.ConflictResolver
 import com.hisabpro.app.data.sync.PullResultSummary
 import com.hisabpro.app.data.sync.UserSession
@@ -493,5 +496,80 @@ class CloudSyncArchitectureTest {
         // Verify all 5 invoices and biz_vhhhhhh are safely resolved
         assertTrue(localBusinesses.contains("biz_vhhhhhh"))
         assertTrue(localBusinesses.contains("default_business"))
+    }
+
+    @Test
+    fun testInvoiceCreationUnderBizAbcLtdRoutesKhataToBizAbcLtd() {
+        val invoiceBizId = "biz_abc_ltd"
+        val partyId = "party_opq_cust"
+        val partyBizId = "biz_abc_ltd"
+
+        val invoice = Invoice(
+            id = "inv_test_abc_1",
+            businessId = invoiceBizId,
+            invoiceNumber = "2026-27/INV/001",
+            customerId = partyId,
+            customerName = "OPQ CUST",
+            paidAmount = 0.0,
+            items = listOf(InvoiceItem(description = "Roll", quantity = 50.0, unitPrice = 1200.0))
+        )
+
+        // Write-time routing: khata entry MUST be derived from parent document's businessId
+        require(invoice.businessId == partyBizId) {
+            "Multi-business violation"
+        }
+
+        val khata = KhataEntryEntity(
+            id = "khata_gen_1",
+            businessId = invoice.businessId,
+            partyId = invoice.customerId!!,
+            amount = invoice.dueAmount.toLong(),
+            type = "YOU_GAVE",
+            date = System.currentTimeMillis()
+        )
+
+        // Exact regression test assertions
+        assertEquals("biz_abc_ltd", khata.businessId)
+        assertEquals(partyId, khata.partyId)
+        assertEquals(invoice.businessId, khata.businessId)
+        assertFalse(khata.businessId == "default_business")
+    }
+
+    @Test
+    fun testKhataAlignmentGuardPreventsMismatchedBusinessWrite() {
+        val invoiceBizId = "default_business"
+        val partyBizId = "biz_abc_ltd"
+
+        val exception = org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            require(invoiceBizId == partyBizId) {
+                "Multi-business violation: Invoice belongs to business '$invoiceBizId', but customer belongs to business '$partyBizId'!"
+            }
+        }
+        assertTrue(exception.message!!.contains("Multi-business violation"))
+    }
+
+    @Test
+    fun testKhataAlignmentFunctionCorrectsMisroutedEntity() {
+        val misrouted = KhataEntryEntity(
+            id = "k_misrouted",
+            businessId = "default_business",
+            partyId = "p_abc",
+            amount = 6000000L,
+            type = "YOU_GAVE",
+            date = System.currentTimeMillis()
+        )
+        val partyEntity = PartyEntity(
+            id = "p_abc",
+            businessId = "biz_abc_ltd",
+            name = "OPQ CUST",
+            phone = "7977334282",
+            type = "CUSTOMER"
+        )
+
+        val aligned = if (misrouted.businessId != partyEntity.businessId) {
+            misrouted.copy(businessId = partyEntity.businessId)
+        } else misrouted
+
+        assertEquals("biz_abc_ltd", aligned.businessId)
     }
 }

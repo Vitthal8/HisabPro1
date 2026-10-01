@@ -42,7 +42,14 @@ class BusinessManager private constructor(private val context: Context) {
         get() {
             val active = _activeBusiness.value
             val name = active.shopName.trim()
-            if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) return "default_business"
+            if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) {
+                // Never allow writes to land in default_business once a real custom business exists!
+                val realBiz = _businesses.value.firstOrNull { !it.shopName.equals("HisabPro Enterprises", ignoreCase = true) }
+                if (realBiz != null) {
+                    return getBusinessDatabaseId(realBiz)
+                }
+                return "default_business"
+            }
             val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
             return "biz_$sanitized"
         }
@@ -262,6 +269,13 @@ class BusinessManager private constructor(private val context: Context) {
             db.businessDao().insertAllBusinesses(entities)
 
             for (entity in entities) {
+                // Never push unconfigured demo placeholder if real custom businesses exist
+                val isDemoPlaceholder = entity.id == "default_business" && entity.name.equals("HisabPro Enterprises", ignoreCase = true)
+                val hasRealBusinesses = entities.any { it.id != "default_business" }
+                if (isDemoPlaceholder && hasRealBusinesses) {
+                    continue
+                }
+
                 val payload = JSONObject().apply {
                     put("id", entity.id)
                     put("name", entity.name)
@@ -315,8 +329,24 @@ class BusinessManager private constructor(private val context: Context) {
 
     fun restoreBusinessesFromCloud(profiles: List<BusinessProfile>) {
         if (profiles.isNotEmpty()) {
-            val currentActiveId = profiles.first().shopName
-            saveBusinessesInternal(profiles, currentActiveId)
+            val hasCustom = profiles.any { !it.shopName.equals("HisabPro Enterprises", ignoreCase = true) }
+            val resolvedProfiles = if (hasCustom) {
+                profiles.filterNot { it.shopName.equals("HisabPro Enterprises", ignoreCase = true) }
+            } else {
+                profiles
+            }
+            val primary = resolvedProfiles.first()
+            saveBusinessesInternal(resolvedProfiles, primary.shopName)
+
+            if (hasCustom) {
+                scope.launch {
+                    try {
+                        db.businessDao().deleteBusiness("default_business")
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
         }
     }
 

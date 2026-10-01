@@ -38,6 +38,7 @@ class RecordPaymentUseCase(
         }
 
         val partyName = partyRepository.parties.value.find { it.id == partyId }?.name ?: "Party"
+        val targetBiz = partyRepository.getPartyBusinessId(partyId)
         val isReceipt = direction == PaymentDirection.RECEIPT_IN
 
         val entryType = if (isReceipt) KhataEntryType.YOU_GOT else KhataEntryType.YOU_GAVE
@@ -56,7 +57,8 @@ class RecordPaymentUseCase(
             type = entryType,
             dateMillis = System.currentTimeMillis(),
             billNumber = referenceNo,
-            note = noteCombined
+            note = noteCombined,
+            explicitBusinessId = targetBiz
         )
 
         // 2. Post to Cashbook / Bank Book
@@ -68,7 +70,9 @@ class RecordPaymentUseCase(
             category = Category.BUSINESS,
             dateMillis = System.currentTimeMillis(),
             paymentMode = paymentMode,
-            note = noteCombined
+            note = noteCombined,
+            explicitBusinessId = targetBiz,
+            partyId = partyId
         )
 
         // 3. Update linked invoice if specified

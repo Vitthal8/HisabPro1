@@ -157,13 +157,15 @@ class PurchaseViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 if (supplier != null) {
+                    val supplierBiz = partyRepo.getPartyBusinessId(supplier.id)
                     partyRepo.addKhataEntry(
                         partyId = supplier.id,
                         amount = bill.dueAmount,
                         type = KhataEntryType.YOU_GOT, // In Supplier khata, YOU_GOT means goods received on credit = payable
                         dateMillis = bill.dateMillis,
                         billNumber = bill.purchaseNumber,
-                        note = "Purchase Bill ${bill.vendorBillNumber.ifBlank { bill.purchaseNumber }}"
+                        note = "Purchase Bill ${bill.vendorBillNumber.ifBlank { bill.purchaseNumber }}",
+                        explicitBusinessId = supplierBiz
                     )
                 }
             }
@@ -179,13 +181,15 @@ class PurchaseViewModel(application: Application) : AndroidViewModel(application
                 partyRepo.parties.value.find { it.id == sId }
             }
             if (supplier != null && bill.dueAmount > 0.01) {
+                val supplierBiz = partyRepo.getPartyBusinessId(supplier.id)
                 partyRepo.addKhataEntry(
                     partyId = supplier.id,
                     amount = bill.dueAmount,
                     type = KhataEntryType.YOU_GAVE, // YOU_GAVE clears payable
                     dateMillis = System.currentTimeMillis(),
                     billNumber = bill.purchaseNumber,
-                    note = "Payment cleared for ${bill.purchaseNumber}"
+                    note = "Payment cleared for ${bill.purchaseNumber}",
+                    explicitBusinessId = supplierBiz
                 )
             }
             _selectedPurchase.value = bill.copy(

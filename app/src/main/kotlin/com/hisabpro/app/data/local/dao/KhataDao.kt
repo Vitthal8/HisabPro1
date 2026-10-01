@@ -1,9 +1,8 @@
 package com.hisabpro.app.data.local.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import com.hisabpro.app.data.local.entity.KhataEntryEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -21,10 +20,10 @@ interface KhataDao {
     @Query("SELECT * FROM khata_entries WHERE business_id = :businessId AND party_id = :partyId ORDER BY date DESC")
     suspend fun getEntriesForPartySync(businessId: String = "default_business", partyId: String): List<KhataEntryEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertEntry(entry: KhataEntryEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertAllEntries(entries: List<KhataEntryEntity>)
 
     @Query("DELETE FROM khata_entries WHERE id = :id")
@@ -35,4 +34,22 @@ interface KhataDao {
 
     @Query("DELETE FROM khata_entries")
     suspend fun deleteAllEntries()
+
+    @Query("""
+        UPDATE khata_entries 
+        SET business_id = (SELECT p.business_id FROM parties p WHERE p.id = khata_entries.party_id)
+        WHERE EXISTS (
+            SELECT 1 FROM parties p 
+            WHERE p.id = khata_entries.party_id 
+            AND p.business_id != khata_entries.business_id
+        )
+    """)
+    suspend fun repairMisroutedKhataEntries(): Int
+
+    @Query("""
+        SELECT COUNT(*) FROM khata_entries k
+        INNER JOIN parties p ON k.party_id = p.id
+        WHERE k.business_id != p.business_id
+    """)
+    suspend fun countMisroutedKhataEntries(): Int
 }

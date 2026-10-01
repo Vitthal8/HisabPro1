@@ -187,13 +187,19 @@ class TransactionRepository(private val context: Context) {
         }
     }
 
-    private suspend fun saveSingleTransactionDbInternal(item: Transaction, enqueueForSync: Boolean = false) {
+    private suspend fun saveSingleTransactionDbInternal(
+        item: Transaction,
+        enqueueForSync: Boolean = false,
+        overrideBizId: String? = null,
+        linkedPartyId: String? = null
+    ) {
         try {
             ensureActiveBusiness()
+            val targetBiz = overrideBizId ?: activeBizId
             if (item.type == TransactionType.EXPENSE) {
                 val exp = ExpenseEntity(
                     id = item.id,
-                    businessId = activeBizId,
+                    businessId = targetBiz,
                     date = item.dateMillis,
                     category = item.category.name,
                     amount = item.amount.toPaise(),
@@ -225,8 +231,8 @@ class TransactionRepository(private val context: Context) {
             } else {
                 val pay = PaymentEntity(
                     id = item.id,
-                    businessId = activeBizId,
-                    partyId = null,
+                    businessId = targetBiz,
+                    partyId = linkedPartyId,
                     date = item.dateMillis,
                     amount = item.amount.toPaise(),
                     mode = item.paymentMode.name,
@@ -269,8 +275,27 @@ class TransactionRepository(private val context: Context) {
         category: Category,
         dateMillis: Long,
         paymentMode: PaymentMode,
-        note: String
+        note: String,
+        explicitBusinessId: String? = null,
+        partyId: String? = null
     ) {
+        val targetBiz = if (!explicitBusinessId.isNullOrBlank()) {
+            explicitBusinessId
+        } else if (!partyId.isNullOrBlank()) {
+            kotlinx.coroutines.runBlocking { db.partyDao().getPartyByIdSync(partyId)?.businessId ?: activeBizId }
+        } else {
+            activeBizId
+        }
+
+        if (!partyId.isNullOrBlank()) {
+            val party = kotlinx.coroutines.runBlocking { db.partyDao().getPartyByIdSync(partyId) }
+            if (party != null && party.businessId.isNotBlank()) {
+                require(targetBiz == party.businessId) {
+                    "Multi-business violation: Transaction targets business '$targetBiz', but party '${party.name}' belongs to '${party.businessId}'!"
+                }
+            }
+        }
+
         val newTx = Transaction(
             id = UUID.randomUUID().toString(),
             title = title.trim(),
@@ -284,7 +309,7 @@ class TransactionRepository(private val context: Context) {
         val updated = listOf(newTx) + _transactions.value
         saveTransactions(updated, syncAllRoom = false)
         scope.launch {
-            saveSingleTransactionDbInternal(newTx, enqueueForSync = true)
+            saveSingleTransactionDbInternal(newTx, enqueueForSync = true, overrideBizId = targetBiz, linkedPartyId = partyId)
         }
     }
 

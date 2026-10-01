@@ -130,7 +130,7 @@ class PartyRepository(private val context: Context) {
         }
     }
 
-    private fun saveEntriesInternal(list: List<KhataEntry>) {
+    private fun saveEntriesInternal(list: List<KhataEntry>, explicitBizId: String? = null) {
         val array = JSONArray()
         for (e in list) {
             val obj = JSONObject().apply {
@@ -150,10 +150,11 @@ class PartyRepository(private val context: Context) {
         scope.launch {
             try {
                 ensureActiveBusiness()
+                val targetBiz = explicitBizId ?: activeBizId
                 val entities = list.map { e ->
-                    KhataEntryEntity(
+                    val rawEntity = KhataEntryEntity(
                         id = e.id,
-                        businessId = activeBizId,
+                        businessId = targetBiz,
                         partyId = e.partyId,
                         amount = e.amount.toPaise(),
                         type = e.type.name,
@@ -161,6 +162,7 @@ class PartyRepository(private val context: Context) {
                         billNumber = e.billNumber,
                         note = e.note
                     )
+                    com.hisabpro.app.data.local.KhataAlignment.alignBusinessId(rawEntity, db.partyDao())
                 }
                 db.khataDao().insertAllEntries(entities)
             } catch (e: Exception) {
@@ -189,8 +191,10 @@ class PartyRepository(private val context: Context) {
                 db.partyDao().insertAllParties(partyEntities)
             }
             val entryEntities = _entries.value.map { e ->
-                KhataEntryEntity(
+                val partyBiz = getPartyBusinessId(e.partyId)
+                val rawEntity = KhataEntryEntity(
                     id = e.id,
+                    businessId = partyBiz,
                     partyId = e.partyId,
                     amount = e.amount.toPaise(),
                     type = e.type.name,
@@ -198,6 +202,7 @@ class PartyRepository(private val context: Context) {
                     billNumber = e.billNumber,
                     note = e.note
                 )
+                com.hisabpro.app.data.local.KhataAlignment.alignBusinessId(rawEntity, db.partyDao())
             }
             if (entryEntities.isNotEmpty()) {
                 db.khataDao().insertAllEntries(entryEntities)
@@ -205,6 +210,16 @@ class PartyRepository(private val context: Context) {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    fun getPartyBusinessId(partyId: String): String {
+        return kotlinx.coroutines.runBlocking {
+            db.partyDao().getPartyByIdSync(partyId)?.businessId ?: activeBizId
+        }
+    }
+
+    suspend fun getPartyByIdSync(partyId: String): PartyEntity? {
+        return db.partyDao().getPartyByIdSync(partyId)
     }
 
     private suspend fun ensureActiveBusiness() {
@@ -338,10 +353,19 @@ class PartyRepository(private val context: Context) {
         partyId: String,
         amount: Double,
         type: KhataEntryType,
-        dateMillis: Long,
-        billNumber: String,
-        note: String
+        dateMillis: Long = System.currentTimeMillis(),
+        billNumber: String = "",
+        note: String = "",
+        explicitBusinessId: String? = null
     ): KhataEntry {
+        val partyBiz = getPartyBusinessId(partyId)
+        val targetBiz = explicitBusinessId ?: partyBiz
+
+        // Strict architectural assertion: Khata entry business MUST match party's business!
+        require(targetBiz == partyBiz) {
+            "Multi-business violation: Attempted to add Khata entry for party $partyId (business='$partyBiz') under business '$targetBiz'!"
+        }
+
         val newEntry = KhataEntry(
             id = UUID.randomUUID().toString(),
             partyId = partyId,
@@ -352,12 +376,13 @@ class PartyRepository(private val context: Context) {
             note = note.trim()
         )
         val updated = listOf(newEntry) + _entries.value
-        saveEntriesInternal(updated)
+        saveEntriesInternal(updated, targetBiz)
         
         scope.launch {
             try {
                 val payload = JSONObject().apply {
                     put("id", newEntry.id)
+                    put("business_id", targetBiz)
                     put("party_id", newEntry.partyId)
                     put("amount", newEntry.amount.toPaise())
                     put("type", newEntry.type.name)

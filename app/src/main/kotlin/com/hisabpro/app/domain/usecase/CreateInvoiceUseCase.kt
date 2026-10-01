@@ -66,19 +66,25 @@ class CreateInvoiceUseCase(
                 category = Category.BUSINESS,
                 dateMillis = saved.dateMillis,
                 paymentMode = paymentMode,
-                note = "Bill #${saved.invoiceNumber} payment received"
+                note = "Bill #${saved.invoiceNumber} payment received",
+                explicitBusinessId = saved.businessId
             )
         }
 
         // 6. Party Ledger Entry if credit outstanding on a registered party
         if (!saved.customerId.isNullOrBlank() && saved.dueAmount > 0) {
+            val partyBiz = partyRepository.getPartyBusinessId(saved.customerId)
+            require(saved.businessId == partyBiz) {
+                "Multi-business violation: Invoice belongs to business '${saved.businessId}', but customer belongs to business '$partyBiz'!"
+            }
             partyRepository.addKhataEntry(
                 partyId = saved.customerId,
                 amount = saved.dueAmount,
                 type = KhataEntryType.YOU_GAVE,
                 dateMillis = saved.dateMillis,
                 billNumber = saved.invoiceNumber,
-                note = "Bill #${saved.invoiceNumber} credit balance"
+                note = "Bill #${saved.invoiceNumber} credit balance",
+                explicitBusinessId = saved.businessId
             )
         }
 

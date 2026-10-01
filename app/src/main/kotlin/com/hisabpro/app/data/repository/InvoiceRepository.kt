@@ -197,6 +197,7 @@ class InvoiceRepository(private val context: Context) {
                 reloaded.add(
                     Invoice(
                         id = ent.id,
+                        businessId = ent.businessId,
                         invoiceNumber = ent.invoiceNo,
                         type = type,
                         gstMode = gstMode,
@@ -257,7 +258,7 @@ class InvoiceRepository(private val context: Context) {
 
             val invoiceEntity = InvoiceEntity(
                 id = inv.id,
-                businessId = activeBizId,
+                businessId = inv.businessId.ifBlank { activeBizId },
                 invoiceNo = inv.invoiceNumber,
                 date = inv.dateMillis,
                 partyId = safePartyId,
@@ -371,12 +372,18 @@ class InvoiceRepository(private val context: Context) {
     }
 
     fun addInvoice(invoice: Invoice): Invoice {
-        val updated = listOf(invoice) + _invoices.value
+        val targetBiz = if (invoice.businessId.isBlank() || invoice.businessId == "default_business") {
+            activeBizId
+        } else {
+            invoice.businessId
+        }
+        val invoiceWithBiz = invoice.copy(businessId = targetBiz)
+        val updated = listOf(invoiceWithBiz) + _invoices.value
         saveInternal(updated, syncAllRoom = false)
         scope.launch {
-            saveSingleInvoiceDbInternal(invoice, enqueueForSync = true)
+            saveSingleInvoiceDbInternal(invoiceWithBiz, enqueueForSync = true)
         }
-        return invoice
+        return invoiceWithBiz
     }
 
     fun updateInvoice(invoice: Invoice) {

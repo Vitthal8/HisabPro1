@@ -731,14 +731,24 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val list = mutableListOf<KhataEntryEntity>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val bId = obj.optString("business_id", "default_business")
-                    ensureBusinessExists(bId)
-
+                    val rawBId = obj.optString("business_id", "default_business")
                     val pId = obj.getString("party_id")
-                    if (db.partyDao().getPartyByIdSync(pId) == null) {
+                    val existingParty = db.partyDao().getPartyByIdSync(pId)
+
+                    // Reconcile business_id: if parent party belongs to a specific business (e.g. biz_abc_ltd),
+                    // resolve to the party's business_id so khata entries are never misfiled under default_business!
+                    val resolvedBId = if (existingParty != null && existingParty.businessId.isNotBlank() &&
+                        (rawBId == "default_business" || rawBId.isBlank())) {
+                        existingParty.businessId
+                    } else {
+                        rawBId
+                    }
+                    ensureBusinessExists(resolvedBId)
+
+                    if (existingParty == null) {
                         val recoveryParty = PartyEntity(
                             id = pId,
-                            businessId = bId,
+                            businessId = resolvedBId,
                             name = "Party ($pId) [Pending Recovery]",
                             phone = "",
                             type = "CUSTOMER"
@@ -747,21 +757,22 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                         android.util.Log.w("CloudSyncManager", "Created recovery party for khata_entry partyId=$pId")
                     }
 
-                    list.add(
-                        KhataEntryEntity(
-                            id = obj.getString("id"),
-                            businessId = bId,
-                            partyId = pId,
-                            amount = obj.optLong("amount", 0L),
-                            type = obj.getString("type"),
-                            date = parseTimestamp(obj, "date"),
-                            billNumber = obj.optString("bill_number", ""),
-                            note = obj.optString("note", ""),
-                            createdAt = parseTimestamp(obj, "created_at"),
-                            updatedAt = parseTimestamp(obj, "updated_at"),
-                            deletedAt = if (obj.isNull("deleted_at")) null else parseTimestamp(obj, "deleted_at")
-                        )
+                    val rawEntity = KhataEntryEntity(
+                        id = obj.getString("id"),
+                        businessId = resolvedBId,
+                        partyId = pId,
+                        amount = obj.optLong("amount", 0L),
+                        type = obj.getString("type"),
+                        date = parseTimestamp(obj, "date"),
+                        billNumber = obj.optString("bill_number", ""),
+                        note = obj.optString("note", ""),
+                        createdAt = parseTimestamp(obj, "created_at"),
+                        updatedAt = parseTimestamp(obj, "updated_at"),
+                        deletedAt = if (obj.isNull("deleted_at")) null else parseTimestamp(obj, "deleted_at")
                     )
+                    val aligned = com.hisabpro.app.data.local.KhataAlignment.alignBusinessId(rawEntity, db.partyDao())
+                    ensureBusinessExists(aligned.businessId)
+                    list.add(aligned)
                 }
                 if (list.isNotEmpty()) db.khataDao().insertAllEntries(list)
             }

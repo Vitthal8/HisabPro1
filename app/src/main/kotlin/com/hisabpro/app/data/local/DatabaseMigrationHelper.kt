@@ -189,9 +189,28 @@ object DatabaseMigrationHelper {
                         }
                     }
                 }
+
+                // 4. One-time Data Repair: Align any misrouted khata_entries to match their parent parties
+                repairMisroutedKhataEntries(database)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    suspend fun repairMisroutedKhataEntries(database: AppDatabase): Int {
+        return try {
+            val count = database.khataDao().repairMisroutedKhataEntries()
+            if (count > 0) {
+                android.util.Log.i(
+                    "DatabaseMigrationHelper",
+                    "REPAIR SUCCESS: Fixed $count misrouted khata entries to match parent party business_id."
+                )
+            }
+            count
+        } catch (e: Exception) {
+            e.printStackTrace()
+            0
         }
     }
 }

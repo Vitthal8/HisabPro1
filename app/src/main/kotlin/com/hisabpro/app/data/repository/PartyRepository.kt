@@ -54,7 +54,10 @@ class PartyRepository(private val context: Context) {
 
     suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
-            val dbParties = db.partyDao().getAllPartiesSync(targetBizId)
+            var dbParties = db.partyDao().getAllPartiesSync(targetBizId)
+            if (dbParties.isEmpty() && targetBizId != "default_business" && BusinessManager.getInstance(context).businesses.value.size <= 1) {
+                dbParties = db.partyDao().getAllPartiesSync("default_business")
+            }
             val partiesList = dbParties.map { p ->
                 val type = try { PartyType.valueOf(p.type) } catch (e: Exception) { PartyType.CUSTOMER }
                 val tag = try { PartyTag.valueOf(p.tag) } catch (e: Exception) { PartyTag.REGULAR }

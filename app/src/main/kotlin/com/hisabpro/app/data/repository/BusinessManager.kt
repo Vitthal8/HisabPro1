@@ -9,8 +9,11 @@ import com.hisabpro.app.data.model.BusinessProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -40,11 +43,31 @@ class BusinessManager private constructor(private val context: Context) {
     val activeBusinessDatabaseId: String
         get() {
             val active = _activeBusiness.value
+            if (active.id.isNotBlank()) return active.id
             val name = active.shopName.trim()
             if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) return "default_business"
             val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
             return "biz_$sanitized"
         }
+
+    val activeBusinessDatabaseIdFlow: StateFlow<String> = _activeBusiness
+        .map { profile ->
+            if (profile.id.isNotBlank()) {
+                profile.id
+            } else {
+                val name = profile.shopName.trim()
+                if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) "default_business"
+                else {
+                    val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
+                    "biz_$sanitized"
+                }
+            }
+        }
+        .stateIn(
+            scope = scope,
+            started = SharingStarted.Eagerly,
+            initialValue = activeBusinessDatabaseId
+        )
 
     init {
         loadBusinesses()
@@ -129,6 +152,7 @@ class BusinessManager private constructor(private val context: Context) {
         }
 
         return BusinessProfile(
+            id = obj.optString("id", ""),
             shopName = obj.optString("shopName", "HisabPro Enterprises"),
             ownerName = obj.optString("ownerName", "Vittal Mali"),
             phone = obj.optString("phone", "+91 98765 43210"),
@@ -164,7 +188,7 @@ class BusinessManager private constructor(private val context: Context) {
     private fun saveBusinessesInternal(list: List<BusinessProfile>, activeId: String) {
         _businesses.value = list
         _activeBusinessId.value = activeId
-        val active = list.find { it.shopName == activeId || it.gstin == activeId } ?: list.firstOrNull() ?: BusinessProfile()
+        val active = list.find { it.shopName == activeId || it.gstin == activeId || it.id == activeId } ?: list.firstOrNull() ?: BusinessProfile()
         _activeBusiness.value = active
         SettingsRepository.getInstance(appContext).updateProfile(active)
 
@@ -183,6 +207,7 @@ class BusinessManager private constructor(private val context: Context) {
             }
 
             val obj = JSONObject().apply {
+                put("id", p.id)
                 put("shopName", p.shopName)
                 put("ownerName", p.ownerName)
                 put("phone", p.phone)

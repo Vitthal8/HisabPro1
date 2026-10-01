@@ -78,10 +78,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 )
                 if (session != null) {
                     try {
-                        val bizCount = db.businessDao().getAllBusinessesSync().size
-                        if (bizCount == 0) {
-                            performSync(isManual = false)
-                        }
+                        performSync(isManual = false)
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
@@ -364,6 +361,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
 
                     businessProfiles.add(
                         BusinessProfile(
+                            id = resolved.id,
                             shopName = resolved.name,
                             ownerName = resolved.ownerName,
                             phone = resolved.phone,
@@ -393,10 +391,11 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val list = mutableListOf<PartyEntity>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
+                    val rawBiz = obj.optString("business_id", obj.optString("businessId", "default_business")).ifBlank { "default_business" }
                     list.add(
                         PartyEntity(
                             id = obj.getString("id"),
-                            businessId = obj.optString("business_id", "default_business"),
+                            businessId = rawBiz,
                             name = obj.getString("name"),
                             phone = obj.optString("phone", ""),
                             email = obj.optString("email", ""),
@@ -417,10 +416,11 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val list = mutableListOf<ItemEntity>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
+                    val rawBiz = obj.optString("business_id", obj.optString("businessId", "default_business")).ifBlank { "default_business" }
                     list.add(
                         ItemEntity(
                             id = obj.getString("id"),
-                            businessId = obj.optString("business_id", "default_business"),
+                            businessId = rawBiz,
                             name = obj.getString("name"),
                             itemCode = obj.optString("item_code", ""),
                             unit = obj.optString("unit", "Pcs"),
@@ -443,10 +443,11 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val list = mutableListOf<InvoiceEntity>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
+                    val rawBiz = obj.optString("business_id", obj.optString("businessId", "default_business")).ifBlank { "default_business" }
                     list.add(
                         InvoiceEntity(
                             id = obj.getString("id"),
-                            businessId = obj.optString("business_id", "default_business"),
+                            businessId = rawBiz,
                             invoiceNo = obj.getString("invoice_no"),
                             date = obj.optLong("date", System.currentTimeMillis()),
                             partyId = obj.optString("party_id", "").ifBlank { null },
@@ -475,6 +476,32 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     )
                 }
                 if (list.isNotEmpty()) db.invoiceDao().insertAllInvoices(list)
+            }
+            "invoice_items" -> {
+                val list = mutableListOf<InvoiceItemEntity>()
+                for (i in 0 until records.length()) {
+                    val obj = records.getJSONObject(i)
+                    list.add(
+                        InvoiceItemEntity(
+                            id = obj.getString("id"),
+                            invoiceId = obj.getString("invoice_id"),
+                            itemId = obj.optString("item_id", "").ifBlank { null },
+                            itemName = obj.optString("item_name", obj.optString("description", "")),
+                            hsnCode = obj.optString("hsn_code", ""),
+                            qty = obj.optDouble("qty", obj.optDouble("quantity", 1.0)),
+                            unit = obj.optString("unit", "Pcs"),
+                            rate = obj.optLong("rate", 0L),
+                            discount = obj.optLong("discount", 0L),
+                            cgstRate = obj.optDouble("cgst_rate", 0.0),
+                            sgstRate = obj.optDouble("sgst_rate", 0.0),
+                            igstRate = obj.optDouble("igst_rate", 0.0),
+                            amount = obj.optLong("amount", 0L),
+                            deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at"),
+                            syncedAt = System.currentTimeMillis()
+                        )
+                    )
+                }
+                if (list.isNotEmpty()) db.invoiceDao().insertInvoiceItems(list)
             }
             "payments" -> {
                 val list = mutableListOf<PaymentEntity>()

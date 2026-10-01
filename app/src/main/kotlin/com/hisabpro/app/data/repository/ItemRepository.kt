@@ -635,7 +635,10 @@ class ItemRepository(private val context: Context) {
 
     suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
-            val dbItems = db.itemDao().getAllItemsSync(targetBizId)
+            var dbItems = db.itemDao().getAllItemsSync(targetBizId)
+            if (dbItems.isEmpty() && targetBizId != "default_business" && BusinessManager.getInstance(context).businesses.value.size <= 1) {
+                dbItems = db.itemDao().getAllItemsSync("default_business")
+            }
             val itemsList = dbItems.map { item ->
                 Item(
                     id = item.id,

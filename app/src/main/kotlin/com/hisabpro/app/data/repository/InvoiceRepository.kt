@@ -39,8 +39,9 @@ class InvoiceRepository(private val context: Context) {
 
     init {
         scope.launch {
-            BusinessManager.getInstance(context).activeBusinessId.collect {
-                reloadFromDatabase()
+            BusinessManager.getInstance(context).activeBusinessDatabaseIdFlow.collect { bizId ->
+                _invoices.value = emptyList()
+                reloadFromDatabase(bizId)
             }
         }
     }
@@ -173,9 +174,12 @@ class InvoiceRepository(private val context: Context) {
         }
     }
 
-    suspend fun reloadFromDatabase() {
+    suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
-            val dbInvoices = db.invoiceDao().getAllInvoicesSync(activeBizId)
+            var dbInvoices = db.invoiceDao().getAllInvoicesSync(targetBizId)
+            if (dbInvoices.isEmpty() && targetBizId != "default_business" && BusinessManager.getInstance(context).businesses.value.size <= 1) {
+                dbInvoices = db.invoiceDao().getAllInvoicesSync("default_business")
+            }
             val reloaded = mutableListOf<Invoice>()
             for (ent in dbInvoices) {
                 val dbItems = db.invoiceDao().getItemsForInvoiceSync(ent.id)
@@ -197,6 +201,7 @@ class InvoiceRepository(private val context: Context) {
                 reloaded.add(
                     Invoice(
                         id = ent.id,
+                        businessId = ent.businessId,
                         invoiceNumber = ent.invoiceNo,
                         type = type,
                         gstMode = gstMode,
@@ -212,11 +217,19 @@ class InvoiceRepository(private val context: Context) {
                         paymentStatus = status,
                         paidAmount = ent.paidAmount.toRupees(),
                         paymentMode = ent.paymentMode,
-                        createdAt = ent.createdAt
+                        createdAt = ent.createdAt,
+                        fallbackSubtotal = ent.subtotal.toRupees(),
+                        fallbackTaxableAmount = ent.taxableAmount.toRupees(),
+                        fallbackCgst = ent.cgst.toRupees(),
+                        fallbackSgst = ent.sgst.toRupees(),
+                        fallbackIgst = ent.igst.toRupees(),
+                        fallbackTotal = ent.total.toRupees()
                     )
                 )
             }
-            _invoices.value = reloaded.sortedByDescending { it.dateMillis }
+            if (targetBizId == activeBizId) {
+                _invoices.value = reloaded.sortedByDescending { it.dateMillis }
+            }
             saveInternal(reloaded, syncAllRoom = false)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -252,12 +265,13 @@ class InvoiceRepository(private val context: Context) {
     ) {
         try {
             ensureActiveBusiness()
-            val parties = validPartyIds ?: db.partyDao().getAllPartiesSync(activeBizId).map { it.id }.toSet()
+            val targetBizId = inv.businessId.ifBlank { activeBizId }
+            val parties = validPartyIds ?: db.partyDao().getAllPartiesSync(targetBizId).map { it.id }.toSet()
             val safePartyId = if (!inv.customerId.isNullOrBlank() && parties.contains(inv.customerId)) inv.customerId else null
 
             val invoiceEntity = InvoiceEntity(
                 id = inv.id,
-                businessId = activeBizId,
+                businessId = targetBizId,
                 invoiceNo = inv.invoiceNumber,
                 date = inv.dateMillis,
                 partyId = safePartyId,
@@ -300,7 +314,7 @@ class InvoiceRepository(private val context: Context) {
             // Enqueue into Sync Queue for Cloud Sync only on user mutation
             if (enqueueForSync) {
                 try {
-                    val payload = JSONObject().apply {
+                    val invoicePayload = JSONObject().apply {
                         put("id", invoiceEntity.id)
                         put("business_id", invoiceEntity.businessId)
                         put("invoice_no", invoiceEntity.invoiceNo)
@@ -331,8 +345,38 @@ class InvoiceRepository(private val context: Context) {
                         entityType = "invoice",
                         entityId = inv.id,
                         operation = "UPSERT",
-                        payloadJson = payload.toString()
+                        payloadJson = invoicePayload.toString()
                     )
+
+                    // Also enqueue invoice_item records so items are uploaded to Cloud
+                    for (itemEnt in itemEntities) {
+                        val itemPayload = JSONObject().apply {
+                            put("id", itemEnt.id)
+                            put("invoice_id", itemEnt.invoiceId)
+                            put("item_id", itemEnt.itemId ?: "")
+                            put("item_name", itemEnt.itemName)
+                            put("hsn_code", itemEnt.hsnCode)
+                            put("qty", itemEnt.qty)
+                            put("unit", itemEnt.unit)
+                            put("rate", itemEnt.rate)
+                            put("discount", itemEnt.discount)
+                            put("cgst_rate", itemEnt.cgstRate)
+                            put("sgst_rate", itemEnt.sgstRate)
+                            put("igst_rate", itemEnt.igstRate)
+                            put("amount", itemEnt.amount)
+                            put("created_at", System.currentTimeMillis())
+                            put("updated_at", System.currentTimeMillis())
+                        }
+                        com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                            entityType = "invoice_item",
+                            entityId = itemEnt.id,
+                            operation = "UPSERT",
+                            payloadJson = itemPayload.toString()
+                        )
+                    }
+
+                    // Trigger sync process asynchronously
+                    com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -371,21 +415,31 @@ class InvoiceRepository(private val context: Context) {
     }
 
     fun addInvoice(invoice: Invoice): Invoice {
-        val updated = listOf(invoice) + _invoices.value
+        val prepared = if (invoice.businessId.isBlank() || invoice.businessId == "default_business") {
+            invoice.copy(businessId = activeBizId)
+        } else {
+            invoice
+        }
+        val updated = listOf(prepared) + _invoices.value
         saveInternal(updated, syncAllRoom = false)
         scope.launch {
-            saveSingleInvoiceDbInternal(invoice, enqueueForSync = true)
+            saveSingleInvoiceDbInternal(prepared, enqueueForSync = true)
         }
-        return invoice
+        return prepared
     }
 
     fun updateInvoice(invoice: Invoice) {
+        val prepared = if (invoice.businessId.isBlank() || invoice.businessId == "default_business") {
+            invoice.copy(businessId = activeBizId)
+        } else {
+            invoice
+        }
         val updated = _invoices.value.map {
-            if (it.id == invoice.id) invoice else it
+            if (it.id == prepared.id) prepared else it
         }
         saveInternal(updated, syncAllRoom = false)
         scope.launch {
-            saveSingleInvoiceDbInternal(invoice, enqueueForSync = true)
+            saveSingleInvoiceDbInternal(prepared, enqueueForSync = true)
         }
     }
 
@@ -394,13 +448,14 @@ class InvoiceRepository(private val context: Context) {
         saveInternal(updated, syncAllRoom = false)
         scope.launch {
             try {
-                db.invoiceDao().deleteInvoiceWithItems(invoiceId)
+                db.invoiceDao().deleteInvoiceWithItems(invoiceId, activeBizId)
                 com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
                     entityType = "invoice",
                     entityId = invoiceId,
                     operation = "DELETE",
                     payloadJson = "{}"
                 )
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

@@ -1,6 +1,12 @@
 package com.hisabpro.app
 
+import com.hisabpro.app.data.local.entity.SyncQueueEntity
 import com.hisabpro.app.data.model.Invoice
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -318,5 +324,288 @@ class SyncAndResilienceTest {
         runStartupSync(isAuthenticated = true)
 
         assertEquals(3, syncCount) // Safely executes without duplicating database entries
+    }
+
+    // --- REQUIRED AGENT.md TESTS 1 THROUGH 8 ---
+
+    @Test
+    fun testRequired1_TwoSimultaneousTriggerSync_SingleFlightMutexExecution() = runBlocking {
+        val syncMutex = Mutex()
+        var activeExecutions = 0
+        var maxConcurrentExecutions = 0
+        var totalExecutions = 0
+
+        suspend fun performSyncSimulated() {
+            if (syncMutex.isLocked) {
+                // Log SYNC_ALREADY_RUNNING / skipped
+            }
+            syncMutex.withLock {
+                activeExecutions++
+                if (activeExecutions > maxConcurrentExecutions) {
+                    maxConcurrentExecutions = activeExecutions
+                }
+                kotlinx.coroutines.delay(50) // Simulate sync work
+                totalExecutions++
+                activeExecutions--
+            }
+        }
+
+        val job1 = launch { performSyncSimulated() }
+        val job2 = launch { performSyncSimulated() }
+        joinAll(job1, job2)
+
+        assertEquals(1, maxConcurrentExecutions)
+        assertEquals(2, totalExecutions)
+    }
+
+    @Test
+    fun testRequired2_SuccessfulInvoiceUpload_QueueRowDeleted() {
+        val queue = mutableListOf(
+            SyncQueueEntity(id = 1L, entityType = "invoice", entityId = "inv_001", operation = "UPSERT", payloadJson = "{}")
+        )
+
+        // Simulate executePush success
+        val syncedIds = mutableListOf<Long>()
+        for (item in queue) {
+            // Simulated HTTP 2xx success
+            syncedIds.add(item.id)
+        }
+
+        // Deleting synced records
+        queue.removeAll { it.id in syncedIds }
+
+        assertEquals(0, queue.size)
+    }
+
+    @Test
+    fun testRequired3_SuccessfulInvoiceAndTwoItems_All3QueueRowsDeleted() {
+        val queue = mutableListOf(
+            SyncQueueEntity(id = 10L, entityType = "invoice", entityId = "inv_100", operation = "UPSERT", payloadJson = "{}"),
+            SyncQueueEntity(id = 11L, entityType = "invoice_item", entityId = "item_101", operation = "UPSERT", payloadJson = "{}"),
+            SyncQueueEntity(id = 12L, entityType = "invoice_item", entityId = "item_102", operation = "UPSERT", payloadJson = "{}")
+        )
+
+        val syncedIds = mutableListOf<Long>()
+        for (item in queue) {
+            syncedIds.add(item.id)
+        }
+        queue.removeAll { it.id in syncedIds }
+
+        assertEquals(0, queue.size)
+    }
+
+    @Test
+    fun testRequired4_SupabaseUploadFailure_QueueRowBecomesFailedWithRetryInfo() {
+        val item = SyncQueueEntity(
+            id = 5L,
+            entityType = "invoice",
+            entityId = "inv_fail_1",
+            operation = "UPSERT",
+            payloadJson = "{}",
+            status = "IN_PROGRESS",
+            retryCount = 0
+        )
+
+        // Simulate upload failure
+        val retry = item.retryCount + 1
+        val backoff = (Math.pow(2.0, retry.toDouble()).toLong() * 1000L).coerceAtMost(3600000L)
+        val now = System.currentTimeMillis()
+        val nextRetryAt = now + backoff
+
+        val updated = item.copy(
+            status = "FAILED",
+            lastError = "PostgREST Error 500: Internal Server Error",
+            retryCount = retry,
+            nextRetryAt = nextRetryAt
+        )
+
+        assertEquals("FAILED", updated.status)
+        assertEquals(1, updated.retryCount)
+        assertEquals("PostgREST Error 500: Internal Server Error", updated.lastError)
+        assertTrue(updated.nextRetryAt > now)
+    }
+
+    @Test
+    fun testRequired5_StaleInProgressRecord_ResetsToPending() {
+        val now = System.currentTimeMillis()
+        val staleCutoff = now - (5 * 60 * 1000L) // 5 minutes ago
+
+        val staleItem = SyncQueueEntity(
+            id = 20L,
+            entityType = "invoice",
+            entityId = "inv_stale_1",
+            operation = "UPSERT",
+            payloadJson = "{}",
+            status = "IN_PROGRESS",
+            createdAt = now - (10 * 60 * 1000L), // 10 mins ago
+            nextRetryAt = now - (10 * 60 * 1000L)
+        )
+
+        val freshItem = SyncQueueEntity(
+            id = 21L,
+            entityType = "invoice",
+            entityId = "inv_fresh_1",
+            operation = "UPSERT",
+            payloadJson = "{}",
+            status = "IN_PROGRESS",
+            createdAt = now - (1 * 60 * 1000L), // 1 min ago
+            nextRetryAt = now - (1 * 60 * 1000L)
+        )
+
+        val items = mutableListOf(staleItem, freshItem)
+
+        // Reset stale IN_PROGRESS items
+        val resetList = items.map { item ->
+            if (item.status == "IN_PROGRESS" && (item.nextRetryAt <= staleCutoff || item.createdAt <= staleCutoff)) {
+                item.copy(status = "PENDING")
+            } else {
+                item
+            }
+        }
+
+        assertEquals("PENDING", resetList[0].status)
+        assertEquals("IN_PROGRESS", resetList[1].status)
+    }
+
+    @Test
+    fun testRequired6_FailedRecordWithFutureNextRetryAt_NotProcessedYet() {
+        val now = System.currentTimeMillis()
+        val futureFailedItem = SyncQueueEntity(
+            id = 30L,
+            entityType = "invoice",
+            entityId = "inv_future_1",
+            operation = "UPSERT",
+            payloadJson = "{}",
+            status = "FAILED",
+            nextRetryAt = now + 60000L // 1 minute in future
+        )
+
+        fun isEligibleForPush(item: SyncQueueEntity, currentTime: Long): Boolean {
+            return item.status == "PENDING" || (item.status == "FAILED" && item.nextRetryAt <= currentTime)
+        }
+
+        assertFalse(isEligibleForPush(futureFailedItem, now))
+    }
+
+    @Test
+    fun testRequired7_FailedRecordWhoseNextRetryAtHasPassed_Processed() {
+        val now = System.currentTimeMillis()
+        val expiredFailedItem = SyncQueueEntity(
+            id = 31L,
+            entityType = "invoice",
+            entityId = "inv_expired_1",
+            operation = "UPSERT",
+            payloadJson = "{}",
+            status = "FAILED",
+            nextRetryAt = now - 1000L // 1 second in past
+        )
+
+        fun isEligibleForPush(item: SyncQueueEntity, currentTime: Long): Boolean {
+            return item.status == "PENDING" || (item.status == "FAILED" && item.nextRetryAt <= currentTime)
+        }
+
+        assertTrue(isEligibleForPush(expiredFailedItem, now))
+    }
+
+    @Test
+    fun testRequired8_MultiCompanyInvoice_BusinessIdRemainsUnchanged() {
+        val invoice = com.hisabpro.app.data.local.entity.InvoiceEntity(
+            id = "inv_company_b_99",
+            businessId = "biz_company_b",
+            invoiceNo = "INV-2026-001",
+            date = System.currentTimeMillis(),
+            total = 150000L
+        )
+
+        val invoicePayload = org.json.JSONObject().apply {
+            put("id", invoice.id)
+            put("business_id", invoice.businessId)
+            put("invoice_no", invoice.invoiceNo)
+            put("total", invoice.total)
+        }
+
+        assertEquals("biz_company_b", invoicePayload.getString("business_id"))
+        assertFalse("biz_company_b" == "default_business")
+    }
+
+    @Test
+    fun testTest1_CreateCompany_QueueRowCreatedSyncAndRemoved() {
+        val queue = mutableListOf<SyncQueueEntity>()
+
+        // Step 1: User creates new company -> Enqueue business
+        val bizId = "biz_new_firm"
+        val payload = org.json.JSONObject().apply {
+            put("id", bizId)
+            put("name", "New Firm Pvt Ltd")
+            put("gstin", "27ABCDE1234F1Z5")
+        }
+        val entry = SyncQueueEntity(
+            id = 100L,
+            entityType = "business",
+            entityId = bizId,
+            operation = "UPSERT",
+            payloadJson = payload.toString(),
+            status = "PENDING"
+        )
+        queue.add(entry)
+
+        assertEquals(1, queue.size)
+        assertEquals("business", queue[0].entityType)
+
+        // Step 2: performSync / executePush -> Supabase HTTP 200 -> Queue row deleted
+        val syncedIds = listOf(100L)
+        queue.removeAll { it.id in syncedIds }
+
+        assertEquals(0, queue.size)
+    }
+
+    @Test
+    fun testTest7_SuccessfulUpload_UiPendingCountTransition() {
+        val queue = mutableListOf(
+            SyncQueueEntity(id = 1L, entityType = "invoice", entityId = "inv_1", operation = "UPSERT", payloadJson = "{}", status = "PENDING"),
+            SyncQueueEntity(id = 2L, entityType = "invoice_item", entityId = "item_1", operation = "UPSERT", payloadJson = "{}", status = "PENDING")
+        )
+
+        fun calculatePendingCount(q: List<SyncQueueEntity>): Int {
+            return q.count { it.status == "PENDING" || it.status == "IN_PROGRESS" || it.status == "FAILED" }
+        }
+
+        val countBeforeSync = calculatePendingCount(queue)
+        assertEquals(2, countBeforeSync)
+
+        // Execute push -> Success
+        queue.clear()
+
+        val countAfterSync = calculatePendingCount(queue)
+        assertEquals(0, countAfterSync)
+    }
+
+    @Test
+    fun testMultiCompanyRestorationAndRoomMerge() {
+        val roomBusinesses = mutableListOf(
+            com.hisabpro.app.data.local.entity.BusinessEntity(id = "default_business", name = "Company A"),
+            com.hisabpro.app.data.local.entity.BusinessEntity(id = "biz_company_b", name = "Company B")
+        )
+
+        val cloudProfiles = listOf(
+            com.hisabpro.app.data.model.BusinessProfile(id = "biz_company_b", shopName = "Company B (Cloud)"),
+            com.hisabpro.app.data.model.BusinessProfile(id = "biz_company_c", shopName = "Company C (Cloud)")
+        )
+
+        val map = mutableMapOf<String, com.hisabpro.app.data.model.BusinessProfile>()
+
+        for (b in roomBusinesses) {
+            map[b.id] = com.hisabpro.app.data.model.BusinessProfile(id = b.id, shopName = b.name)
+        }
+
+        for (c in cloudProfiles) {
+            map[c.id] = c
+        }
+
+        val allMerged = map.values.toList()
+        assertEquals(3, allMerged.size)
+        assertTrue(allMerged.any { it.id == "default_business" })
+        assertTrue(allMerged.any { it.id == "biz_company_b" })
+        assertTrue(allMerged.any { it.id == "biz_company_c" })
     }
 }

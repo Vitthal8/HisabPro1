@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
 }
 
@@ -79,6 +80,10 @@ dependencies {
     // Google Mobile Ads & User Messaging Platform (UMP)
     implementation("com.google.android.gms:play-services-ads:23.3.0")
     implementation("com.google.android.ump:user-messaging-platform:2.2.0")
+
+    // Kotlinx Serialization & WorkManager
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     // Room Database & KTX
     val roomVersion = "2.8.5"

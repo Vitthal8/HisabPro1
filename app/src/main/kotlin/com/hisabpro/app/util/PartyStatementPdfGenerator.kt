@@ -458,7 +458,7 @@ object PartyStatementPdfGenerator {
                 }
             }
 
-            val uri: Uri = FileProvider.getUriForFile(context, "com.hisabpro.app.fileprovider", file)
+            val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/csv"
                 putExtra(Intent.EXTRA_STREAM, uri)

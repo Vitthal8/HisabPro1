@@ -16,6 +16,7 @@ import com.hisabpro.app.data.local.dao.KhataDao
 import com.hisabpro.app.data.local.dao.PartyDao
 import com.hisabpro.app.data.local.dao.PaymentDao
 import com.hisabpro.app.data.local.dao.SyncMetadataDao
+import com.hisabpro.app.data.local.dao.SyncOutboxDao
 import com.hisabpro.app.data.local.dao.SyncQueueDao
 import com.hisabpro.app.data.local.entity.AccountEntity
 import com.hisabpro.app.data.local.entity.BusinessEntity
@@ -29,6 +30,7 @@ import com.hisabpro.app.data.local.entity.KhataEntryEntity
 import com.hisabpro.app.data.local.entity.PartyEntity
 import com.hisabpro.app.data.local.entity.PaymentEntity
 import com.hisabpro.app.data.local.entity.SyncMetadataEntity
+import com.hisabpro.app.data.local.entity.SyncOutbox
 import com.hisabpro.app.data.local.entity.SyncQueueEntity
 
 @Database(
@@ -45,9 +47,10 @@ import com.hisabpro.app.data.local.entity.SyncQueueEntity
         JournalEntryEntity::class,
         JournalEntryLineEntity::class,
         SyncQueueEntity::class,
-        SyncMetadataEntity::class
+        SyncMetadataEntity::class,
+        SyncOutbox::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -63,6 +66,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun journalDao(): JournalDao
     abstract fun syncQueueDao(): SyncQueueDao
     abstract fun syncMetadataDao(): SyncMetadataDao
+    abstract fun syncOutboxDao(): SyncOutboxDao
 
     companion object {
         @Volatile
@@ -563,6 +567,24 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `sync_outbox` (
+                        `event_id` TEXT NOT NULL,
+                        `entity_id` TEXT NOT NULL,
+                        `table_name` TEXT NOT NULL,
+                        `operation_type` TEXT NOT NULL,
+                        `payload` TEXT NOT NULL,
+                        `created_at` INTEGER NOT NULL,
+                        PRIMARY KEY(`event_id`)
+                    );
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_sync_outbox_created_at` ON `sync_outbox` (`created_at`);")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_sync_outbox_table_name_entity_id` ON `sync_outbox` (`table_name`, `entity_id`);")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -570,7 +592,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "hisabpro_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .fallbackToDestructiveMigrationOnDowngrade()
                     .build().also { INSTANCE = it }
             }

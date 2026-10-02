@@ -176,10 +176,7 @@ class InvoiceRepository(private val context: Context) {
 
     suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
-            var dbInvoices = db.invoiceDao().getAllInvoicesSync(targetBizId)
-            if (dbInvoices.isEmpty() && targetBizId != "default_business" && BusinessManager.getInstance(context).businesses.value.size <= 1) {
-                dbInvoices = db.invoiceDao().getAllInvoicesSync("default_business")
-            }
+            val dbInvoices = db.invoiceDao().getAllInvoicesSync(targetBizId)
             val reloaded = mutableListOf<Invoice>()
             for (ent in dbInvoices) {
                 val dbItems = db.invoiceDao().getItemsForInvoiceSync(ent.id)
@@ -320,7 +317,7 @@ class InvoiceRepository(private val context: Context) {
                         put("business_id", invoiceEntity.businessId)
                         put("invoice_no", invoiceEntity.invoiceNo)
                         put("date", invoiceEntity.date)
-                        put("party_id", invoiceEntity.partyId ?: "")
+                        if (!invoiceEntity.partyId.isNullOrBlank()) put("party_id", invoiceEntity.partyId) else put("party_id", JSONObject.NULL)
                         put("customer_name", invoiceEntity.customerName)
                         put("customer_phone", invoiceEntity.customerPhone)
                         put("customer_address", invoiceEntity.customerAddress)
@@ -354,7 +351,7 @@ class InvoiceRepository(private val context: Context) {
                         val itemPayload = JSONObject().apply {
                             put("id", itemEnt.id)
                             put("invoice_id", itemEnt.invoiceId)
-                            put("item_id", itemEnt.itemId ?: "")
+                            if (!itemEnt.itemId.isNullOrBlank()) put("item_id", itemEnt.itemId) else put("item_id", JSONObject.NULL)
                             put("item_name", itemEnt.itemName)
                             put("hsn_code", itemEnt.hsnCode)
                             put("qty", itemEnt.qty)
@@ -365,7 +362,6 @@ class InvoiceRepository(private val context: Context) {
                             put("sgst_rate", itemEnt.sgstRate)
                             put("igst_rate", itemEnt.igstRate)
                             put("amount", itemEnt.amount)
-                            put("created_at", System.currentTimeMillis())
                         }
                         com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
                             entityType = "invoice_item",

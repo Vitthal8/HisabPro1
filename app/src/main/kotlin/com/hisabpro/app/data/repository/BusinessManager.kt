@@ -92,14 +92,7 @@ class BusinessManager private constructor(private val context: Context) {
         val activeId = prefs.getString(KEY_ACTIVE_ID, "default_business") ?: "default_business"
         _activeBusinessId.value = activeId
 
-        if (rawJson.isNullOrBlank()) {
-            val defaultPrimary = SettingsRepository.getInstance(appContext).profile.value.copy(
-                shopName = if (SettingsRepository.getInstance(appContext).profile.value.shopName.isNotBlank())
-                    SettingsRepository.getInstance(appContext).profile.value.shopName else "HisabPro Enterprises"
-            )
-            val initialList = listOf(defaultPrimary)
-            saveBusinessesInternal(initialList, activeId)
-        } else {
+        if (!rawJson.isNullOrBlank()) {
             try {
                 val array = JSONArray(rawJson)
                 val list = mutableListOf<BusinessProfile>()
@@ -107,24 +100,73 @@ class BusinessManager private constructor(private val context: Context) {
                     val obj = array.getJSONObject(i)
                     list.add(parseProfileFromJson(obj))
                 }
-                if (list.isEmpty()) {
-                    list.add(BusinessProfile())
+                if (list.isNotEmpty()) {
+                    _businesses.value = list
+                    val matched = list.find { it.id == activeId || it.shopName == activeId || it.gstin == activeId } ?: list.first()
+                    _activeBusiness.value = matched
+                    SettingsRepository.getInstance(appContext).updateProfile(matched)
                 }
-                _businesses.value = list
-                val matched = list.find { it.shopName == activeId || it.gstin == activeId } ?: list.first()
-                _activeBusiness.value = matched
-                SettingsRepository.getInstance(appContext).updateProfile(matched)
             } catch (e: Exception) {
                 e.printStackTrace()
-                val fallback = listOf(BusinessProfile())
-                _businesses.value = fallback
-                _activeBusiness.value = fallback.first()
             }
         }
 
         scope.launch {
-            syncToDatabase()
+            reloadFromRoom()
+            syncToDatabase(enqueueForSync = false)
         }
+    }
+
+    suspend fun reloadFromRoom() {
+        try {
+            val dbEntities = db.businessDao().getAllBusinessesSync()
+            if (dbEntities.isEmpty()) return
+
+            val currentList = _businesses.value.toMutableList()
+            val map = currentList.associateBy { it.id.ifBlank { sanitizeBizId(it.shopName) } }.toMutableMap()
+
+            for (ent in dbEntities) {
+                val existing = map[ent.id]
+                val merged = BusinessProfile(
+                    id = ent.id,
+                    shopName = ent.name.ifBlank { existing?.shopName ?: "HisabPro Business" },
+                    ownerName = ent.ownerName.ifBlank { existing?.ownerName ?: "" },
+                    phone = ent.phone.ifBlank { existing?.phone ?: "" },
+                    email = ent.email.ifBlank { existing?.email ?: "" },
+                    address = ent.address.ifBlank { existing?.address ?: "" },
+                    isGstRegistered = ent.gstEnabled,
+                    gstin = ent.gstin.ifBlank { existing?.gstin ?: "" },
+                    pan = ent.pan.ifBlank { existing?.pan ?: "" },
+                    upiId = ent.upiId.ifBlank { existing?.upiId ?: "" },
+                    bankName = ent.bankName.ifBlank { existing?.bankName ?: "State Bank of India" },
+                    accountNumber = ent.accountNumber.ifBlank { existing?.accountNumber ?: "" },
+                    ifscCode = ent.ifscCode.ifBlank { existing?.ifscCode ?: "" },
+                    termsAndConditions = ent.termsAndConditions.ifBlank { existing?.termsAndConditions ?: "" },
+                    logoPath = ent.logoPath.ifBlank { existing?.logoPath ?: "" },
+                    hasCompletedOnboarding = true
+                )
+                map[ent.id] = merged
+            }
+
+            val updatedList = map.values.toList()
+            if (updatedList.isNotEmpty()) {
+                _businesses.value = updatedList
+                val currentActiveId = _activeBusinessId.value
+                val matched = updatedList.find { it.id == currentActiveId || it.shopName == currentActiveId } ?: updatedList.first()
+                _activeBusiness.value = matched
+                SettingsRepository.getInstance(appContext).updateProfile(matched)
+                persistBusinessesToPrefs(updatedList, matched.id)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun sanitizeBizId(name: String): String {
+        val trimmed = name.trim()
+        if (trimmed.isBlank() || trimmed.equals("HisabPro Enterprises", ignoreCase = true)) return "default_business"
+        val sanitized = trimmed.lowercase().replace(Regex("[^a-z0-9]"), "_")
+        return "biz_$sanitized"
     }
 
     private fun parseProfileFromJson(obj: JSONObject): BusinessProfile {
@@ -250,7 +292,7 @@ class BusinessManager private constructor(private val context: Context) {
         }
     }
 
-    suspend fun syncToDatabase() {
+    suspend fun syncToDatabase(enqueueForSync: Boolean = true) {
         try {
             val entities = _businesses.value.map { p ->
                 val name = p.shopName.trim()
@@ -263,16 +305,55 @@ class BusinessManager private constructor(private val context: Context) {
                 BusinessEntity(
                     id = bizId,
                     name = p.shopName,
+                    ownerName = p.ownerName,
                     address = p.address,
                     phone = p.phone,
+                    email = p.email,
                     gstin = p.gstin,
                     pan = p.pan,
                     logoPath = p.logoPath,
                     gstEnabled = p.isGstRegistered,
-                    financialYearStart = "01-04"
+                    financialYearStart = "01-04",
+                    upiId = p.upiId,
+                    bankName = p.bankName,
+                    accountNumber = p.accountNumber,
+                    ifscCode = p.ifscCode,
+                    termsAndConditions = p.termsAndConditions
                 )
             }
             db.businessDao().insertAllBusinesses(entities)
+
+            if (enqueueForSync) {
+                for (entity in entities) {
+                    val payload = JSONObject().apply {
+                        put("id", entity.id)
+                        put("name", entity.name)
+                        put("owner_name", entity.ownerName)
+                        put("address", entity.address)
+                        put("phone", entity.phone)
+                        put("email", entity.email)
+                        put("gstin", entity.gstin)
+                        put("pan", entity.pan)
+                        put("logo_path", entity.logoPath)
+                        put("gst_enabled", entity.gstEnabled)
+                        put("financial_year_start", entity.financialYearStart)
+                        put("upi_id", entity.upiId)
+                        put("bank_name", entity.bankName)
+                        put("account_number", entity.accountNumber)
+                        put("ifsc_code", entity.ifscCode)
+                        put("terms_and_conditions", entity.termsAndConditions)
+                        put("created_at", entity.createdAt)
+                        put("updated_at", entity.updatedAt)
+                    }
+                    com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
+                        entityType = "business",
+                        entityId = entity.id,
+                        operation = "UPSERT",
+                        payloadJson = payload.toString()
+                    )
+                }
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -298,9 +379,180 @@ class BusinessManager private constructor(private val context: Context) {
     }
 
     fun restoreBusinessesFromCloud(profiles: List<BusinessProfile>) {
-        if (profiles.isNotEmpty()) {
-            val currentActiveId = profiles.first().shopName
-            saveBusinessesInternal(profiles, currentActiveId)
+        scope.launch {
+            reloadFromRoomAndCloud(profiles)
+        }
+    }
+
+    suspend fun reloadFromRoomAndCloud(cloudProfiles: List<BusinessProfile> = emptyList()) {
+        try {
+            if (cloudProfiles.isNotEmpty()) {
+                val entities = cloudProfiles.map { p ->
+                    val bizId = if (p.id.isNotBlank()) p.id else sanitizeBizId(p.shopName)
+                    BusinessEntity(
+                        id = bizId,
+                        name = p.shopName,
+                        ownerName = p.ownerName,
+                        address = p.address,
+                        phone = p.phone,
+                        email = p.email,
+                        gstin = p.gstin,
+                        pan = p.pan,
+                        logoPath = p.logoPath,
+                        gstEnabled = p.isGstRegistered,
+                        financialYearStart = "01-04",
+                        upiId = p.upiId,
+                        bankName = p.bankName,
+                        accountNumber = p.accountNumber,
+                        ifscCode = p.ifscCode,
+                        termsAndConditions = p.termsAndConditions
+                    )
+                }
+                db.businessDao().insertAllBusinesses(entities)
+            }
+
+            val dbEntities = db.businessDao().getAllBusinessesSync()
+            val currentList = _businesses.value.toMutableList()
+            val map = currentList.associateBy { if (it.id.isNotBlank()) it.id else sanitizeBizId(it.shopName) }.toMutableMap()
+
+            for (p in cloudProfiles) {
+                val bizId = if (p.id.isNotBlank()) p.id else sanitizeBizId(p.shopName)
+                map[bizId] = p.copy(id = bizId)
+            }
+
+            for (ent in dbEntities) {
+                val existing = map[ent.id]
+                val merged = BusinessProfile(
+                    id = ent.id,
+                    shopName = ent.name.ifBlank { existing?.shopName ?: "HisabPro Business" },
+                    ownerName = ent.ownerName.ifBlank { existing?.ownerName ?: "" },
+                    phone = ent.phone.ifBlank { existing?.phone ?: "" },
+                    email = ent.email.ifBlank { existing?.email ?: "" },
+                    address = ent.address.ifBlank { existing?.address ?: "" },
+                    isGstRegistered = ent.gstEnabled,
+                    gstin = ent.gstin.ifBlank { existing?.gstin ?: "" },
+                    pan = ent.pan.ifBlank { existing?.pan ?: "" },
+                    upiId = ent.upiId.ifBlank { existing?.upiId ?: "" },
+                    bankName = ent.bankName.ifBlank { existing?.bankName ?: "State Bank of India" },
+                    accountNumber = ent.accountNumber.ifBlank { existing?.accountNumber ?: "" },
+                    ifscCode = ent.ifscCode.ifBlank { existing?.ifscCode ?: "" },
+                    termsAndConditions = ent.termsAndConditions.ifBlank { existing?.termsAndConditions ?: "" },
+                    logoPath = ent.logoPath.ifBlank { existing?.logoPath ?: "" },
+                    hasCompletedOnboarding = true
+                )
+                map[ent.id] = merged
+            }
+
+            val updatedList = map.values.toList()
+            if (updatedList.isNotEmpty()) {
+                _businesses.value = updatedList
+                val currentActiveId = _activeBusinessId.value
+                val matched = updatedList.find { it.id == currentActiveId || it.shopName == currentActiveId } ?: updatedList.first()
+                _activeBusiness.value = matched
+                _activeBusinessId.value = matched.id.ifBlank { matched.shopName }
+                SettingsRepository.getInstance(appContext).updateProfile(matched)
+                persistBusinessesToPrefs(updatedList, matched.id.ifBlank { matched.shopName })
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun persistBusinessesToPrefs(list: List<BusinessProfile>, activeId: String) {
+        val array = JSONArray()
+        for (p in list) {
+            val firstBank = p.effectiveBankAccounts.firstOrNull() ?: BankDetails()
+            val bankArr = JSONArray()
+            for (b in p.effectiveBankAccounts) {
+                bankArr.put(
+                    JSONObject().apply {
+                        put("bankName", b.bankName)
+                        put("accountNumber", b.accountNumber)
+                        put("ifscCode", b.ifscCode)
+                    }
+                )
+            }
+
+            val obj = JSONObject().apply {
+                put("id", p.id)
+                put("shopName", p.shopName)
+                put("ownerName", p.ownerName)
+                put("phone", p.phone)
+                put("email", p.email)
+                put("isGstRegistered", p.isGstRegistered)
+                put("gstin", p.gstin)
+                put("pan", p.pan)
+                put("isCompositionScheme", p.isCompositionScheme)
+                put("compositionType", p.compositionType)
+                put("address", p.address)
+                put("city", p.city)
+                put("state", p.state)
+                put("stateCode", p.stateCode)
+                put("pincode", p.pincode)
+                put("upiId", p.upiId)
+                put("bankName", firstBank.bankName)
+                put("accountNumber", firstBank.accountNumber)
+                put("ifscCode", firstBank.ifscCode)
+                put("bankAccounts", bankArr)
+                put("invoicePrefix", p.invoicePrefix)
+                put("purchasePrefix", p.purchasePrefix)
+                put("termsAndConditions", p.termsAndConditions)
+                put("logoPath", p.logoPath)
+                put("isThermalPrinterMode", p.isThermalPrinterMode)
+                put("showUpiQrOnInvoice", p.showUpiQrOnInvoice)
+                put("appLanguage", p.appLanguage)
+                put("isDarkMode", p.isDarkMode)
+                put("themeAccent", p.themeAccent)
+            }
+            array.put(obj)
+        }
+
+        prefs.edit()
+            .putString(KEY_BUSINESS_LIST, array.toString())
+            .putString(KEY_ACTIVE_ID, activeId)
+            .apply()
+    }
+
+    suspend fun deleteBusinessCascade(businessIdOrShopName: String): Result<Unit> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        try {
+            val list = _businesses.value
+            if (list.size <= 1) {
+                return@withContext Result.failure(Exception("Cannot delete company: At least one business profile must remain."))
+            }
+
+            val targetProfile = list.find { 
+                it.id == businessIdOrShopName || 
+                it.shopName.equals(businessIdOrShopName, ignoreCase = true) ||
+                sanitizeBizId(it.shopName) == businessIdOrShopName
+            } ?: return@withContext Result.failure(Exception("Company profile '$businessIdOrShopName' not found."))
+
+            val targetDbId = targetProfile.id.ifBlank { sanitizeBizId(targetProfile.shopName) }
+
+            // 1. Atomically delete all dependent database records and insert SyncOutbox DELETE event
+            db.businessDao().deleteBusinessCascadeLocally(
+                businessId = targetDbId,
+                outboxDao = db.syncOutboxDao()
+            )
+
+            // 2. Remove company from active in-memory list and switch active business
+            val updatedList = list.filterNot { it.id == targetProfile.id || it.shopName == targetProfile.shopName }
+            val newActive = updatedList.first()
+
+            saveBusinessesInternal(updatedList, newActive.shopName)
+
+            // 3. Refresh active in-memory repositories
+            InvoiceRepository.getInstance(appContext).reloadFromDatabase()
+            PartyRepository.getInstance(appContext).reloadFromDatabase()
+            ItemRepository.getInstance(appContext).reloadFromDatabase()
+            TransactionRepository.getInstance(appContext).reloadFromDatabase()
+
+            // 4. Trigger sync worker to upload deletion to Supabase
+            com.hisabpro.app.data.sync.CloudSyncManager.getInstance(appContext).triggerSync(isManual = false)
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
         }
     }
 

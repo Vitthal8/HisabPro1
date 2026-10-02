@@ -405,7 +405,7 @@ class BackupManager private constructor(private val appContext: Context) {
         try {
             val uri = FileProvider.getUriForFile(
                 context,
-                "com.hisabpro.app.fileprovider",
+                "${context.packageName}.fileprovider",
                 file
             )
 

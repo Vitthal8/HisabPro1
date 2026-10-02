@@ -223,12 +223,7 @@ fun MoreScreen(
                 subtitle = "Manage consent & personalized ad choices (Google UMP)",
                 tag = "more_item_privacy_options",
                 onClick = {
-                    var currentContext = context
-                    while (currentContext is android.content.ContextWrapper) {
-                        if (currentContext is android.app.Activity) break
-                        currentContext = currentContext.baseContext
-                    }
-                    val activity = currentContext as? android.app.Activity
+                    val activity = context.findActivity()
                     if (activity != null && !activity.isFinishing && !activity.isDestroyed) {
                         val consentManager = com.hisabpro.app.ads.ConsentManager.getInstance(context)
                         consentManager.showPrivacyOptionsForm(
@@ -237,9 +232,14 @@ fun MoreScreen(
                                 override fun consentGatheringComplete(error: com.google.android.ump.FormError?) {
                                     if (error != null) {
                                         android.util.Log.w("MoreScreen", "Privacy form error: ${error.message}")
+                                        val msg = if (error.errorCode == 3 || error.message?.contains("not required", ignoreCase = true) == true) {
+                                            "Ad Privacy Preferences are not required in your current region."
+                                        } else {
+                                            "Privacy options form unavailable: ${error.message ?: "Not required in current region"}"
+                                        }
                                         android.widget.Toast.makeText(
                                             context,
-                                            "Privacy options form unavailable: ${error.message ?: "Not required in current region"}",
+                                            msg,
                                             android.widget.Toast.LENGTH_LONG
                                         ).show()
                                     } else {
@@ -407,4 +407,10 @@ private fun SettingsItemRow(
             )
         }
     }
+}
+
+private tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> com.hisabpro.app.HisabProApp.currentActivity
 }

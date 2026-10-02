@@ -26,7 +26,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -158,6 +160,8 @@ private fun MainScreenContent(
     val switcherSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var editingBusinessProfile by remember { mutableStateOf<com.hisabpro.app.data.model.BusinessProfile?>(null) }
     var showAddBusinessDialog by remember { mutableStateOf(false) }
+    var businessToDelete by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     BackHandler(enabled = selectedTab != 0 && activeSubScreen == null && !showBusinessSetup) {
         selectedTab = 0
@@ -491,9 +495,23 @@ private fun MainScreenContent(
                 showAddBusinessDialog = true
             },
             onDeleteBusiness = { name ->
-                businessManager.deleteBusiness(name)
+                businessToDelete = name
             },
             onDismiss = { showBusinessSwitcher = false }
+        )
+    }
+
+    if (businessToDelete != null) {
+        com.hisabpro.app.ui.components.DeleteBusinessDialog(
+            businessName = businessToDelete!!,
+            onConfirm = {
+                val targetName = businessToDelete!!
+                businessToDelete = null
+                scope.launch {
+                    businessManager.deleteBusinessCascade(targetName)
+                }
+            },
+            onDismiss = { businessToDelete = null }
         )
     }
 

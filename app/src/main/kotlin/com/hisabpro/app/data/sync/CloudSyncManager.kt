@@ -30,8 +30,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -61,6 +64,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
     private val authManager = SupabaseAuthManager.getInstance(appContext)
     private val apiClient = SupabaseApiClient(appContext)
     private val scope = CoroutineScope(Dispatchers.IO + Job())
+    private val syncMutex = Mutex()
 
     private val _syncState = MutableStateFlow(CloudSyncUiState())
     val syncState: StateFlow<CloudSyncUiState> = _syncState.asStateFlow()
@@ -134,7 +138,40 @@ class CloudSyncManager private constructor(private val appContext: Context) {
             payloadJson = payloadJson,
             createdAt = System.currentTimeMillis()
         )
-        db.syncQueueDao().insert(entry)
+        val insertedId = db.syncQueueDao().insert(entry)
+
+        val tableName = when (entityType) {
+            "business" -> "businesses"
+            "party" -> "parties"
+            "item" -> "items"
+            "invoice" -> "invoices"
+            "invoice_item" -> "invoice_items"
+            "payment" -> "payments"
+            "expense" -> "expenses"
+            "account" -> "accounts"
+            "khata_entry" -> "khata_entries"
+            "journal_entry" -> "journal_entries"
+            "journal_line" -> "journal_entry_lines"
+            else -> entityType
+        }
+
+        val idempotencyKey = "idem_${entityType}_${entityId}_${System.currentTimeMillis()}"
+        val wrappedPayload = "{\"idempotency_key\":\"$idempotencyKey\",\"data\":$payloadJson}"
+
+        val outboxEvent = com.hisabpro.app.data.local.entity.SyncOutbox(
+            eventId = java.util.UUID.randomUUID().toString(),
+            entityId = entityId,
+            tableName = tableName,
+            operationType = if (operation == "UPSERT") "INSERT" else operation,
+            payload = wrappedPayload,
+            createdAt = System.currentTimeMillis()
+        )
+        db.syncOutboxDao().insert(outboxEvent)
+
+        val bizId = try {
+            JSONObject(payloadJson).optString("business_id", JSONObject(payloadJson).optString("businessId", "default_business"))
+        } catch (_: Exception) { "default_business" }
+        android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_ENQUEUE table=$entityType recordId=$entityId businessId=$bizId operation=$operation queueId=$insertedId")
     }
 
     suspend fun triggerSync(isManual: Boolean = true): Result<String> = withContext(Dispatchers.IO) {
@@ -142,6 +179,17 @@ class CloudSyncManager private constructor(private val appContext: Context) {
     }
 
     private suspend fun performSync(isManual: Boolean): Result<String> = withContext(Dispatchers.IO) {
+        if (syncMutex.isLocked) {
+            android.util.Log.i("SYNC_QUEUE_DEBUG", "SYNC_SKIPPED performSync requested while another sync is running")
+        }
+        syncMutex.withLock {
+            performSyncInternal(isManual)
+        }
+    }
+
+    private suspend fun performSyncInternal(isManual: Boolean): Result<String> = withContext(Dispatchers.IO) {
+        android.util.Log.i("SYNC_QUEUE_DEBUG", "SYNC_START isManual=$isManual")
+
         val session = authManager.getCurrentSession()
         if (session == null) {
             _syncState.value = _syncState.value.copy(
@@ -158,6 +206,24 @@ class CloudSyncManager private constructor(private val appContext: Context) {
         )
 
         try {
+            // Step 0: Manual sync unblocks any failed or queued backoff items
+            if (isManual) {
+                val resetCount = db.syncQueueDao().resetAllForManualSync()
+                if (resetCount > 0) {
+                    android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_MANUAL_RESET_FAILED_ITEMS count=$resetCount")
+                }
+            }
+
+            // Step 0b: Recover stale IN_PROGRESS records (> 30 seconds old)
+            val cutoffTime = System.currentTimeMillis() - 30_000L
+            val recoveredCount = db.syncQueueDao().resetStaleInProgress(cutoffTime)
+            if (recoveredCount > 0) {
+                android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_RECOVER_STALE_IN_PROGRESS count=$recoveredCount")
+            }
+
+            val initialPendingCount = db.syncQueueDao().getPendingCountSync()
+            android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_PENDING_COUNT count=$initialPendingCount")
+
             // Step 1: Ensure repositories flush uncommitted state to database
             InvoiceRepository.getInstance(appContext).syncToDatabase()
             PartyRepository.getInstance(appContext).syncToDatabase()
@@ -194,6 +260,8 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 totalSyncedRecords = pullResult.totalPulled
             )
 
+            android.util.Log.i("SYNC_QUEUE_DEBUG", "SYNC_END status=$statusMsg")
+
             if (pullResult.failureCount > 0) {
                 Result.failure(Exception(errStr))
             } else {
@@ -201,6 +269,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            android.util.Log.e("SYNC_QUEUE_DEBUG", "SYNC_END failed error=${e.localizedMessage}")
             _syncState.value = _syncState.value.copy(
                 isSyncing = false,
                 lastError = e.localizedMessage ?: "Sync error",
@@ -211,11 +280,16 @@ class CloudSyncManager private constructor(private val appContext: Context) {
     }
 
     private suspend fun executePush(session: UserSession): Int {
-        val pending = db.syncQueueDao().getPendingItems(limit = 200)
-        if (pending.isEmpty()) return 0
+        android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_PUSH_START")
+        val now = System.currentTimeMillis()
+        val pending = db.syncQueueDao().getPendingItems(currentTime = now, limit = 200)
+        android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_FOUND count=${pending.size}")
+        if (pending.isEmpty()) {
+            return 0
+        }
 
         val idsToMark = pending.map { it.id }
-        db.syncQueueDao().markInProgress(idsToMark)
+        db.syncQueueDao().markInProgress(idsToMark, currentTime = now)
 
         // Topological ordering: parent tables first
         val orderMap = mapOf(
@@ -236,48 +310,175 @@ class CloudSyncManager private constructor(private val appContext: Context) {
         val syncedIds = mutableListOf<Long>()
 
         for (item in sorted) {
-            try {
-                val table = when (item.entityType) {
-                    "business" -> "businesses"
-                    "party" -> "parties"
-                    "item" -> "items"
-                    "invoice" -> "invoices"
-                    "invoice_item" -> "invoice_items"
-                    "payment" -> "payments"
-                    "expense" -> "expenses"
-                    "account" -> "accounts"
-                    "khata_entry" -> "khata_entries"
-                    "journal_entry" -> "journal_entries"
-                    "journal_line" -> "journal_entry_lines"
-                    else -> item.entityType
-                }
+            val table = when (item.entityType) {
+                "business" -> "businesses"
+                "party" -> "parties"
+                "item" -> "items"
+                "invoice" -> "invoices"
+                "invoice_item" -> "invoice_items"
+                "payment" -> "payments"
+                "expense" -> "expenses"
+                "account" -> "accounts"
+                "khata_entry" -> "khata_entries"
+                "journal_entry" -> "journal_entries"
+                "journal_line" -> "journal_entry_lines"
+                else -> item.entityType
+            }
 
+            android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_PROCESS_START queueId=${item.id} table=$table recordId=${item.entityId} status=${item.status}")
+            android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_UPLOAD_START table=$table recordId=${item.entityId}")
+
+            try {
                 if (item.operation == "DELETE") {
-                    apiClient.softDeleteBatch(table, session.accessToken, listOf(item.entityId)).getOrThrow()
+                    val res = apiClient.softDeleteBatch(table, session.accessToken, listOf(item.entityId))
+                    if (res.isSuccess) {
+                        android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_UPLOAD_RESPONSE table=$table recordId=${item.entityId} httpStatus=200")
+                        android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_UPLOAD_SUCCESS table=$table recordId=${item.entityId}")
+                        syncedIds.add(item.id)
+                    } else {
+                        val ex = res.exceptionOrNull()
+                        throw ex ?: Exception("Soft delete failed")
+                    }
                 } else {
-                    val jsonObj = JSONObject(item.payloadJson)
-                    jsonObj.put("user_id", session.userId)
-                    val array = JSONArray().put(jsonObj)
-                    apiClient.upsertBatch(table, session.accessToken, array, onConflict = "id").getOrThrow()
+                    val rawObj = JSONObject(item.payloadJson)
+                    rawObj.put("user_id", session.userId)
+                    val sanitizedObj = sanitizePayloadForTable(table, rawObj)
+                    val array = JSONArray().put(sanitizedObj)
+                    val res = apiClient.upsertBatch(table, session.accessToken, array, onConflict = "id")
+                    if (res.isSuccess) {
+                        android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_UPLOAD_RESPONSE table=$table recordId=${item.entityId} httpStatus=200")
+                        android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_UPLOAD_SUCCESS table=$table recordId=${item.entityId}")
+                        syncedIds.add(item.id)
+                    } else {
+                        val ex = res.exceptionOrNull()
+                        throw ex ?: Exception("Upsert batch failed")
+                    }
                 }
-                syncedIds.add(item.id)
             } catch (e: Exception) {
                 val retry = item.retryCount + 1
                 val backoff = (Math.pow(2.0, retry.toDouble()).toLong() * 1000L).coerceAtMost(3600000L)
+                val nextRetry = System.currentTimeMillis() + backoff
                 db.syncQueueDao().updateStatus(
                     id = item.id,
-                    status = if (retry > 5) "FAILED" else "PENDING",
+                    status = "FAILED",
                     error = e.localizedMessage,
                     retryCount = retry,
-                    nextRetryAt = System.currentTimeMillis() + backoff
+                    nextRetryAt = nextRetry
                 )
+                android.util.Log.e("SYNC_QUEUE_DEBUG", "QUEUE_UPLOAD_FAILED table=$table recordId=${item.entityId} error=${e.localizedMessage}")
             }
         }
 
         if (syncedIds.isNotEmpty()) {
             db.syncQueueDao().deleteByIds(syncedIds)
+            for (item in sorted) {
+                if (item.id in syncedIds) {
+                    val table = when (item.entityType) {
+                        "business" -> "businesses"
+                        "party" -> "parties"
+                        "item" -> "items"
+                        "invoice" -> "invoices"
+                        "invoice_item" -> "invoice_items"
+                        "payment" -> "payments"
+                        "expense" -> "expenses"
+                        "account" -> "accounts"
+                        "khata_entry" -> "khata_entries"
+                        "journal_entry" -> "journal_entries"
+                        "journal_line" -> "journal_entry_lines"
+                        else -> item.entityType
+                    }
+                    db.syncOutboxDao().deleteByEntity(table, item.entityId)
+                }
+            }
+            for (syncedId in syncedIds) {
+                android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_DELETE_SUCCESS queueId=$syncedId")
+            }
         }
+        val remainingCount = db.syncQueueDao().getPendingCountSync()
+        if (remainingCount == 0) {
+            db.syncOutboxDao().clearAll()
+        }
+        android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_PENDING_COUNT count=$remainingCount")
         return syncedIds.size
+    }
+
+    private fun sanitizePayloadForTable(table: String, jsonObj: JSONObject): JSONObject {
+        val allowedColumns = when (table) {
+            "invoice_items" -> setOf(
+                "id", "user_id", "invoice_id", "item_id", "item_name",
+                "hsn_code", "qty", "unit", "rate", "discount",
+                "cgst_rate", "sgst_rate", "igst_rate", "amount",
+                "deleted_at", "synced_at"
+            )
+            "invoices" -> setOf(
+                "id", "user_id", "business_id", "invoice_no", "date",
+                "party_id", "customer_name", "customer_phone", "customer_address",
+                "customer_gstin", "type", "gst_mode", "subtotal", "discount",
+                "taxable_amount", "cgst", "sgst", "igst", "total", "paid_amount",
+                "payment_status", "payment_mode", "notes", "is_gst",
+                "created_at", "updated_at", "deleted_at", "synced_at"
+            )
+            "parties" -> setOf(
+                "id", "user_id", "business_id", "name", "phone", "email",
+                "address", "gstin", "type", "tag", "opening_balance",
+                "created_at", "updated_at", "deleted_at", "synced_at"
+            )
+            "items" -> setOf(
+                "id", "user_id", "business_id", "name", "item_code", "unit",
+                "hsn_code", "purchase_price", "sell_price", "gst_rate",
+                "category", "stock_qty", "low_stock_threshold",
+                "created_at", "updated_at", "deleted_at", "synced_at"
+            )
+            "payments" -> setOf(
+                "id", "user_id", "business_id", "party_id", "date", "amount",
+                "mode", "reference_no", "notes", "linked_invoice_id",
+                "created_at", "updated_at", "deleted_at", "synced_at"
+            )
+            "expenses" -> setOf(
+                "id", "user_id", "business_id", "date", "category", "amount",
+                "description", "mode", "receipt_path",
+                "created_at", "updated_at", "deleted_at", "synced_at"
+            )
+            "businesses" -> setOf(
+                "id", "user_id", "name", "owner_name", "address", "phone",
+                "email", "gstin", "pan", "logo_path", "gst_enabled",
+                "financial_year_start", "upi_id", "bank_name", "account_number",
+                "ifsc_code", "terms_and_conditions",
+                "created_at", "updated_at", "deleted_at", "synced_at"
+            )
+            "accounts" -> setOf(
+                "id", "user_id", "business_id", "name", "type",
+                "opening_balance", "account_number", "ifsc_code",
+                "created_at", "updated_at", "deleted_at", "synced_at"
+            )
+            "journal_entries" -> setOf(
+                "id", "user_id", "business_id", "date", "voucher_no",
+                "narration", "created_at", "updated_at", "deleted_at", "synced_at"
+            )
+            "journal_entry_lines" -> setOf(
+                "id", "user_id", "journal_entry_id", "account_id", "account_name",
+                "is_debit", "debit", "credit",
+                "created_at", "updated_at", "deleted_at", "synced_at"
+            )
+            "khata_entries" -> setOf(
+                "id", "user_id", "business_id", "party_id", "amount", "type",
+                "date", "bill_number", "note",
+                "created_at", "updated_at", "deleted_at", "synced_at"
+            )
+            else -> null
+        }
+
+        if (allowedColumns == null) return jsonObj
+
+        val sanitized = JSONObject()
+        val keys = jsonObj.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            if (allowedColumns.contains(key)) {
+                sanitized.put(key, jsonObj.get(key))
+            }
+        }
+        return sanitized
     }
 
     private suspend fun executePull(session: UserSession): PullResultSummary {
@@ -352,6 +553,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     financialYearStart = "01-04"
                 )
             )
+            BusinessManager.getInstance(appContext).reloadFromRoomAndCloud()
         }
     }
 

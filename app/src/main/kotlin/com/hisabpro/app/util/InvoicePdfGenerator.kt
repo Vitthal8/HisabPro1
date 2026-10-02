@@ -893,7 +893,7 @@ object InvoicePdfGenerator {
      */
     fun openPdfViewer(context: Context, file: File) {
         try {
-            val uri = FileProvider.getUriForFile(context, "com.hisabpro.app.fileprovider", file)
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "application/pdf")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

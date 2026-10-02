@@ -372,7 +372,7 @@ class PartyViewModel @JvmOverloads constructor(
 
             val uri = FileProvider.getUriForFile(
                 context,
-                "com.hisabpro.app.fileprovider",
+                "${context.packageName}.fileprovider",
                 file
             )
             val intent = Intent(Intent.ACTION_SEND).apply {

@@ -54,10 +54,7 @@ class PartyRepository(private val context: Context) {
 
     suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
-            var dbParties = db.partyDao().getAllPartiesSync(targetBizId)
-            if (dbParties.isEmpty() && targetBizId != "default_business" && BusinessManager.getInstance(context).businesses.value.size <= 1) {
-                dbParties = db.partyDao().getAllPartiesSync("default_business")
-            }
+            val dbParties = db.partyDao().getAllPartiesSync(targetBizId)
             val partiesList = dbParties.map { p ->
                 val type = try { PartyType.valueOf(p.type) } catch (e: Exception) { PartyType.CUSTOMER }
                 val tag = try { PartyTag.valueOf(p.tag) } catch (e: Exception) { PartyTag.REGULAR }
@@ -311,6 +308,7 @@ class PartyRepository(private val context: Context) {
                     operation = "UPSERT",
                     payloadJson = payload.toString()
                 )
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -360,6 +358,7 @@ class PartyRepository(private val context: Context) {
                     operation = "UPSERT",
                     payloadJson = payload.toString()
                 )
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -382,6 +381,7 @@ class PartyRepository(private val context: Context) {
                     operation = "DELETE",
                     payloadJson = "{}"
                 )
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -450,6 +450,7 @@ class PartyRepository(private val context: Context) {
                     operation = "UPSERT",
                     payloadJson = payload.toString()
                 )
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -470,6 +471,7 @@ class PartyRepository(private val context: Context) {
                     operation = "DELETE",
                     payloadJson = "{}"
                 )
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

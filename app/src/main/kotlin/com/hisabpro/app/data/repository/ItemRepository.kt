@@ -159,6 +159,7 @@ class ItemRepository(private val context: Context) {
                     operation = "UPSERT",
                     payloadJson = payload.toString()
                 )
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -215,6 +216,7 @@ class ItemRepository(private val context: Context) {
                         operation = "UPSERT",
                         payloadJson = payload.toString()
                     )
+                    com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -239,6 +241,7 @@ class ItemRepository(private val context: Context) {
                     operation = "DELETE",
                     payloadJson = "{}"
                 )
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -635,10 +638,7 @@ class ItemRepository(private val context: Context) {
 
     suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
-            var dbItems = db.itemDao().getAllItemsSync(targetBizId)
-            if (dbItems.isEmpty() && targetBizId != "default_business" && BusinessManager.getInstance(context).businesses.value.size <= 1) {
-                dbItems = db.itemDao().getAllItemsSync("default_business")
-            }
+            val dbItems = db.itemDao().getAllItemsSync(targetBizId)
             val itemsList = dbItems.map { item ->
                 Item(
                     id = item.id,

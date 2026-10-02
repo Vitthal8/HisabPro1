@@ -231,6 +231,7 @@ class TransactionRepository(private val context: Context) {
                         operation = "UPSERT",
                         payloadJson = payload.toString()
                     )
+                    com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
                 }
             } else {
                 val pay = PaymentEntity(
@@ -249,13 +250,13 @@ class TransactionRepository(private val context: Context) {
                     val payload = JSONObject().apply {
                         put("id", pay.id)
                         put("business_id", pay.businessId)
-                        put("party_id", pay.partyId ?: "")
+                        if (!pay.partyId.isNullOrBlank()) put("party_id", pay.partyId) else put("party_id", JSONObject.NULL)
                         put("date", pay.date)
                         put("amount", pay.amount)
                         put("mode", pay.mode)
                         put("reference_no", pay.referenceNo)
                         put("notes", pay.notes)
-                        put("linked_invoice_id", pay.linkedInvoiceId ?: "")
+                        if (!pay.linkedInvoiceId.isNullOrBlank()) put("linked_invoice_id", pay.linkedInvoiceId) else put("linked_invoice_id", JSONObject.NULL)
                         put("created_at", pay.createdAt)
                         put("updated_at", pay.updatedAt)
                     }
@@ -265,6 +266,7 @@ class TransactionRepository(private val context: Context) {
                         operation = "UPSERT",
                         payloadJson = payload.toString()
                     )
+                    com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
                 }
             }
         } catch (e: Exception) {
@@ -341,6 +343,7 @@ class TransactionRepository(private val context: Context) {
                     operation = "DELETE",
                     payloadJson = "{}"
                 )
+                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

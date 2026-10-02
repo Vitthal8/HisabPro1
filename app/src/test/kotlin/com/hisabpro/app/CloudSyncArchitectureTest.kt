@@ -736,5 +736,44 @@ class CloudSyncArchitectureTest {
         val fallbackTotalRupees = invoiceEntity.total / 100.0
         assertEquals(3540.0, fallbackTotalRupees, 0.01)
     }
+
+    @Test
+    fun testInvoiceItemPayloadStripsCreatedAtAndUpdatedAt() {
+        val rawInvoiceItemPayload = JSONObject().apply {
+            put("id", "ii_test_101")
+            put("invoice_id", "inv_101")
+            put("item_name", "Fortune Oil 5L")
+            put("qty", 2.0)
+            put("rate", 75000L)
+            put("amount", 150000L)
+            put("created_at", System.currentTimeMillis())
+            put("updated_at", System.currentTimeMillis())
+            put("business_id", "default_business")
+        }
+
+        val allowedColumns = setOf(
+            "id", "user_id", "invoice_id", "item_id", "item_name",
+            "hsn_code", "qty", "unit", "rate", "discount",
+            "cgst_rate", "sgst_rate", "igst_rate", "amount",
+            "deleted_at", "synced_at"
+        )
+
+        val sanitized = JSONObject()
+        val keys = rawInvoiceItemPayload.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            if (allowedColumns.contains(key)) {
+                sanitized.put(key, rawInvoiceItemPayload.get(key))
+            }
+        }
+
+        assertFalse("invoice_items payload must not contain created_at", sanitized.has("created_at"))
+        assertFalse("invoice_items payload must not contain updated_at", sanitized.has("updated_at"))
+        assertFalse("invoice_items payload must not contain business_id", sanitized.has("business_id"))
+        assertTrue(sanitized.has("id"))
+        assertTrue(sanitized.has("invoice_id"))
+        assertTrue(sanitized.has("item_name"))
+        assertEquals("ii_test_101", sanitized.getString("id"))
+    }
 }
 

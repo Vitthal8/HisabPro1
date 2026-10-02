@@ -186,30 +186,30 @@ class BusinessManager private constructor(private val context: Context) {
                 }
             }
         }
-        val primaryBank = obj.optString("bankName", "State Bank of India")
-        val primaryAcc = obj.optString("accountNumber", "987654321012")
-        val primaryIfsc = obj.optString("ifscCode", "SBIN0001234")
-        if (loadedBankAccounts.isEmpty()) {
+        val primaryBank = obj.optString("bankName", "")
+        val primaryAcc = obj.optString("accountNumber", "")
+        val primaryIfsc = obj.optString("ifscCode", "")
+        if (loadedBankAccounts.isEmpty() && primaryBank.isNotBlank()) {
             loadedBankAccounts.add(BankDetails(primaryBank, primaryAcc, primaryIfsc))
         }
 
         return BusinessProfile(
             id = obj.optString("id", ""),
-            shopName = obj.optString("shopName", "HisabPro Enterprises"),
-            ownerName = obj.optString("ownerName", "Vittal Mali"),
-            phone = obj.optString("phone", "+91 98765 43210"),
-            email = obj.optString("email", "hisabpro@business.in"),
+            shopName = obj.optString("shopName", ""),
+            ownerName = obj.optString("ownerName", ""),
+            phone = obj.optString("phone", ""),
+            email = obj.optString("email", ""),
             isGstRegistered = obj.optBoolean("isGstRegistered", false),
             gstin = obj.optString("gstin", ""),
             pan = obj.optString("pan", ""),
             isCompositionScheme = obj.optBoolean("isCompositionScheme", false),
             compositionType = obj.optString("compositionType", "TRADER"),
-            address = obj.optString("address", "Shop No. 12, Market Yard Main Road"),
+            address = obj.optString("address", ""),
             city = obj.optString("city", "Pune"),
             state = obj.optString("state", "Maharashtra"),
             stateCode = obj.optString("stateCode", "27"),
-            pincode = obj.optString("pincode", "411037"),
-            upiId = obj.optString("upiId", "vittal@okhdfcbank"),
+            pincode = obj.optString("pincode", ""),
+            upiId = obj.optString("upiId", ""),
             bankName = primaryBank,
             accountNumber = primaryAcc,
             ifscCode = primaryIfsc,
@@ -223,7 +223,7 @@ class BusinessManager private constructor(private val context: Context) {
             appLanguage = obj.optString("appLanguage", "en"),
             isDarkMode = obj.optBoolean("isDarkMode", false),
             themeAccent = obj.optString("themeAccent", "Saffron"),
-            hasCompletedOnboarding = true
+            hasCompletedOnboarding = obj.optBoolean("hasCompletedOnboarding", false)
         )
     }
 
@@ -372,19 +372,46 @@ class BusinessManager private constructor(private val context: Context) {
     }
 
     fun updateActiveBusiness(updatedProfile: BusinessProfile) {
-        val current = _businesses.value.map {
-            if (it.shopName == _activeBusiness.value.shopName) updatedProfile else it
+        val current = _businesses.value
+        val updated = if (current.isEmpty()) {
+            listOf(updatedProfile)
+        } else {
+            current.map {
+                if (it.shopName == _activeBusiness.value.shopName || (it.id.isNotBlank() && it.id == _activeBusiness.value.id)) updatedProfile else it
+            }
         }
-        saveBusinessesInternal(current, updatedProfile.shopName)
+        saveBusinessesInternal(updated, updatedProfile.shopName)
     }
 
-    fun restoreBusinessesFromCloud(profiles: List<BusinessProfile>) {
+    fun resetForNewUser(initialProfile: BusinessProfile? = null) {
+        prefs.edit().clear().apply()
+        if (initialProfile != null && initialProfile.shopName.isNotBlank()) {
+            val list = listOf(initialProfile)
+            _businesses.value = list
+            _activeBusinessId.value = initialProfile.id.ifBlank { initialProfile.shopName }
+            _activeBusiness.value = initialProfile
+            persistBusinessesToPrefs(list, initialProfile.id.ifBlank { initialProfile.shopName })
+        } else {
+            _businesses.value = emptyList()
+            _activeBusinessId.value = "default_business"
+            _activeBusiness.value = BusinessProfile(
+                id = "default_business",
+                shopName = "",
+                ownerName = "",
+                email = "",
+                phone = "",
+                hasCompletedOnboarding = false
+            )
+        }
+    }
+
+    fun restoreBusinessesFromCloud(profiles: List<BusinessProfile>, replaceLocal: Boolean = false) {
         scope.launch {
-            reloadFromRoomAndCloud(profiles)
+            reloadFromRoomAndCloud(profiles, replaceLocal)
         }
     }
 
-    suspend fun reloadFromRoomAndCloud(cloudProfiles: List<BusinessProfile> = emptyList()) {
+    suspend fun reloadFromRoomAndCloud(cloudProfiles: List<BusinessProfile> = emptyList(), replaceLocal: Boolean = false) {
         try {
             if (cloudProfiles.isNotEmpty()) {
                 val entities = cloudProfiles.map { p ->
@@ -412,7 +439,7 @@ class BusinessManager private constructor(private val context: Context) {
             }
 
             val dbEntities = db.businessDao().getAllBusinessesSync()
-            val currentList = _businesses.value.toMutableList()
+            val currentList = if (replaceLocal) mutableListOf() else _businesses.value.toMutableList()
             val map = currentList.associateBy { if (it.id.isNotBlank()) it.id else sanitizeBizId(it.shopName) }.toMutableMap()
 
             for (p in cloudProfiles) {
@@ -420,27 +447,54 @@ class BusinessManager private constructor(private val context: Context) {
                 map[bizId] = p.copy(id = bizId)
             }
 
-            for (ent in dbEntities) {
-                val existing = map[ent.id]
-                val merged = BusinessProfile(
-                    id = ent.id,
-                    shopName = ent.name.ifBlank { existing?.shopName ?: "HisabPro Business" },
-                    ownerName = ent.ownerName.ifBlank { existing?.ownerName ?: "" },
-                    phone = ent.phone.ifBlank { existing?.phone ?: "" },
-                    email = ent.email.ifBlank { existing?.email ?: "" },
-                    address = ent.address.ifBlank { existing?.address ?: "" },
-                    isGstRegistered = ent.gstEnabled,
-                    gstin = ent.gstin.ifBlank { existing?.gstin ?: "" },
-                    pan = ent.pan.ifBlank { existing?.pan ?: "" },
-                    upiId = ent.upiId.ifBlank { existing?.upiId ?: "" },
-                    bankName = ent.bankName.ifBlank { existing?.bankName ?: "State Bank of India" },
-                    accountNumber = ent.accountNumber.ifBlank { existing?.accountNumber ?: "" },
-                    ifscCode = ent.ifscCode.ifBlank { existing?.ifscCode ?: "" },
-                    termsAndConditions = ent.termsAndConditions.ifBlank { existing?.termsAndConditions ?: "" },
-                    logoPath = ent.logoPath.ifBlank { existing?.logoPath ?: "" },
-                    hasCompletedOnboarding = true
-                )
-                map[ent.id] = merged
+            if (!replaceLocal) {
+                for (ent in dbEntities) {
+                    val existing = map[ent.id]
+                    val merged = BusinessProfile(
+                        id = ent.id,
+                        shopName = ent.name.ifBlank { existing?.shopName ?: "" },
+                        ownerName = ent.ownerName.ifBlank { existing?.ownerName ?: "" },
+                        phone = ent.phone.ifBlank { existing?.phone ?: "" },
+                        email = ent.email.ifBlank { existing?.email ?: "" },
+                        address = ent.address.ifBlank { existing?.address ?: "" },
+                        isGstRegistered = ent.gstEnabled,
+                        gstin = ent.gstin.ifBlank { existing?.gstin ?: "" },
+                        pan = ent.pan.ifBlank { existing?.pan ?: "" },
+                        upiId = ent.upiId.ifBlank { existing?.upiId ?: "" },
+                        bankName = ent.bankName.ifBlank { existing?.bankName ?: "" },
+                        accountNumber = ent.accountNumber.ifBlank { existing?.accountNumber ?: "" },
+                        ifscCode = ent.ifscCode.ifBlank { existing?.ifscCode ?: "" },
+                        termsAndConditions = ent.termsAndConditions.ifBlank { existing?.termsAndConditions ?: "" },
+                        logoPath = ent.logoPath.ifBlank { existing?.logoPath ?: "" },
+                        hasCompletedOnboarding = true
+                    )
+                    map[ent.id] = merged
+                }
+            } else {
+                for (ent in dbEntities) {
+                    if (map.containsKey(ent.id)) {
+                        // Preserved from cloudProfiles
+                    } else if (cloudProfiles.isEmpty() && ent.name.isNotBlank()) {
+                        map[ent.id] = BusinessProfile(
+                            id = ent.id,
+                            shopName = ent.name,
+                            ownerName = ent.ownerName,
+                            phone = ent.phone,
+                            email = ent.email,
+                            address = ent.address,
+                            isGstRegistered = ent.gstEnabled,
+                            gstin = ent.gstin,
+                            pan = ent.pan,
+                            upiId = ent.upiId,
+                            bankName = ent.bankName,
+                            accountNumber = ent.accountNumber,
+                            ifscCode = ent.ifscCode,
+                            termsAndConditions = ent.termsAndConditions,
+                            logoPath = ent.logoPath,
+                            hasCompletedOnboarding = true
+                        )
+                    }
+                }
             }
 
             val updatedList = map.values.toList()

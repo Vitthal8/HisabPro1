@@ -183,7 +183,7 @@ fun ThermalReceiptSheet(
             // Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedButton(
                     onClick = {
@@ -194,8 +194,47 @@ fun ThermalReceiptSheet(
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Copy Text", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Copy", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Button(
+                    onClick = {
+                        try {
+                            val escPosBytes = com.hisabpro.app.util.ThermalSlipGenerator.generateEscPosBytes(
+                                invoice = invoice,
+                                profile = businessProfile,
+                                widthChars = widthChars,
+                                kickDrawer = invoice.paidAmount > 0,
+                                cutPaper = true
+                            )
+                            // Save temp binary receipt file for Bluetooth Print Service / Raw Print App
+                            val binFile = java.io.File(context.cacheDir, "receipt_${invoice.invoiceNumber}.bin")
+                            binFile.writeBytes(escPosBytes)
+
+                            val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "application/octet-stream"
+                                val uri = androidx.core.content.FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    binFile
+                                )
+                                putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                putExtra(android.content.Intent.EXTRA_SUBJECT, "ESC/POS Receipt #${invoice.invoiceNumber}")
+                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(android.content.Intent.createChooser(shareIntent, "Send ESC/POS to Bluetooth Printer"))
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Print error: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DeepNavyBlue),
+                    modifier = Modifier.weight(1.2f).height(46.dp).testTag("btn_escpos_print"),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Print, contentDescription = null, modifier = Modifier.size(16.dp), tint = PureWhite)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("ESC/POS Print", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PureWhite)
                 }
 
                 Button(
@@ -212,8 +251,8 @@ fun ThermalReceiptSheet(
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Share / Print", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Share", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
 

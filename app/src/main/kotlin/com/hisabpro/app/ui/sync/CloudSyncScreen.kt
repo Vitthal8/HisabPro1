@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -97,6 +98,7 @@ fun CloudSyncScreen(
     var otpInput by remember { mutableStateOf("") }
     var emailInput by remember { mutableStateOf("") }
     var passwordInput by remember { mutableStateOf("") }
+    var showSignOutDialog by remember { mutableStateOf(false) }
 
     BackHandler {
         onBack()
@@ -351,7 +353,7 @@ fun CloudSyncScreen(
                             Spacer(modifier = Modifier.width(8.dp))
 
                             OutlinedButton(
-                                onClick = { viewModel.signOut() },
+                                onClick = { showSignOutDialog = true },
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed),
                                 shape = RoundedCornerShape(10.dp),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
@@ -362,6 +364,43 @@ fun CloudSyncScreen(
                                 Text("Disconnect", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
+                    }
+
+                    if (showSignOutDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showSignOutDialog = false },
+                            title = { Text("Sign Out Options", fontWeight = FontWeight.Bold) },
+                            text = {
+                                Text(
+                                    "Choose how you want to disconnect:\n\n" +
+                                    "• Keep Data: Preserves your companies and records on this phone for offline use.\n\n" +
+                                    "• Clear Device Data: Clears your company details and records from this device so another user can sign in cleanly."
+                                )
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        showSignOutDialog = false
+                                        viewModel.signOut(clearLocalData = true)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed),
+                                    modifier = Modifier.testTag("btn_confirm_signout_clear")
+                                ) {
+                                    Text("Clear Data & Sign Out", color = PureWhite)
+                                }
+                            },
+                            dismissButton = {
+                                OutlinedButton(
+                                    onClick = {
+                                        showSignOutDialog = false
+                                        viewModel.signOut(clearLocalData = false)
+                                    },
+                                    modifier = Modifier.testTag("btn_confirm_signout_keep")
+                                ) {
+                                    Text("Keep Data & Disconnect")
+                                }
+                            }
+                        )
                     }
                 } else {
                     // Sign In / Register Card

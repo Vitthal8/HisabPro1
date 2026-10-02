@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -139,6 +140,11 @@ fun CreateInvoiceSheet(
     // Item picker state
     var showItemPickerDialog by remember { mutableStateOf(false) }
     var itemPickerSearch by remember { mutableStateOf("") }
+
+    // Quick Barcode / SKU Scanner Dialog state
+    var showBarcodeScanDialog by remember { mutableStateOf(false) }
+    var barcodeInputText by remember { mutableStateOf("") }
+    var barcodeScanMessage by remember { mutableStateOf<String?>(null) }
 
     // Quick cash mode shortcut (OFF by default for new bills)
     var isQuickSaleMode by remember {
@@ -279,6 +285,10 @@ fun CreateInvoiceSheet(
     val isImeVisible = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(density) > 0
 
     fun handleDismissAttempt() {
+        if (showBarcodeScanDialog) {
+            showBarcodeScanDialog = false
+            return
+        }
         if (showItemPickerDialog) {
             showItemPickerDialog = false
             return
@@ -857,22 +867,43 @@ fun CreateInvoiceSheet(
                             )
 
                             if (availableItems.isNotEmpty()) {
-                                OutlinedButton(
-                                    onClick = {
-                                        itemPickerSearch = ""
-                                        showItemPickerDialog = true
-                                    },
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.height(34.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Inventory2,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(14.dp),
-                                        tint = Emerald800
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Pick from Inventory", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Emerald800)
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            itemPickerSearch = ""
+                                            showItemPickerDialog = true
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.height(34.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Inventory2,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                            tint = Emerald800
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Pick", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Emerald800)
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            barcodeInputText = ""
+                                            barcodeScanMessage = null
+                                            showBarcodeScanDialog = true
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.height(34.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.QrCodeScanner,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                            tint = Emerald800
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Barcode", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Emerald800)
+                                    }
                                 }
                             }
                         }
@@ -1457,6 +1488,127 @@ fun CreateInvoiceSheet(
                 },
                 confirmButton = {
                     TextButton(onClick = { showItemPickerDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (showBarcodeScanDialog) {
+            AlertDialog(
+                onDismissRequest = { showBarcodeScanDialog = false },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = null,
+                            tint = Emerald800,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Barcode / SKU Lookup",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "Type or scan product barcode / SKU to instantly look up and add items from inventory.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        OutlinedTextField(
+                            value = barcodeInputText,
+                            onValueChange = { code ->
+                                barcodeInputText = code
+                                val matched = availableItems.find {
+                                    it.itemCode.equals(code.trim(), ignoreCase = true) ||
+                                            it.name.equals(code.trim(), ignoreCase = true)
+                                }
+                                barcodeScanMessage = if (matched != null) {
+                                    "Found: ${matched.name} (₹${matched.salePrice} / ${matched.unit})"
+                                } else if (code.trim().length >= 3) {
+                                    "No matching product for '$code'"
+                                } else null
+                            },
+                            label = { Text("Barcode / SKU Code") },
+                            placeholder = { Text("e.g. 8901030383856 or SKU-101") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+
+                        barcodeScanMessage?.let { msg ->
+                            val isFound = msg.startsWith("Found:")
+                            Text(
+                                text = msg,
+                                color = if (isFound) Emerald800 else Color(0xFFC62828),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        // Quick matching chips from inventory with item codes
+                        val itemsWithCode = availableItems.filter { it.itemCode.isNotBlank() }.take(5)
+                        if (itemsWithCode.isNotEmpty()) {
+                            Text(
+                                text = "Inventory Barcodes:",
+                                fontSize = 11.sp,
+                                color = Slate500,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                itemsWithCode.forEach { item ->
+                                    FilterChip(
+                                        selected = barcodeInputText.equals(item.itemCode, ignoreCase = true),
+                                        onClick = {
+                                            barcodeInputText = item.itemCode
+                                            barcodeScanMessage = "Found: ${item.name} (₹${item.salePrice} / ${item.unit})"
+                                        },
+                                        label = { Text("${item.name} (${item.itemCode})", fontSize = 10.sp) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val code = barcodeInputText.trim()
+                            val matched = availableItems.find {
+                                it.itemCode.equals(code, ignoreCase = true) ||
+                                        it.name.equals(code, ignoreCase = true)
+                            }
+                            if (matched != null) {
+                                itemDesc = matched.name
+                                itemPriceText = if (matched.salePrice > 0) matched.salePrice.toString() else ""
+                                itemUnit = matched.unit
+                                itemHsn = matched.hsnCode
+                                itemGstRate = matched.gstRate
+                                showBarcodeScanDialog = false
+                            } else if (code.isNotBlank()) {
+                                itemDesc = code
+                                showBarcodeScanDialog = false
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Emerald800)
+                    ) {
+                        Text("Add to Form")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showBarcodeScanDialog = false }) {
                         Text("Cancel")
                     }
                 }

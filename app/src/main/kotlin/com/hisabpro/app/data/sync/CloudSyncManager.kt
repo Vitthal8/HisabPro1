@@ -21,6 +21,7 @@ import com.hisabpro.app.data.repository.BusinessManager
 import com.hisabpro.app.data.repository.InvoiceRepository
 import com.hisabpro.app.data.repository.ItemRepository
 import com.hisabpro.app.data.repository.PartyRepository
+import com.hisabpro.app.data.repository.PurchaseRepository
 import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.data.repository.TransactionRepository
 import kotlinx.coroutines.CoroutineScope
@@ -82,7 +83,22 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 )
                 if (session != null) {
                     try {
-                        performSync(isManual = false)
+                        val isUserSwitch = authManager.isDifferentUser(session)
+                        val lastUserId = authManager.getLastActiveUserId()
+                        val activeBiz = BusinessManager.getInstance(appContext).activeBusiness.value
+                        val hasMismatchedLocalData = lastUserId == null &&
+                            activeBiz.email.isNotBlank() &&
+                            !session.email.isNullOrBlank() &&
+                            !activeBiz.email.equals(session.email, ignoreCase = true)
+
+                        if (isUserSwitch || hasMismatchedLocalData) {
+                            android.util.Log.i("SYNC_USER_SWITCH", "User switch detected for ${session.userId} (${session.email}). Resetting local workspace.")
+                            handleUserSwitch(session)
+                        } else {
+                            authManager.setLastActiveUserId(session.userId)
+                            authManager.setLastActiveUserEmail(session.email)
+                            performSync(isManual = false)
+                        }
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
@@ -549,7 +565,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
             db.businessDao().insertOrUpdate(
                 BusinessEntity(
                     id = bizId,
-                    name = if (bizId == "default_business") "HisabPro Enterprises" else "Business ($bizId) [Restored]",
+                    name = if (bizId == "default_business") "Main Business" else "Business ($bizId) [Restored]",
                     financialYearStart = "01-04"
                 )
             )
@@ -612,7 +628,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 if (list.isNotEmpty()) {
                     db.businessDao().insertAllBusinesses(list)
                     if (businessProfiles.isNotEmpty()) {
-                        BusinessManager.getInstance(appContext).restoreBusinessesFromCloud(businessProfiles)
+                        BusinessManager.getInstance(appContext).restoreBusinessesFromCloud(businessProfiles, replaceLocal = true)
                     }
                 }
                 android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=businesses count=${list.size}")
@@ -873,6 +889,170 @@ class CloudSyncManager private constructor(private val appContext: Context) {
             else -> {
                 android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=$table count=${records.length()}")
             }
+        }
+    }
+
+    suspend fun clearAllLocalUserData() = withContext(Dispatchers.IO) {
+        syncMutex.withLock {
+            android.util.Log.i("USER_SWITCH", "Clearing all local user data from device")
+            db.withTransaction {
+                db.journalDao().deleteAllJournalLines()
+                db.journalDao().deleteAllJournalEntries()
+                db.invoiceDao().deleteAllInvoiceItems()
+                db.invoiceDao().deleteAllInvoices()
+                db.paymentDao().deleteAllPayments()
+                db.expenseDao().deleteAllExpenses()
+                db.khataDao().deleteAllEntries()
+                db.itemDao().deleteAllItems()
+                db.accountDao().deleteAllAccounts()
+                db.partyDao().deleteAllParties()
+                db.businessDao().deleteAllBusinesses()
+                db.syncQueueDao().clearAll()
+                db.syncOutboxDao().clearAll()
+                db.syncMetadataDao().clearAll()
+            }
+            wipeAllRepositoryCaches()
+            BusinessManager.getInstance(appContext).resetForNewUser(null)
+            SettingsRepository.getInstance(appContext).resetProfile(null)
+            InvoiceRepository.getInstance(appContext).clearLocalData()
+            PartyRepository.getInstance(appContext).clearLocalData()
+            ItemRepository.getInstance(appContext).clearLocalData()
+            TransactionRepository.getInstance(appContext).clearLocalData()
+            PurchaseRepository.getInstance(appContext).clearLocalData()
+            authManager.setLastActiveUserId(null)
+            authManager.setLastActiveUserEmail(null)
+            _syncState.value = _syncState.value.copy(
+                isSyncing = false,
+                lastSyncTimeMillis = 0L,
+                statusMessage = "Local data cleared",
+                lastError = null,
+                totalSyncedRecords = 0
+            )
+        }
+    }
+
+    suspend fun handleUserSwitch(newSession: UserSession) = withContext(Dispatchers.IO) {
+        syncMutex.withLock {
+            android.util.Log.i("USER_SWITCH", "User switch detected! Resetting device for new user: ${newSession.userId} (${newSession.email})")
+
+            // 1. Wipe all local database tables
+            db.withTransaction {
+                db.journalDao().deleteAllJournalLines()
+                db.journalDao().deleteAllJournalEntries()
+                db.invoiceDao().deleteAllInvoiceItems()
+                db.invoiceDao().deleteAllInvoices()
+                db.paymentDao().deleteAllPayments()
+                db.expenseDao().deleteAllExpenses()
+                db.khataDao().deleteAllEntries()
+                db.itemDao().deleteAllItems()
+                db.accountDao().deleteAllAccounts()
+                db.partyDao().deleteAllParties()
+                db.businessDao().deleteAllBusinesses()
+                db.syncQueueDao().clearAll()
+                db.syncOutboxDao().clearAll()
+                db.syncMetadataDao().clearAll()
+            }
+
+            // 2. Wipe repository caches and SharedPreferences
+            wipeAllRepositoryCaches()
+
+            // 3. Clear in-memory repositories
+            InvoiceRepository.getInstance(appContext).clearLocalData()
+            PartyRepository.getInstance(appContext).clearLocalData()
+            ItemRepository.getInstance(appContext).clearLocalData()
+            TransactionRepository.getInstance(appContext).clearLocalData()
+            PurchaseRepository.getInstance(appContext).clearLocalData()
+
+            // 4. Update tracked active user
+            authManager.setLastActiveUserId(newSession.userId)
+            authManager.setLastActiveUserEmail(newSession.email)
+
+            // 5. Check if user had a registered business name from signup
+            val pendingBizName = authManager.getPendingRegistrationBusinessName(newSession.email)
+
+            // 6. Reset BusinessManager and SettingsRepository
+            val initialProfile = if (!pendingBizName.isNullOrBlank()) {
+                BusinessProfile(
+                    shopName = pendingBizName,
+                    ownerName = newSession.email?.substringBefore("@") ?: "Owner",
+                    email = newSession.email ?: "",
+                    phone = newSession.phone ?: "",
+                    hasCompletedOnboarding = true
+                )
+            } else {
+                null
+            }
+
+            BusinessManager.getInstance(appContext).resetForNewUser(initialProfile)
+            SettingsRepository.getInstance(appContext).resetProfile(initialProfile)
+
+            // 7. Perform a fresh initial pull from Supabase for this new user
+            _syncState.value = _syncState.value.copy(
+                isSyncing = true,
+                statusMessage = "Loading user data from cloud...",
+                lastError = null
+            )
+
+            val pullResult = executePull(newSession)
+
+            // 8. If remote had NO businesses, and we had an initial profile from registration, add it and push it
+            val localBusinesses = db.businessDao().getAllBusinessesSync()
+            if (localBusinesses.isEmpty()) {
+                if (initialProfile != null) {
+                    BusinessManager.getInstance(appContext).addBusiness(initialProfile)
+                    authManager.clearPendingRegistrationBusinessName(newSession.email)
+                }
+            } else {
+                BusinessManager.getInstance(appContext).reloadFromRoom()
+            }
+
+            // 9. Reload repositories again after pulling remote records
+            InvoiceRepository.getInstance(appContext).reloadFromDatabase()
+            PartyRepository.getInstance(appContext).reloadFromDatabase()
+            ItemRepository.getInstance(appContext).reloadFromDatabase()
+            TransactionRepository.getInstance(appContext).reloadFromDatabase()
+            PurchaseRepository.getInstance(appContext).reloadFromDatabase()
+
+            _syncState.value = _syncState.value.copy(
+                isSyncing = false,
+                lastSyncTimeMillis = System.currentTimeMillis(),
+                statusMessage = if (pullResult.failureCount == 0) "User data loaded" else "Partially loaded (${pullResult.failureCount} errors)",
+                totalSyncedRecords = pullResult.totalPulled
+            )
+        }
+    }
+
+    private fun wipeAllRepositoryCaches() {
+        val knownPrefs = listOf(
+            "hisab_pro_multi_business_v1",
+            "hisab_pro_settings_v1",
+            "hisab_pro_invoices_default_business",
+            "hisab_pro_parties_default_business",
+            "hisab_pro_items_default_business",
+            "hisab_pro_transactions_default_business",
+            "hisab_pro_purchases_default_business"
+        )
+        for (prefName in knownPrefs) {
+            appContext.getSharedPreferences(prefName, Context.MODE_PRIVATE).edit().clear().apply()
+        }
+
+        try {
+            val prefsDir = java.io.File(appContext.applicationInfo.dataDir, "shared_prefs")
+            if (prefsDir.exists() && prefsDir.isDirectory) {
+                prefsDir.listFiles()?.forEach { file ->
+                    val name = file.name.removeSuffix(".xml")
+                    if (name.startsWith("hisab_pro_invoices_") ||
+                        name.startsWith("hisab_pro_parties_") ||
+                        name.startsWith("hisab_pro_items_") ||
+                        name.startsWith("hisab_pro_transactions_") ||
+                        name.startsWith("hisab_pro_purchases_")
+                    ) {
+                        appContext.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().apply()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

@@ -39,6 +39,10 @@ class PurchaseRepository(private val context: Context) {
         }
     }
 
+    fun reloadFromDatabase() {
+        loadData()
+    }
+
     private fun loadData() {
         val json = prefs.getString(KEY_PURCHASES, null)
         if (json.isNullOrBlank()) {
@@ -98,6 +102,11 @@ class PurchaseRepository(private val context: Context) {
                 saveInternal(initial)
             }
         }
+    }
+
+    fun clearLocalData() {
+        prefs.edit().clear().apply()
+        _purchases.value = emptyList()
     }
 
     private fun saveInternal(list: List<PurchaseBill>) {

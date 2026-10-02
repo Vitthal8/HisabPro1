@@ -109,7 +109,7 @@ object DayBookCalculator {
         }
 
         for (inv in dayInvoices) {
-            val isUpiOrBank = isPaymentBankOrUpi(inv.notes, inv.notes)
+            val isUpiOrBank = isPaymentBankOrUpi(inv.paymentMode, inv.notes)
             val modeStr = if (isUpiOrBank) "Bank/UPI" else "Cash"
             val amt = AccountingEngine.roundToTwoDecimals(inv.grandTotal)
 

@@ -46,8 +46,15 @@ class SettingsRepository(context: Context) {
     private fun loadProfile() {
         val json = prefs.getString(KEY_PROFILE, null)
         if (json.isNullOrBlank()) {
-            val defaultProfile = BusinessProfile()
-            saveProfile(defaultProfile)
+            val uninitialized = BusinessProfile(
+                id = "default_business",
+                shopName = "",
+                ownerName = "",
+                phone = "",
+                email = "",
+                hasCompletedOnboarding = false
+            )
+            _sharedProfile.value = uninitialized
         } else {
             try {
                 val obj = JSONObject(json)
@@ -67,29 +74,29 @@ class SettingsRepository(context: Context) {
                         }
                     }
                 }
-                val primaryBank = obj.optString("bankName", "Yes Bank")
-                val primaryAcc = obj.optString("accountNumber", "041990200007430")
-                val primaryIfsc = obj.optString("ifscCode", "YESB0000740")
-                if (loadedBankAccounts.isEmpty()) {
+                val primaryBank = obj.optString("bankName", "")
+                val primaryAcc = obj.optString("accountNumber", "")
+                val primaryIfsc = obj.optString("ifscCode", "")
+                if (loadedBankAccounts.isEmpty() && primaryBank.isNotBlank()) {
                     loadedBankAccounts.add(BankDetails(primaryBank, primaryAcc, primaryIfsc))
                 }
 
                 val loaded = BusinessProfile(
-                    shopName = obj.optString("shopName", "HisabPro Enterprises"),
-                    ownerName = obj.optString("ownerName", "Vittal Mali"),
-                    phone = obj.optString("phone", "+91 79773 34282"),
-                    email = obj.optString("email", "hisabpro@business.in"),
+                    shopName = obj.optString("shopName", ""),
+                    ownerName = obj.optString("ownerName", ""),
+                    phone = obj.optString("phone", ""),
+                    email = obj.optString("email", ""),
                     isGstRegistered = obj.optBoolean("isGstRegistered", false),
                     gstin = obj.optString("gstin", ""),
                     pan = obj.optString("pan", ""),
                     isCompositionScheme = obj.optBoolean("isCompositionScheme", false),
                     compositionType = obj.optString("compositionType", "TRADER"),
-                    address = obj.optString("address", "Shop No. 12, Market Yard Main Road"),
+                    address = obj.optString("address", ""),
                     city = obj.optString("city", "Pune"),
                     state = obj.optString("state", "Maharashtra"),
                     stateCode = obj.optString("stateCode", "27"),
-                    pincode = obj.optString("pincode", "411037"),
-                    upiId = obj.optString("upiId", "vittal@okhdfcbank"),
+                    pincode = obj.optString("pincode", ""),
+                    upiId = obj.optString("upiId", ""),
                     bankName = primaryBank,
                     accountNumber = primaryAcc,
                     ifscCode = primaryIfsc,
@@ -106,13 +113,30 @@ class SettingsRepository(context: Context) {
                     appLanguage = obj.optString("appLanguage", "en"),
                     isDarkMode = obj.optBoolean("isDarkMode", false),
                     themeAccent = obj.optString("themeAccent", "Saffron"),
-                    hasCompletedOnboarding = obj.optBoolean("hasCompletedOnboarding", true)
+                    hasCompletedOnboarding = obj.optBoolean("hasCompletedOnboarding", false)
                 )
                 _sharedProfile.value = loaded
             } catch (e: Exception) {
                 e.printStackTrace()
                 _sharedProfile.value = BusinessProfile()
             }
+        }
+    }
+
+    fun resetProfile(newProfile: BusinessProfile? = null) {
+        prefs.edit().remove(KEY_PROFILE).apply()
+        val target = newProfile ?: BusinessProfile(
+            id = "default_business",
+            shopName = "",
+            ownerName = "",
+            phone = "",
+            email = "",
+            hasCompletedOnboarding = false
+        )
+        if (newProfile != null && newProfile.shopName.isNotBlank()) {
+            saveProfile(newProfile)
+        } else {
+            _sharedProfile.value = target
         }
     }
 

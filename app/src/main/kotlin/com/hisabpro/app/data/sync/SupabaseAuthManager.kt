@@ -38,6 +38,9 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
     private val prefs: SharedPreferences =
         appContext.getSharedPreferences("hisabpro_supabase_auth_v1", Context.MODE_PRIVATE)
 
+    private val sessionPrefs: SharedPreferences =
+        appContext.getSharedPreferences("hisabpro_user_session_v1", Context.MODE_PRIVATE)
+
     private val _authState = MutableStateFlow<AuthState>(AuthState.Unauthenticated)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
@@ -54,6 +57,47 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
                 INSTANCE ?: SupabaseAuthManager(context.applicationContext).also { INSTANCE = it }
             }
         }
+    }
+
+    fun getLastActiveUserId(): String? = sessionPrefs.getString("last_active_user_id", null)
+
+    fun setLastActiveUserId(userId: String?) {
+        if (userId == null) sessionPrefs.edit().remove("last_active_user_id").apply()
+        else sessionPrefs.edit().putString("last_active_user_id", userId).apply()
+    }
+
+    fun getLastActiveUserEmail(): String? = sessionPrefs.getString("last_active_user_email", null)
+
+    fun setLastActiveUserEmail(email: String?) {
+        if (email == null) sessionPrefs.edit().remove("last_active_user_email").apply()
+        else sessionPrefs.edit().putString("last_active_user_email", email).apply()
+    }
+
+    fun getPendingRegistrationBusinessName(email: String?): String? {
+        if (email.isNullOrBlank()) return null
+        return sessionPrefs.getString("pending_biz_${email.trim().lowercase()}", null)
+    }
+
+    fun setPendingRegistrationBusinessName(email: String, bizName: String) {
+        sessionPrefs.edit().putString("pending_biz_${email.trim().lowercase()}", bizName.trim()).apply()
+    }
+
+    fun clearPendingRegistrationBusinessName(email: String?) {
+        if (!email.isNullOrBlank()) {
+            sessionPrefs.edit().remove("pending_biz_${email.trim().lowercase()}").apply()
+        }
+    }
+
+    fun isDifferentUser(session: UserSession): Boolean {
+        val lastUserId = getLastActiveUserId()
+        if (lastUserId != null && lastUserId != session.userId) {
+            return true
+        }
+        val lastEmail = getLastActiveUserEmail()
+        if (lastEmail != null && !session.email.isNullOrBlank() && !lastEmail.equals(session.email, ignoreCase = true)) {
+            return true
+        }
+        return false
     }
 
     private fun loadSavedSession() {
@@ -319,8 +363,11 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
         }
     }
 
-    fun signOut() {
+    fun signOut(clearDeviceData: Boolean = false) {
         prefs.edit().clear().apply()
+        if (clearDeviceData) {
+            sessionPrefs.edit().clear().apply()
+        }
         _authState.value = AuthState.Unauthenticated
     }
 

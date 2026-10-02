@@ -122,6 +122,11 @@ class TransactionRepository(private val context: Context) {
         }
     }
 
+    fun clearLocalData() {
+        prefs.edit().clear().apply()
+        _transactions.value = emptyList()
+    }
+
     suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
             val payments = db.paymentDao().getAllPaymentsSync(targetBizId)

@@ -513,4 +513,156 @@ object ThermalSlipGenerator {
         val spaces = width - totalLen
         return left + " ".repeat(spaces) + right
     }
+
+    /**
+     * Generates raw ESC/POS binary byte stream for direct printing via Bluetooth / USB thermal receipt printers.
+     * Supports:
+     * - ESC @ (0x1B, 0x40): Initialize printer
+     * - ESC a n (0x1B, 0x61, n): Text alignment (0=Left, 1=Center, 2=Right)
+     * - GS ! n (0x1D, 0x21, n): Double width & height for headers
+     * - ESC E n (0x1B, 0x45, n): Bold text
+     * - ESC p (0x1B, 0x70, 0, 25, 250): Kick drawer pulse
+     * - GS V (0x1D, 0x56, 65, 0): Paper cut
+     */
+    fun generateEscPosBytes(
+        invoice: Invoice,
+        profile: BusinessProfile,
+        widthChars: Int = 32,
+        kickDrawer: Boolean = false,
+        cutPaper: Boolean = true
+    ): ByteArray {
+        val stream = java.io.ByteArrayOutputStream()
+
+        fun writeBytes(vararg bytes: Byte) {
+            stream.write(bytes)
+        }
+
+        fun writeString(str: String) {
+            stream.write(str.toByteArray(java.nio.charset.Charset.forName("ISO-8859-1")))
+        }
+
+        fun writeLine(str: String = "") {
+            writeString(str + "\n")
+        }
+
+        // 1. Initialize printer
+        writeBytes(0x1B, 0x40)
+
+        // Kick drawer if requested
+        if (kickDrawer) {
+            writeBytes(0x1B, 0x70, 0x00, 0x19, 0xFA.toByte())
+        }
+
+        val lineDiv = "-".repeat(widthChars)
+        val doubleDiv = "=".repeat(widthChars)
+
+        // Store Header (Centered, Double Height/Width)
+        writeBytes(0x1B, 0x61, 0x01) // Center
+        writeBytes(0x1D, 0x21, 0x11) // Double size
+        writeBytes(0x1B, 0x45, 0x01) // Bold on
+        val shop = profile.shopName.ifBlank { "HISABPRO STORE" }
+        writeLine(shop.take(widthChars / 2).uppercase())
+
+        writeBytes(0x1D, 0x21, 0x00) // Normal size
+        writeBytes(0x1B, 0x45, 0x00) // Bold off
+
+        if (profile.address.isNotBlank()) writeLine(profile.address)
+        if (profile.phone.isNotBlank()) writeLine("Ph: ${profile.phone}")
+        if (profile.gstin.isNotBlank()) writeLine("GSTIN: ${profile.gstin.uppercase()}")
+
+        writeLine(doubleDiv)
+
+        val title = when (invoice.type) {
+            InvoiceType.TAX_INVOICE -> "TAX INVOICE"
+            InvoiceType.NON_GST_BILL -> "RETAIL BILL / CASH SLIP"
+            InvoiceType.PROFORMA -> "QUOTATION / ESTIMATE"
+        }
+        writeBytes(0x1B, 0x45, 0x01) // Bold on
+        writeLine(title)
+        writeBytes(0x1B, 0x45, 0x00) // Bold off
+        writeLine(lineDiv)
+
+        // Left align metadata
+        writeBytes(0x1B, 0x61, 0x00)
+        writeLine(leftRightText("Bill No: ${invoice.invoiceNumber}", "", widthChars))
+        writeLine(leftRightText("Date: ${dateFormat.format(Date(invoice.dateMillis))}", "", widthChars))
+        if (invoice.customerName.isNotBlank() && invoice.customerName != "Cash Customer") {
+            writeLine(leftRightText("Customer: ${invoice.customerName}", "", widthChars))
+        }
+        if (invoice.customerPhone.isNotBlank()) {
+            writeLine(leftRightText("Phone: ${invoice.customerPhone}", "", widthChars))
+        }
+        writeLine(lineDiv)
+
+        // Line Items
+        writeBytes(0x1B, 0x45, 0x01) // Bold on
+        writeLine(leftRightText("Item / Description", "Amount", widthChars))
+        writeBytes(0x1B, 0x45, 0x00) // Bold off
+        writeLine(lineDiv)
+
+        invoice.items.forEachIndexed { i, item ->
+            val desc = "${i + 1}. ${item.description}"
+            val itemTotal = String.format(Locale.ENGLISH, "%.2f", item.getTotal(invoice.gstMode))
+            writeLine(leftRightText(desc, itemTotal, widthChars))
+            val detail = "   ${item.quantity} ${item.unit} @ ${String.format(Locale.ENGLISH, "%.2f", item.unitPrice)}"
+            val tax = if (invoice.gstMode != GstMode.EXEMPT && item.gstRate > 0) " (${item.gstRate.toInt()}% GST)" else ""
+            writeLine(detail + tax)
+        }
+
+        writeLine(lineDiv)
+
+        // Totals
+        writeLine(leftRightText("Sub Total:", "Rs ${String.format(Locale.ENGLISH, "%.2f", invoice.subtotal)}", widthChars))
+        if (invoice.discountAmount > 0) {
+            writeLine(leftRightText("Discount:", "-Rs ${String.format(Locale.ENGLISH, "%.2f", invoice.discountAmount)}", widthChars))
+        }
+        if (invoice.gstMode != GstMode.EXEMPT && (invoice.cgstTotal > 0 || invoice.igstTotal > 0)) {
+            if (invoice.gstMode == GstMode.INTRA_STATE) {
+                writeLine(leftRightText("CGST:", "+Rs ${String.format(Locale.ENGLISH, "%.2f", invoice.cgstTotal)}", widthChars))
+                writeLine(leftRightText("SGST:", "+Rs ${String.format(Locale.ENGLISH, "%.2f", invoice.sgstTotal)}", widthChars))
+            } else {
+                writeLine(leftRightText("IGST:", "+Rs ${String.format(Locale.ENGLISH, "%.2f", invoice.igstTotal)}", widthChars))
+            }
+        }
+
+        writeLine(doubleDiv)
+
+        // Grand Total (Bold, Double height)
+        writeBytes(0x1B, 0x45, 0x01) // Bold on
+        writeBytes(0x1D, 0x21, 0x01) // Double height
+        writeLine(leftRightText("GRAND TOTAL:", "Rs ${String.format(Locale.ENGLISH, "%.2f", invoice.grandTotal)}", widthChars))
+        writeBytes(0x1D, 0x21, 0x00) // Normal size
+        writeBytes(0x1B, 0x45, 0x00) // Bold off
+        writeLine(doubleDiv)
+
+        writeLine(leftRightText("Paid (${invoice.paymentMode}):", "Rs ${String.format(Locale.ENGLISH, "%.2f", invoice.paidAmount)}", widthChars))
+        if (invoice.dueAmount > 0.01) {
+            writeBytes(0x1B, 0x45, 0x01)
+            writeLine(leftRightText("BALANCE DUE:", "Rs ${String.format(Locale.ENGLISH, "%.2f", invoice.dueAmount)}", widthChars))
+            writeBytes(0x1B, 0x45, 0x00)
+        } else {
+            writeLine(leftRightText("STATUS:", "PAID IN FULL", widthChars))
+        }
+
+        // UPI footer
+        if (profile.upiId.isNotBlank() && invoice.dueAmount > 0.01) {
+            writeLine(lineDiv)
+            writeBytes(0x1B, 0x61, 0x01) // Center
+            writeLine("SCAN & PAY VIA UPI")
+            writeLine("UPI ID: ${profile.upiId}")
+        }
+
+        writeLine(lineDiv)
+        writeBytes(0x1B, 0x61, 0x01) // Center
+        writeLine("THANK YOU! VISIT AGAIN")
+        writeLine("*** POWERED BY HISABPRO ***")
+        writeLine("\n\n\n")
+
+        // Cut paper command
+        if (cutPaper) {
+            writeBytes(0x1D, 0x56, 0x41, 0x10) // Full cut with feed
+        }
+
+        return stream.toByteArray()
+    }
 }

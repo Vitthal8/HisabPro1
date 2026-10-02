@@ -91,10 +91,15 @@ class CloudSyncViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun signOut() {
-        authManager.signOut()
-        _otpSent.value = false
-        _authError.value = null
+    fun signOut(clearLocalData: Boolean = false) {
+        viewModelScope.launch {
+            if (clearLocalData) {
+                syncManager.clearAllLocalUserData()
+            }
+            authManager.signOut(clearDeviceData = clearLocalData)
+            _otpSent.value = false
+            _authError.value = null
+        }
     }
 
     fun clearError() {

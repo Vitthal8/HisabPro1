@@ -636,6 +636,12 @@ class ItemRepository(private val context: Context) {
         }
     }
 
+    fun clearLocalData() {
+        prefs.edit().clear().apply()
+        _items.value = emptyList()
+        _stockHistory.value = emptyList()
+    }
+
     suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
             val dbItems = db.itemDao().getAllItemsSync(targetBizId)

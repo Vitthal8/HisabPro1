@@ -52,6 +52,12 @@ class PartyRepository(private val context: Context) {
         }
     }
 
+    fun clearLocalData() {
+        prefs.edit().clear().apply()
+        _parties.value = emptyList()
+        _entries.value = emptyList()
+    }
+
     suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
             val dbParties = db.partyDao().getAllPartiesSync(targetBizId)

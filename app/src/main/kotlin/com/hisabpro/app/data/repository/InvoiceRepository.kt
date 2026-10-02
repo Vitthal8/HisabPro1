@@ -174,6 +174,11 @@ class InvoiceRepository(private val context: Context) {
         }
     }
 
+    fun clearLocalData() {
+        prefs.edit().clear().apply()
+        _invoices.value = emptyList()
+    }
+
     suspend fun reloadFromDatabase(targetBizId: String = activeBizId) {
         try {
             val dbInvoices = db.invoiceDao().getAllInvoicesSync(targetBizId)

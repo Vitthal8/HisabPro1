@@ -67,7 +67,7 @@ object CashBookCalculator {
         for (inv in invoices) {
             if (inv.type == InvoiceType.PROFORMA) continue
             if (inv.paidAmount > 0.009) {
-                val isBank = isPaymentBankOrUpi(inv.notes, inv.notes)
+                val isBank = isPaymentBankOrUpi(inv.paymentMode, inv.notes)
                 if (isBank == isBankMode) {
                     val rowDate = inv.dateMillis
                     rawRows.add(

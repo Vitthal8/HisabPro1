@@ -230,6 +230,7 @@ class InvoiceRepository(private val context: Context) {
             if (targetBizId == activeBizId) {
                 _invoices.value = reloaded.sortedByDescending { it.dateMillis }
             }
+            android.util.Log.i("CloudSyncManager", "REPOSITORY_RELOAD table=invoices count=${reloaded.size} businessId=$targetBizId")
             saveInternal(reloaded, syncAllRoom = false)
         } catch (e: Exception) {
             e.printStackTrace()

@@ -658,6 +658,7 @@ class ItemRepository(private val context: Context) {
             if (targetBizId == activeBizId) {
                 _items.value = itemsList
             }
+            android.util.Log.i("CloudSyncManager", "REPOSITORY_RELOAD table=items count=${itemsList.size} businessId=$targetBizId")
             val array = JSONArray()
             for (item in itemsList) {
                 val obj = JSONObject().apply {

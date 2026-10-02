@@ -162,6 +162,7 @@ class TransactionRepository(private val context: Context) {
             if (targetBizId == activeBizId) {
                 _transactions.value = sorted
             }
+            android.util.Log.i("CloudSyncManager", "REPOSITORY_RELOAD table=transactions count=${sorted.size} businessId=$targetBizId")
             saveTransactions(sorted, syncAllRoom = false)
         } catch (e: Exception) {
             e.printStackTrace()

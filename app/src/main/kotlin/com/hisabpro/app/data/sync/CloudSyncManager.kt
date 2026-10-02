@@ -296,12 +296,13 @@ class CloudSyncManager private constructor(private val appContext: Context) {
             val metadata = db.syncMetadataDao().getMetadata(table)
             val lastPulled = metadata?.lastPulledAt ?: 0L
 
+            android.util.Log.i("CloudSyncManager", "SYNC_PULL_START table=$table")
             val result = apiClient.fetchDelta(table, session.accessToken, lastPulled)
             if (result.isSuccess) {
                 val records = result.getOrThrow()
                 successCount++
                 tableStatuses[table] = "200 (${records.length()} records)"
-                android.util.Log.i("CloudSyncManager", "PULL SUCCESS table=$table records=${records.length()}")
+                android.util.Log.i("CloudSyncManager", "SYNC_PULL_RESULT table=$table count=${records.length()}")
                 if (records.length() > 0) {
                     db.withTransaction {
                         applyRemoteRecords(table, records)
@@ -321,11 +322,25 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val ex = result.exceptionOrNull()
                 val errMsg = ex?.localizedMessage ?: "Unknown error"
                 tableStatuses[table] = "ERROR: $errMsg"
-                android.util.Log.e("CloudSyncManager", "PULL FAILURE table=$table error=$errMsg")
+                android.util.Log.e("CloudSyncManager", "SYNC_PULL_ERROR table=$table error=$errMsg")
             }
         }
 
         return PullResultSummary(totalPulled, successCount, failureCount, tableStatuses)
+    }
+
+    private suspend fun ensureParentBusinessExists(bizId: String) {
+        if (bizId.isBlank()) return
+        val existing = db.businessDao().getBusinessSync(bizId)
+        if (existing == null) {
+            db.businessDao().insertOrUpdate(
+                BusinessEntity(
+                    id = bizId,
+                    name = if (bizId == "default_business") "HisabPro Enterprises" else "Business ($bizId) [Restored]",
+                    financialYearStart = "01-04"
+                )
+            )
+        }
     }
 
     private suspend fun applyRemoteRecords(table: String, records: JSONArray) {
@@ -386,12 +401,14 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                         BusinessManager.getInstance(appContext).restoreBusinessesFromCloud(businessProfiles)
                     }
                 }
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=businesses count=${list.size}")
             }
             "parties" -> {
                 val list = mutableListOf<PartyEntity>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
                     val rawBiz = obj.optString("business_id", obj.optString("businessId", "default_business")).ifBlank { "default_business" }
+                    ensureParentBusinessExists(rawBiz)
                     list.add(
                         PartyEntity(
                             id = obj.getString("id"),
@@ -411,12 +428,14 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     )
                 }
                 if (list.isNotEmpty()) db.partyDao().insertAllParties(list)
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=parties count=${list.size}")
             }
             "items" -> {
                 val list = mutableListOf<ItemEntity>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
                     val rawBiz = obj.optString("business_id", obj.optString("businessId", "default_business")).ifBlank { "default_business" }
+                    ensureParentBusinessExists(rawBiz)
                     list.add(
                         ItemEntity(
                             id = obj.getString("id"),
@@ -438,19 +457,23 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     )
                 }
                 if (list.isNotEmpty()) db.itemDao().insertAllItems(list)
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=items count=${list.size}")
             }
             "invoices" -> {
                 val list = mutableListOf<InvoiceEntity>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
                     val rawBiz = obj.optString("business_id", obj.optString("businessId", "default_business")).ifBlank { "default_business" }
+                    ensureParentBusinessExists(rawBiz)
+                    val rawPartyId = obj.optString("party_id", "").ifBlank { null }
+                    val safePartyId = if (rawPartyId != null && db.partyDao().getPartyByIdSync(rawPartyId) != null) rawPartyId else null
                     list.add(
                         InvoiceEntity(
                             id = obj.getString("id"),
                             businessId = rawBiz,
                             invoiceNo = obj.getString("invoice_no"),
                             date = obj.optLong("date", System.currentTimeMillis()),
-                            partyId = obj.optString("party_id", "").ifBlank { null },
+                            partyId = safePartyId,
                             customerName = obj.optString("customer_name", ""),
                             customerPhone = obj.optString("customer_phone", ""),
                             customerAddress = obj.optString("customer_address", ""),
@@ -476,32 +499,39 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     )
                 }
                 if (list.isNotEmpty()) db.invoiceDao().insertAllInvoices(list)
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=invoices count=${list.size}")
             }
             "invoice_items" -> {
                 val list = mutableListOf<InvoiceItemEntity>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    list.add(
-                        InvoiceItemEntity(
-                            id = obj.getString("id"),
-                            invoiceId = obj.getString("invoice_id"),
-                            itemId = obj.optString("item_id", "").ifBlank { null },
-                            itemName = obj.optString("item_name", obj.optString("description", "")),
-                            hsnCode = obj.optString("hsn_code", ""),
-                            qty = obj.optDouble("qty", obj.optDouble("quantity", 1.0)),
-                            unit = obj.optString("unit", "Pcs"),
-                            rate = obj.optLong("rate", 0L),
-                            discount = obj.optLong("discount", 0L),
-                            cgstRate = obj.optDouble("cgst_rate", 0.0),
-                            sgstRate = obj.optDouble("sgst_rate", 0.0),
-                            igstRate = obj.optDouble("igst_rate", 0.0),
-                            amount = obj.optLong("amount", 0L),
-                            deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at"),
-                            syncedAt = System.currentTimeMillis()
+                    val invId = obj.getString("invoice_id")
+                    if (db.invoiceDao().getInvoiceByIdSync(invId) != null) {
+                        val rawItemId = obj.optString("item_id", "").ifBlank { null }
+                        val safeItemId = if (rawItemId != null && db.itemDao().getItemByIdSync(rawItemId) != null) rawItemId else null
+                        list.add(
+                            InvoiceItemEntity(
+                                id = obj.getString("id"),
+                                invoiceId = invId,
+                                itemId = safeItemId,
+                                itemName = obj.optString("item_name", obj.optString("description", "")),
+                                hsnCode = obj.optString("hsn_code", ""),
+                                qty = obj.optDouble("qty", obj.optDouble("quantity", 1.0)),
+                                unit = obj.optString("unit", "Pcs"),
+                                rate = obj.optLong("rate", 0L),
+                                discount = obj.optLong("discount", 0L),
+                                cgstRate = obj.optDouble("cgst_rate", 0.0),
+                                sgstRate = obj.optDouble("sgst_rate", 0.0),
+                                igstRate = obj.optDouble("igst_rate", 0.0),
+                                amount = obj.optLong("amount", 0L),
+                                deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at"),
+                                syncedAt = System.currentTimeMillis()
+                            )
                         )
-                    )
+                    }
                 }
                 if (list.isNotEmpty()) db.invoiceDao().insertInvoiceItems(list)
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=invoice_items count=${list.size}")
             }
             "payments" -> {
                 val list = mutableListOf<PaymentEntity>()
@@ -525,6 +555,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     )
                 }
                 if (list.isNotEmpty()) db.paymentDao().insertAllPayments(list)
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=payments count=${list.size}")
             }
             "expenses" -> {
                 val list = mutableListOf<ExpenseEntity>()
@@ -547,6 +578,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     )
                 }
                 if (list.isNotEmpty()) db.expenseDao().insertAllExpenses(list)
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=expenses count=${list.size}")
             }
             "khata_entries" -> {
                 val list = mutableListOf<KhataEntryEntity>()
@@ -568,6 +600,10 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     )
                 }
                 if (list.isNotEmpty()) db.khataDao().insertAllEntries(list)
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=khata_entries count=${list.size}")
+            }
+            else -> {
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=$table count=${records.length()}")
             }
         }
     }

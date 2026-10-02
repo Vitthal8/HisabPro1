@@ -92,6 +92,7 @@ class PartyRepository(private val context: Context) {
                 _parties.value = partiesList
                 _entries.value = entriesList
             }
+            android.util.Log.i("CloudSyncManager", "REPOSITORY_RELOAD table=parties count=${partiesList.size} businessId=$targetBizId")
         } catch (e: Exception) {
             e.printStackTrace()
         }

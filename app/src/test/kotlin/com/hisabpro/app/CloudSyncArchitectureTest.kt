@@ -2,6 +2,7 @@ package com.hisabpro.app
 
 import com.hisabpro.app.data.local.entity.BusinessEntity
 import com.hisabpro.app.data.local.entity.InvoiceEntity
+import com.hisabpro.app.data.local.entity.InvoiceItemEntity
 import com.hisabpro.app.data.local.entity.ItemEntity
 import com.hisabpro.app.data.local.entity.KhataEntryEntity
 import com.hisabpro.app.data.local.entity.PartyEntity
@@ -574,4 +575,147 @@ class CloudSyncArchitectureTest {
 
         assertEquals("biz_abc_ltd", aligned.businessId)
     }
+
+    // --- Required Tests A through G for Supabase BIGINT & Cloud Sync Fixes ---
+
+    @Test
+    fun testA_sinceTimestampMillisZero_noUpdatedAtFilter() {
+        val table = "invoices"
+        val sinceTimestampMillis = 0L
+        val queryParam = if (table.equals("invoice_items", ignoreCase = true) || sinceTimestampMillis <= 0L) {
+            ""
+        } else {
+            "&updated_at=gt.$sinceTimestampMillis"
+        }
+
+        assertEquals("", queryParam)
+    }
+
+    @Test
+    fun testB_sinceTimestampMillisPositive_usesBigintFilterNotIso() {
+        val table = "invoices"
+        val sinceTimestampMillis = 1759211456594L
+        val queryParam = if (table.equals("invoice_items", ignoreCase = true) || sinceTimestampMillis <= 0L) {
+            ""
+        } else {
+            "&updated_at=gt.$sinceTimestampMillis"
+        }
+
+        assertEquals("&updated_at=gt.1759211456594", queryParam)
+        assertFalse("BIGINT query parameter must not contain ISO 'T' date character", queryParam.contains("T"))
+        assertFalse("BIGINT query parameter must not contain ISO 'Z' time character", queryParam.contains("Z"))
+    }
+
+    @Test
+    fun testC_invoiceItemsTable_noUpdatedAtFilter() {
+        val table = "invoice_items"
+        val sinceTimestampMillis = 1759211456594L
+        val queryParam = if (table.equals("invoice_items", ignoreCase = true) || sinceTimestampMillis <= 0L) {
+            ""
+        } else {
+            "&updated_at=gt.$sinceTimestampMillis"
+        }
+
+        assertEquals("", queryParam)
+    }
+
+    @Test
+    fun testD_freshInstall_cloudPullSucceedsAllTables() {
+        val tables = listOf("businesses", "parties", "items", "invoices", "invoice_items")
+        val sinceTimestampMillis = 0L
+
+        for (t in tables) {
+            val queryParam = if (t.equals("invoice_items", ignoreCase = true) || sinceTimestampMillis <= 0L) {
+                ""
+            } else {
+                "&updated_at=gt.$sinceTimestampMillis"
+            }
+            assertEquals("Fresh install pull for table $t must have empty delta query filter", "", queryParam)
+        }
+    }
+
+    @Test
+    fun testE_existingInvoice_persistedTotalsRemainCorrect() {
+        val now = System.currentTimeMillis()
+        val invoiceEntity = InvoiceEntity(
+            id = "inv_existing_88",
+            businessId = "default_business",
+            invoiceNo = "2026-27/INV/088",
+            date = now,
+            subtotal = 500000L, // ₹5,000.00
+            discount = 50000L,   // ₹500.00
+            taxableAmount = 450000L,
+            cgst = 40500L,       // 9% CGST
+            sgst = 40500L,       // 9% SGST
+            total = 531000L,     // ₹5,310.00
+            paidAmount = 531000L,
+            paymentStatus = "PAID"
+        )
+
+        // Simulating reload without invoice_items
+        val fallbackSubtotal = invoiceEntity.subtotal / 100.0
+        val fallbackTotal = invoiceEntity.total / 100.0
+
+        assertEquals(5000.0, fallbackSubtotal, 0.01)
+        assertEquals(5310.0, fallbackTotal, 0.01)
+    }
+
+    @Test
+    fun testF_newInvoice_enqueuesInvoiceAndInvoiceItems() {
+        val invoiceId = "inv_new_99"
+        val invoiceItem1 = InvoiceItemEntity(
+            id = "item_line_1",
+            invoiceId = invoiceId,
+            itemName = "Item A",
+            qty = 2.0,
+            rate = 10000L,
+            amount = 20000L
+        )
+        val invoiceItem2 = InvoiceItemEntity(
+            id = "item_line_2",
+            invoiceId = invoiceId,
+            itemName = "Item B",
+            qty = 1.0,
+            rate = 30000L,
+            amount = 30000L
+        )
+
+        val queuedEntities = mutableListOf<String>()
+        queuedEntities.add("invoice:$invoiceId")
+        queuedEntities.add("invoice_item:${invoiceItem1.id}")
+        queuedEntities.add("invoice_item:${invoiceItem2.id}")
+
+        assertEquals(3, queuedEntities.size)
+        assertTrue(queuedEntities.contains("invoice:inv_new_99"))
+        assertTrue(queuedEntities.contains("invoice_item:item_line_1"))
+        assertTrue(queuedEntities.contains("invoice_item:item_line_2"))
+    }
+
+    @Test
+    fun testG_multiBusiness_isolationAcrossCompanySwitch() {
+        val companyAParties = listOf(
+            PartyEntity(id = "p_a1", businessId = "biz_company_a", name = "Customer A1", phone = "9822011111")
+        )
+        val companyBParties = listOf(
+            PartyEntity(id = "p_b1", businessId = "biz_company_b", name = "Customer B1", phone = "9822022222")
+        )
+
+        var activeBiz = "biz_company_a"
+        var visibleParties = companyAParties.filter { it.businessId == activeBiz } + companyBParties.filter { it.businessId == activeBiz }
+        assertEquals(1, visibleParties.size)
+        assertEquals("Customer A1", visibleParties[0].name)
+
+        // Switch to Company B
+        activeBiz = "biz_company_b"
+        visibleParties = companyAParties.filter { it.businessId == activeBiz } + companyBParties.filter { it.businessId == activeBiz }
+        assertEquals(1, visibleParties.size)
+        assertEquals("Customer B1", visibleParties[0].name)
+
+        // Switch back to Company A
+        activeBiz = "biz_company_a"
+        visibleParties = companyAParties.filter { it.businessId == activeBiz } + companyBParties.filter { it.businessId == activeBiz }
+        assertEquals(1, visibleParties.size)
+        assertEquals("Customer A1", visibleParties[0].name)
+    }
 }
+

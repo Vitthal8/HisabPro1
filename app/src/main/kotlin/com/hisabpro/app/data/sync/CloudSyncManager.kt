@@ -310,19 +310,31 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     totalPulled += records.length()
                 }
 
+                val newPulledAt = System.currentTimeMillis()
                 db.syncMetadataDao().insertOrUpdate(
                     SyncMetadataEntity(
                         tableName = table,
-                        lastPulledAt = System.currentTimeMillis(),
+                        lastPulledAt = newPulledAt,
                         lastSyncStatus = "SUCCESS"
                     )
                 )
+                android.util.Log.i("CloudSyncManager", "SYNC_METADATA table=$table lastPulledAt=$newPulledAt status=SUCCESS")
             } else {
                 failureCount++
                 val ex = result.exceptionOrNull()
                 val errMsg = ex?.localizedMessage ?: "Unknown error"
                 tableStatuses[table] = "ERROR: $errMsg"
                 android.util.Log.e("CloudSyncManager", "SYNC_PULL_ERROR table=$table error=$errMsg")
+
+                db.syncMetadataDao().insertOrUpdate(
+                    SyncMetadataEntity(
+                        tableName = table,
+                        lastPulledAt = lastPulled,
+                        lastSyncStatus = "FAILED",
+                        errorMessage = errMsg
+                    )
+                )
+                android.util.Log.i("CloudSyncManager", "SYNC_METADATA table=$table lastPulledAt=$lastPulled status=FAILED")
             }
         }
 
@@ -405,108 +417,138 @@ class CloudSyncManager private constructor(private val appContext: Context) {
             }
             "parties" -> {
                 val list = mutableListOf<PartyEntity>()
+                val deletedIds = mutableListOf<String>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
                     val rawBiz = obj.optString("business_id", obj.optString("businessId", "default_business")).ifBlank { "default_business" }
                     ensureParentBusinessExists(rawBiz)
-                    list.add(
-                        PartyEntity(
-                            id = obj.getString("id"),
-                            businessId = rawBiz,
-                            name = obj.getString("name"),
-                            phone = obj.optString("phone", ""),
-                            email = obj.optString("email", ""),
-                            address = obj.optString("address", ""),
-                            gstin = obj.optString("gstin", ""),
-                            type = obj.optString("type", "CUSTOMER"),
-                            tag = obj.optString("tag", "REGULAR"),
-                            openingBalance = obj.optLong("opening_balance", 0L),
-                            createdAt = obj.optLong("created_at", System.currentTimeMillis()),
-                            updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
-                            deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
-                        )
+                    val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
+                    val entity = PartyEntity(
+                        id = obj.getString("id"),
+                        businessId = rawBiz,
+                        name = obj.getString("name"),
+                        phone = obj.optString("phone", ""),
+                        email = obj.optString("email", ""),
+                        address = obj.optString("address", ""),
+                        gstin = obj.optString("gstin", ""),
+                        type = obj.optString("type", "CUSTOMER"),
+                        tag = obj.optString("tag", "REGULAR"),
+                        openingBalance = obj.optLong("opening_balance", 0L),
+                        createdAt = obj.optLong("created_at", System.currentTimeMillis()),
+                        updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
+                        deletedAt = delAt
                     )
+                    if (delAt != null && delAt > 0L) {
+                        deletedIds.add(entity.id)
+                    } else {
+                        list.add(entity)
+                    }
                 }
                 if (list.isNotEmpty()) db.partyDao().insertAllParties(list)
-                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=parties count=${list.size}")
+                for (id in deletedIds) {
+                    db.partyDao().deletePartyLegacy(id)
+                    db.khataDao().deleteEntriesForPartyLegacy(id)
+                }
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=parties count=${list.size} deletedCount=${deletedIds.size}")
             }
             "items" -> {
                 val list = mutableListOf<ItemEntity>()
+                val deletedIds = mutableListOf<String>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
                     val rawBiz = obj.optString("business_id", obj.optString("businessId", "default_business")).ifBlank { "default_business" }
                     ensureParentBusinessExists(rawBiz)
-                    list.add(
-                        ItemEntity(
-                            id = obj.getString("id"),
-                            businessId = rawBiz,
-                            name = obj.getString("name"),
-                            itemCode = obj.optString("item_code", ""),
-                            unit = obj.optString("unit", "Pcs"),
-                            hsnCode = obj.optString("hsn_code", ""),
-                            purchasePrice = obj.optLong("purchase_price", 0L),
-                            sellPrice = obj.optLong("sell_price", 0L),
-                            gstRate = obj.optDouble("gst_rate", 0.0),
-                            category = obj.optString("category", "General"),
-                            stockQty = obj.optDouble("stock_qty", 0.0),
-                            lowStockThreshold = obj.optDouble("low_stock_threshold", 5.0),
-                            createdAt = obj.optLong("created_at", System.currentTimeMillis()),
-                            updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
-                            deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
-                        )
+                    val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
+                    val entity = ItemEntity(
+                        id = obj.getString("id"),
+                        businessId = rawBiz,
+                        name = obj.getString("name"),
+                        itemCode = obj.optString("item_code", ""),
+                        unit = obj.optString("unit", "Pcs"),
+                        hsnCode = obj.optString("hsn_code", ""),
+                        purchasePrice = obj.optLong("purchase_price", 0L),
+                        sellPrice = obj.optLong("sell_price", 0L),
+                        gstRate = obj.optDouble("gst_rate", 0.0),
+                        category = obj.optString("category", "General"),
+                        stockQty = obj.optDouble("stock_qty", 0.0),
+                        lowStockThreshold = obj.optDouble("low_stock_threshold", 5.0),
+                        createdAt = obj.optLong("created_at", System.currentTimeMillis()),
+                        updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
+                        deletedAt = delAt
                     )
+                    if (delAt != null && delAt > 0L) {
+                        deletedIds.add(entity.id)
+                    } else {
+                        list.add(entity)
+                    }
                 }
                 if (list.isNotEmpty()) db.itemDao().insertAllItems(list)
-                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=items count=${list.size}")
+                for (id in deletedIds) {
+                    db.itemDao().deleteItemLegacy(id)
+                }
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=items count=${list.size} deletedCount=${deletedIds.size}")
             }
             "invoices" -> {
                 val list = mutableListOf<InvoiceEntity>()
+                val deletedIds = mutableListOf<String>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
                     val rawBiz = obj.optString("business_id", obj.optString("businessId", "default_business")).ifBlank { "default_business" }
                     ensureParentBusinessExists(rawBiz)
                     val rawPartyId = obj.optString("party_id", "").ifBlank { null }
                     val safePartyId = if (rawPartyId != null && db.partyDao().getPartyByIdSync(rawPartyId) != null) rawPartyId else null
-                    list.add(
-                        InvoiceEntity(
-                            id = obj.getString("id"),
-                            businessId = rawBiz,
-                            invoiceNo = obj.getString("invoice_no"),
-                            date = obj.optLong("date", System.currentTimeMillis()),
-                            partyId = safePartyId,
-                            customerName = obj.optString("customer_name", ""),
-                            customerPhone = obj.optString("customer_phone", ""),
-                            customerAddress = obj.optString("customer_address", ""),
-                            customerGstin = obj.optString("customer_gstin", ""),
-                            type = obj.optString("type", "NON_GST_BILL"),
-                            gstMode = obj.optString("gst_mode", "EXEMPT"),
-                            subtotal = obj.optLong("subtotal", 0L),
-                            discount = obj.optLong("discount", 0L),
-                            taxableAmount = obj.optLong("taxable_amount", 0L),
-                            cgst = obj.optLong("cgst", 0L),
-                            sgst = obj.optLong("sgst", 0L),
-                            igst = obj.optLong("igst", 0L),
-                            total = obj.optLong("total", 0L),
-                            paidAmount = obj.optLong("paid_amount", 0L),
-                            paymentStatus = obj.optString("payment_status", "PAID"),
-                            paymentMode = obj.optString("payment_mode", "Cash"),
-                            notes = obj.optString("notes", ""),
-                            isGst = obj.optBoolean("is_gst", false),
-                            createdAt = obj.optLong("created_at", System.currentTimeMillis()),
-                            updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
-                            deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
-                        )
+                    val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
+                    val entity = InvoiceEntity(
+                        id = obj.getString("id"),
+                        businessId = rawBiz,
+                        invoiceNo = obj.getString("invoice_no"),
+                        date = obj.optLong("date", System.currentTimeMillis()),
+                        partyId = safePartyId,
+                        customerName = obj.optString("customer_name", ""),
+                        customerPhone = obj.optString("customer_phone", ""),
+                        customerAddress = obj.optString("customer_address", ""),
+                        customerGstin = obj.optString("customer_gstin", ""),
+                        type = obj.optString("type", "NON_GST_BILL"),
+                        gstMode = obj.optString("gst_mode", "EXEMPT"),
+                        subtotal = obj.optLong("subtotal", 0L),
+                        discount = obj.optLong("discount", 0L),
+                        taxableAmount = obj.optLong("taxable_amount", 0L),
+                        cgst = obj.optLong("cgst", 0L),
+                        sgst = obj.optLong("sgst", 0L),
+                        igst = obj.optLong("igst", 0L),
+                        total = obj.optLong("total", 0L),
+                        paidAmount = obj.optLong("paid_amount", 0L),
+                        paymentStatus = obj.optString("payment_status", "PAID"),
+                        paymentMode = obj.optString("payment_mode", "Cash"),
+                        notes = obj.optString("notes", ""),
+                        isGst = obj.optBoolean("is_gst", false),
+                        createdAt = obj.optLong("created_at", System.currentTimeMillis()),
+                        updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
+                        deletedAt = delAt
                     )
+                    if (delAt != null && delAt > 0L) {
+                        deletedIds.add(entity.id)
+                    } else {
+                        list.add(entity)
+                    }
                 }
                 if (list.isNotEmpty()) db.invoiceDao().insertAllInvoices(list)
-                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=invoices count=${list.size}")
+                for (id in deletedIds) {
+                    db.invoiceDao().deleteInvoiceLegacy(id)
+                    db.invoiceDao().deleteItemsForInvoice(id)
+                }
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=invoices count=${list.size} deletedCount=${deletedIds.size}")
             }
             "invoice_items" -> {
                 val list = mutableListOf<InvoiceItemEntity>()
+                val deletedIds = mutableListOf<String>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
                     val invId = obj.getString("invoice_id")
-                    if (db.invoiceDao().getInvoiceByIdSync(invId) != null) {
+                    val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
+                    if (delAt != null && delAt > 0L) {
+                        deletedIds.add(obj.getString("id"))
+                    } else if (db.invoiceDao().getInvoiceByIdSync(invId) != null) {
                         val rawItemId = obj.optString("item_id", "").ifBlank { null }
                         val safeItemId = if (rawItemId != null && db.itemDao().getItemByIdSync(rawItemId) != null) rawItemId else null
                         list.add(
@@ -524,83 +566,107 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                                 sgstRate = obj.optDouble("sgst_rate", 0.0),
                                 igstRate = obj.optDouble("igst_rate", 0.0),
                                 amount = obj.optLong("amount", 0L),
-                                deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at"),
+                                deletedAt = delAt,
                                 syncedAt = System.currentTimeMillis()
                             )
                         )
                     }
                 }
                 if (list.isNotEmpty()) db.invoiceDao().insertInvoiceItems(list)
-                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=invoice_items count=${list.size}")
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=invoice_items count=${list.size} deletedCount=${deletedIds.size}")
             }
             "payments" -> {
                 val list = mutableListOf<PaymentEntity>()
+                val deletedIds = mutableListOf<String>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    list.add(
-                        PaymentEntity(
-                            id = obj.getString("id"),
-                            businessId = obj.optString("business_id", "default_business"),
-                            partyId = obj.optString("party_id", "").ifBlank { null },
-                            date = obj.optLong("date", System.currentTimeMillis()),
-                            amount = obj.optLong("amount", 0L),
-                            mode = obj.optString("mode", "Cash"),
-                            referenceNo = obj.optString("reference_no", ""),
-                            notes = obj.optString("notes", ""),
-                            linkedInvoiceId = obj.optString("linked_invoice_id", "").ifBlank { null },
-                            createdAt = obj.optLong("created_at", System.currentTimeMillis()),
-                            updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
-                            deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
-                        )
+                    val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
+                    val entity = PaymentEntity(
+                        id = obj.getString("id"),
+                        businessId = obj.optString("business_id", "default_business"),
+                        partyId = obj.optString("party_id", "").ifBlank { null },
+                        date = obj.optLong("date", System.currentTimeMillis()),
+                        amount = obj.optLong("amount", 0L),
+                        mode = obj.optString("mode", "Cash"),
+                        referenceNo = obj.optString("reference_no", ""),
+                        notes = obj.optString("notes", ""),
+                        linkedInvoiceId = obj.optString("linked_invoice_id", "").ifBlank { null },
+                        createdAt = obj.optLong("created_at", System.currentTimeMillis()),
+                        updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
+                        deletedAt = delAt
                     )
+                    if (delAt != null && delAt > 0L) {
+                        deletedIds.add(entity.id)
+                    } else {
+                        list.add(entity)
+                    }
                 }
                 if (list.isNotEmpty()) db.paymentDao().insertAllPayments(list)
-                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=payments count=${list.size}")
+                for (id in deletedIds) {
+                    db.paymentDao().deletePaymentLegacy(id)
+                }
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=payments count=${list.size} deletedCount=${deletedIds.size}")
             }
             "expenses" -> {
                 val list = mutableListOf<ExpenseEntity>()
+                val deletedIds = mutableListOf<String>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    list.add(
-                        ExpenseEntity(
-                            id = obj.getString("id"),
-                            businessId = obj.optString("business_id", "default_business"),
-                            date = obj.optLong("date", System.currentTimeMillis()),
-                            category = obj.getString("category"),
-                            amount = obj.optLong("amount", 0L),
-                            description = obj.optString("description", ""),
-                            mode = obj.optString("mode", "Cash"),
-                            receiptPath = obj.optString("receipt_path", ""),
-                            createdAt = obj.optLong("created_at", System.currentTimeMillis()),
-                            updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
-                            deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
-                        )
+                    val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
+                    val entity = ExpenseEntity(
+                        id = obj.getString("id"),
+                        businessId = obj.optString("business_id", "default_business"),
+                        date = obj.optLong("date", System.currentTimeMillis()),
+                        category = obj.getString("category"),
+                        amount = obj.optLong("amount", 0L),
+                        description = obj.optString("description", ""),
+                        mode = obj.optString("mode", "Cash"),
+                        receiptPath = obj.optString("receipt_path", ""),
+                        createdAt = obj.optLong("created_at", System.currentTimeMillis()),
+                        updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
+                        deletedAt = delAt
                     )
+                    if (delAt != null && delAt > 0L) {
+                        deletedIds.add(entity.id)
+                    } else {
+                        list.add(entity)
+                    }
                 }
                 if (list.isNotEmpty()) db.expenseDao().insertAllExpenses(list)
-                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=expenses count=${list.size}")
+                for (id in deletedIds) {
+                    db.expenseDao().deleteExpenseLegacy(id)
+                }
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=expenses count=${list.size} deletedCount=${deletedIds.size}")
             }
             "khata_entries" -> {
                 val list = mutableListOf<KhataEntryEntity>()
+                val deletedIds = mutableListOf<String>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    list.add(
-                        KhataEntryEntity(
-                            id = obj.getString("id"),
-                            partyId = obj.getString("party_id"),
-                            amount = obj.optLong("amount", 0L),
-                            type = obj.getString("type"),
-                            date = obj.optLong("date", System.currentTimeMillis()),
-                            billNumber = obj.optString("bill_number", ""),
-                            note = obj.optString("note", ""),
-                            createdAt = obj.optLong("created_at", System.currentTimeMillis()),
-                            updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
-                            deletedAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
-                        )
+                    val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
+                    val entity = KhataEntryEntity(
+                        id = obj.getString("id"),
+                        partyId = obj.getString("party_id"),
+                        amount = obj.optLong("amount", 0L),
+                        type = obj.getString("type"),
+                        date = obj.optLong("date", System.currentTimeMillis()),
+                        billNumber = obj.optString("bill_number", ""),
+                        note = obj.optString("note", ""),
+                        createdAt = obj.optLong("created_at", System.currentTimeMillis()),
+                        updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
+                        deletedAt = delAt
                     )
+                    if (delAt != null && delAt > 0L) {
+                        deletedIds.add(entity.id)
+                    } else {
+                        list.add(entity)
+                    }
                 }
                 if (list.isNotEmpty()) db.khataDao().insertAllEntries(list)
-                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=khata_entries count=${list.size}")
+                for (id in deletedIds) {
+                    db.khataDao().deleteEntryLegacy(id)
+                }
+                android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=khata_entries count=${list.size} deletedCount=${deletedIds.size}")
             }
             else -> {
                 android.util.Log.i("CloudSyncManager", "ROOM_INSERT table=$table count=${records.length()}")

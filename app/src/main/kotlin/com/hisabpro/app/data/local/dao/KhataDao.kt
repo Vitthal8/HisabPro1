@@ -8,10 +8,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface KhataDao {
-    @Query("SELECT * FROM khata_entries WHERE business_id = :businessId ORDER BY date DESC")
+    @Query("SELECT * FROM khata_entries WHERE business_id = :businessId AND (deleted_at IS NULL OR deleted_at = 0) ORDER BY date DESC")
     fun getAllEntries(businessId: String): Flow<List<KhataEntryEntity>>
 
-    @Query("SELECT * FROM khata_entries WHERE business_id = :businessId ORDER BY date DESC")
+    @Query("SELECT * FROM khata_entries WHERE business_id = :businessId AND (deleted_at IS NULL OR deleted_at = 0) ORDER BY date DESC")
     suspend fun getAllEntriesSync(businessId: String): List<KhataEntryEntity>
 
     @Query("SELECT * FROM khata_entries WHERE business_id = :businessId AND party_id = :partyId ORDER BY date DESC")

@@ -112,7 +112,11 @@ class SupabaseApiClient(private val context: Context) {
 
                 val isAuthAttached = token.isNotBlank()
                 val isAuthenticated = isAuthAttached && !token.contains("placeholder")
-                android.util.Log.d("SupabaseApiClient", "SUPABASE_FETCH table=$table url=$urlString authAttached=$isAuthAttached authenticated=$isAuthenticated")
+                val usingUpdatedAtFilter = !table.equals("invoice_items", ignoreCase = true) && sinceTimestampMillis > 0L
+                android.util.Log.d(
+                    "SupabaseApiClient",
+                    "SUPABASE_FETCH table=$table url=$urlString sinceTimestampMillis=$sinceTimestampMillis usingUpdatedAtFilter=$usingUpdatedAtFilter authAttached=$isAuthAttached authenticated=$isAuthenticated"
+                )
 
                 val statusCode = connection.responseCode
                 android.util.Log.d("SupabaseApiClient", "SUPABASE_RESPONSE table=$table status=$statusCode")
@@ -177,13 +181,11 @@ class SupabaseApiClient(private val context: Context) {
                 setRequestProperty("Prefer", "return=minimal")
             }
 
-            val isoDate = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).apply {
-                timeZone = java.util.TimeZone.getTimeZone("UTC")
-            }.format(java.util.Date(deletedAtMillis))
-
             val patchBody = JSONObject().apply {
-                put("deleted_at", isoDate)
-                put("updated_at", isoDate)
+                put("deleted_at", deletedAtMillis)
+                if (!table.equals("invoice_items", ignoreCase = true)) {
+                    put("updated_at", deletedAtMillis)
+                }
             }
 
             OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->

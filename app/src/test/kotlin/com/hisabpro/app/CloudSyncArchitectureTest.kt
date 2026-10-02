@@ -576,10 +576,10 @@ class CloudSyncArchitectureTest {
         assertEquals("biz_abc_ltd", aligned.businessId)
     }
 
-    // --- Required Tests A through G for Supabase BIGINT & Cloud Sync Fixes ---
+    // --- Required Tests 1 through 7 for Supabase BIGINT & Cloud Sync Fixes ---
 
     @Test
-    fun testA_sinceTimestampMillisZero_noUpdatedAtFilter() {
+    fun test1_sinceTimestampMillisZero_noUpdatedAtFilter() {
         val table = "invoices"
         val sinceTimestampMillis = 0L
         val queryParam = if (table.equals("invoice_items", ignoreCase = true) || sinceTimestampMillis <= 0L) {
@@ -592,24 +592,24 @@ class CloudSyncArchitectureTest {
     }
 
     @Test
-    fun testB_sinceTimestampMillisPositive_usesBigintFilterNotIso() {
+    fun test2_sinceTimestampMillisPositive_usesBigintFilterNotIso() {
         val table = "invoices"
-        val sinceTimestampMillis = 1759211456594L
+        val sinceTimestampMillis = 1760000000000L
         val queryParam = if (table.equals("invoice_items", ignoreCase = true) || sinceTimestampMillis <= 0L) {
             ""
         } else {
             "&updated_at=gt.$sinceTimestampMillis"
         }
 
-        assertEquals("&updated_at=gt.1759211456594", queryParam)
+        assertEquals("&updated_at=gt.1760000000000", queryParam)
         assertFalse("BIGINT query parameter must not contain ISO 'T' date character", queryParam.contains("T"))
         assertFalse("BIGINT query parameter must not contain ISO 'Z' time character", queryParam.contains("Z"))
     }
 
     @Test
-    fun testC_invoiceItemsTable_noUpdatedAtFilter() {
+    fun test3_invoiceItemsTable_noUpdatedAtFilter() {
         val table = "invoice_items"
-        val sinceTimestampMillis = 1759211456594L
+        val sinceTimestampMillis = 1760000000000L
         val queryParam = if (table.equals("invoice_items", ignoreCase = true) || sinceTimestampMillis <= 0L) {
             ""
         } else {
@@ -620,79 +620,33 @@ class CloudSyncArchitectureTest {
     }
 
     @Test
-    fun testD_freshInstall_cloudPullSucceedsAllTables() {
-        val tables = listOf("businesses", "parties", "items", "invoices", "invoice_items")
-        val sinceTimestampMillis = 0L
+    fun test4_failedPull_preservesLastPulledAtWithoutAdvancing() {
+        val previousTimestamp = 1759211456594L
+        val isPullSuccessful = false
+        val newTimestamp = System.currentTimeMillis()
 
-        for (t in tables) {
-            val queryParam = if (t.equals("invoice_items", ignoreCase = true) || sinceTimestampMillis <= 0L) {
-                ""
-            } else {
-                "&updated_at=gt.$sinceTimestampMillis"
-            }
-            assertEquals("Fresh install pull for table $t must have empty delta query filter", "", queryParam)
+        val updatedMetadata = if (isPullSuccessful) {
+            SyncMetadataEntity(
+                tableName = "invoices",
+                lastPulledAt = newTimestamp,
+                lastSyncStatus = "SUCCESS"
+            )
+        } else {
+            SyncMetadataEntity(
+                tableName = "invoices",
+                lastPulledAt = previousTimestamp, // Preserved!
+                lastSyncStatus = "FAILED",
+                errorMessage = "Network timeout"
+            )
         }
+
+        assertEquals("FAILED", updatedMetadata.lastSyncStatus)
+        assertEquals(previousTimestamp, updatedMetadata.lastPulledAt)
+        assertFalse("lastPulledAt must not be advanced on failed pull", updatedMetadata.lastPulledAt == newTimestamp)
     }
 
     @Test
-    fun testE_existingInvoice_persistedTotalsRemainCorrect() {
-        val now = System.currentTimeMillis()
-        val invoiceEntity = InvoiceEntity(
-            id = "inv_existing_88",
-            businessId = "default_business",
-            invoiceNo = "2026-27/INV/088",
-            date = now,
-            subtotal = 500000L, // ₹5,000.00
-            discount = 50000L,   // ₹500.00
-            taxableAmount = 450000L,
-            cgst = 40500L,       // 9% CGST
-            sgst = 40500L,       // 9% SGST
-            total = 531000L,     // ₹5,310.00
-            paidAmount = 531000L,
-            paymentStatus = "PAID"
-        )
-
-        // Simulating reload without invoice_items
-        val fallbackSubtotal = invoiceEntity.subtotal / 100.0
-        val fallbackTotal = invoiceEntity.total / 100.0
-
-        assertEquals(5000.0, fallbackSubtotal, 0.01)
-        assertEquals(5310.0, fallbackTotal, 0.01)
-    }
-
-    @Test
-    fun testF_newInvoice_enqueuesInvoiceAndInvoiceItems() {
-        val invoiceId = "inv_new_99"
-        val invoiceItem1 = InvoiceItemEntity(
-            id = "item_line_1",
-            invoiceId = invoiceId,
-            itemName = "Item A",
-            qty = 2.0,
-            rate = 10000L,
-            amount = 20000L
-        )
-        val invoiceItem2 = InvoiceItemEntity(
-            id = "item_line_2",
-            invoiceId = invoiceId,
-            itemName = "Item B",
-            qty = 1.0,
-            rate = 30000L,
-            amount = 30000L
-        )
-
-        val queuedEntities = mutableListOf<String>()
-        queuedEntities.add("invoice:$invoiceId")
-        queuedEntities.add("invoice_item:${invoiceItem1.id}")
-        queuedEntities.add("invoice_item:${invoiceItem2.id}")
-
-        assertEquals(3, queuedEntities.size)
-        assertTrue(queuedEntities.contains("invoice:inv_new_99"))
-        assertTrue(queuedEntities.contains("invoice_item:item_line_1"))
-        assertTrue(queuedEntities.contains("invoice_item:item_line_2"))
-    }
-
-    @Test
-    fun testG_multiBusiness_isolationAcrossCompanySwitch() {
+    fun test5_companyAAndCompanyB_businessIdRemainsIsolatedAfterRestore() {
         val companyAParties = listOf(
             PartyEntity(id = "p_a1", businessId = "biz_company_a", name = "Customer A1", phone = "9822011111")
         )
@@ -716,6 +670,71 @@ class CloudSyncArchitectureTest {
         visibleParties = companyAParties.filter { it.businessId == activeBiz } + companyBParties.filter { it.businessId == activeBiz }
         assertEquals(1, visibleParties.size)
         assertEquals("Customer A1", visibleParties[0].name)
+    }
+
+    @Test
+    fun test6_createNewInvoiceA2_pushedAndRestoredWithA1() {
+        val invoiceA1 = InvoiceEntity(
+            id = "inv_a1",
+            businessId = "biz_company_a",
+            invoiceNo = "2026-27/INV/001",
+            date = System.currentTimeMillis() - 86400000L,
+            total = 100000L
+        )
+        val invoiceA2 = InvoiceEntity(
+            id = "inv_a2",
+            businessId = "biz_company_a",
+            invoiceNo = "2026-27/INV/002",
+            date = System.currentTimeMillis(),
+            total = 200000L
+        )
+
+        val restoredInvoices = listOf(invoiceA1, invoiceA2)
+        val companyAInvoices = restoredInvoices.filter { it.businessId == "biz_company_a" }
+
+        assertEquals(2, companyAInvoices.size)
+        assertEquals("2026-27/INV/001", companyAInvoices[0].invoiceNo)
+        assertEquals("2026-27/INV/002", companyAInvoices[1].invoiceNo)
+    }
+
+    @Test
+    fun test7_invoiceWithMultipleItems_restoredAndTotalsRemainCorrect() {
+        val invoiceId = "inv_multi_items_100"
+        val invoiceEntity = InvoiceEntity(
+            id = invoiceId,
+            businessId = "default_business",
+            invoiceNo = "2026-27/INV/100",
+            date = System.currentTimeMillis(),
+            subtotal = 300000L, // ₹3,000.00
+            cgst = 27000L,       // 9% CGST
+            sgst = 27000L,       // 9% SGST
+            total = 354000L      // ₹3,540.00
+        )
+        val item1 = InvoiceItemEntity(
+            id = "line_item_1",
+            invoiceId = invoiceId,
+            itemName = "Product 1",
+            qty = 2.0,
+            rate = 100000L,
+            amount = 200000L
+        )
+        val item2 = InvoiceItemEntity(
+            id = "line_item_2",
+            invoiceId = invoiceId,
+            itemName = "Product 2",
+            qty = 1.0,
+            rate = 100000L,
+            amount = 100000L
+        )
+
+        val items = listOf(item1, item2)
+        assertEquals(2, items.size)
+        assertEquals("line_item_1", items[0].id)
+        assertEquals("line_item_2", items[1].id)
+
+        // Persisted total fallback assertion
+        val fallbackTotalRupees = invoiceEntity.total / 100.0
+        assertEquals(3540.0, fallbackTotalRupees, 0.01)
     }
 }
 

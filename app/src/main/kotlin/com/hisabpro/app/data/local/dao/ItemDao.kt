@@ -10,13 +10,13 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ItemDao {
-    @Query("SELECT * FROM items WHERE business_id = :businessId ORDER BY name ASC")
+    @Query("SELECT * FROM items WHERE business_id = :businessId AND (deleted_at IS NULL OR deleted_at = 0) ORDER BY name ASC")
     fun getAllItems(businessId: String): Flow<List<ItemEntity>>
 
-    @Query("SELECT * FROM items WHERE business_id = :businessId ORDER BY name ASC")
+    @Query("SELECT * FROM items WHERE business_id = :businessId AND (deleted_at IS NULL OR deleted_at = 0) ORDER BY name ASC")
     suspend fun getAllItemsSync(businessId: String): List<ItemEntity>
 
-    @Query("SELECT * FROM items WHERE business_id = :businessId AND category = :category ORDER BY name ASC")
+    @Query("SELECT * FROM items WHERE business_id = :businessId AND category = :category AND (deleted_at IS NULL OR deleted_at = 0) ORDER BY name ASC")
     fun getItemsByCategory(businessId: String, category: String): Flow<List<ItemEntity>>
 
     @Query("SELECT * FROM items WHERE business_id = :businessId AND stock_qty <= low_stock_threshold ORDER BY name ASC")

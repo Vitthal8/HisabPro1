@@ -366,7 +366,6 @@ class InvoiceRepository(private val context: Context) {
                             put("igst_rate", itemEnt.igstRate)
                             put("amount", itemEnt.amount)
                             put("created_at", System.currentTimeMillis())
-                            put("updated_at", System.currentTimeMillis())
                         }
                         com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
                             entityType = "invoice_item",

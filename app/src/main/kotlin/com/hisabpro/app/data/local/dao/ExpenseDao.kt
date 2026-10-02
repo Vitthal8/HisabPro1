@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ExpenseDao {
-    @Query("SELECT * FROM expenses WHERE business_id = :businessId ORDER BY date DESC")
+    @Query("SELECT * FROM expenses WHERE business_id = :businessId AND (deleted_at IS NULL OR deleted_at = 0) ORDER BY date DESC")
     fun getAllExpenses(businessId: String): Flow<List<ExpenseEntity>>
 
     @Query("SELECT * FROM expenses WHERE business_id = :businessId AND date BETWEEN :startDate AND :endDate ORDER BY date DESC")
@@ -27,7 +27,7 @@ interface ExpenseDao {
     @Query("DELETE FROM expenses WHERE id = :id")
     suspend fun deleteExpenseLegacy(id: String)
 
-    @Query("SELECT * FROM expenses WHERE business_id = :businessId ORDER BY date DESC")
+    @Query("SELECT * FROM expenses WHERE business_id = :businessId AND (deleted_at IS NULL OR deleted_at = 0) ORDER BY date DESC")
     suspend fun getAllExpensesSync(businessId: String): List<ExpenseEntity>
 
     @Query("SELECT * FROM expenses ORDER BY date DESC")

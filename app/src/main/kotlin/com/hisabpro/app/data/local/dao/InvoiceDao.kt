@@ -12,16 +12,16 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface InvoiceDao {
-    @Query("SELECT * FROM invoices WHERE business_id = :businessId ORDER BY date DESC")
+    @Query("SELECT * FROM invoices WHERE business_id = :businessId AND (deleted_at IS NULL OR deleted_at = 0) ORDER BY date DESC")
     fun getAllInvoices(businessId: String): Flow<List<InvoiceEntity>>
 
-    @Query("SELECT * FROM invoices WHERE business_id = :businessId ORDER BY date DESC")
+    @Query("SELECT * FROM invoices WHERE business_id = :businessId AND (deleted_at IS NULL OR deleted_at = 0) ORDER BY date DESC")
     suspend fun getAllInvoicesSync(businessId: String): List<InvoiceEntity>
 
-    @Query("SELECT * FROM invoices WHERE business_id = :businessId AND date BETWEEN :startDate AND :endDate ORDER BY date DESC")
+    @Query("SELECT * FROM invoices WHERE business_id = :businessId AND date BETWEEN :startDate AND :endDate AND (deleted_at IS NULL OR deleted_at = 0) ORDER BY date DESC")
     fun getInvoicesByDateRange(businessId: String, startDate: Long, endDate: Long): Flow<List<InvoiceEntity>>
 
-    @Query("SELECT * FROM invoices WHERE business_id = :businessId AND party_id = :partyId ORDER BY date DESC")
+    @Query("SELECT * FROM invoices WHERE business_id = :businessId AND party_id = :partyId AND (deleted_at IS NULL OR deleted_at = 0) ORDER BY date DESC")
     fun getInvoicesForParty(businessId: String, partyId: String): Flow<List<InvoiceEntity>>
 
     @Query("SELECT * FROM invoices WHERE id = :id LIMIT 1")

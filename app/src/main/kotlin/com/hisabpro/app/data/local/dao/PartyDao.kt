@@ -9,13 +9,13 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PartyDao {
-    @Query("SELECT * FROM parties WHERE business_id = :businessId ORDER BY name ASC")
+    @Query("SELECT * FROM parties WHERE business_id = :businessId AND (deleted_at IS NULL OR deleted_at = 0) ORDER BY name ASC")
     fun getAllParties(businessId: String): Flow<List<PartyEntity>>
 
-    @Query("SELECT * FROM parties WHERE business_id = :businessId ORDER BY name ASC")
+    @Query("SELECT * FROM parties WHERE business_id = :businessId AND (deleted_at IS NULL OR deleted_at = 0) ORDER BY name ASC")
     suspend fun getAllPartiesSync(businessId: String): List<PartyEntity>
 
-    @Query("SELECT * FROM parties WHERE business_id = :businessId AND type = :type ORDER BY name ASC")
+    @Query("SELECT * FROM parties WHERE business_id = :businessId AND type = :type AND (deleted_at IS NULL OR deleted_at = 0) ORDER BY name ASC")
     fun getPartiesByType(businessId: String, type: String): Flow<List<PartyEntity>>
 
     @Query("SELECT * FROM parties WHERE id = :id LIMIT 1")

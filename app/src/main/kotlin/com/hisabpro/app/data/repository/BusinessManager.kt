@@ -129,7 +129,7 @@ class BusinessManager private constructor(private val context: Context) {
                 val existing = map[ent.id]
                 val merged = BusinessProfile(
                     id = ent.id,
-                    shopName = ent.name.ifBlank { existing?.shopName ?: "HisabPro Business" },
+                    shopName = ent.name.ifBlank { existing?.shopName ?: "" },
                     ownerName = ent.ownerName.ifBlank { existing?.ownerName ?: "" },
                     phone = ent.phone.ifBlank { existing?.phone ?: "" },
                     email = ent.email.ifBlank { existing?.email ?: "" },
@@ -138,7 +138,7 @@ class BusinessManager private constructor(private val context: Context) {
                     gstin = ent.gstin.ifBlank { existing?.gstin ?: "" },
                     pan = ent.pan.ifBlank { existing?.pan ?: "" },
                     upiId = ent.upiId.ifBlank { existing?.upiId ?: "" },
-                    bankName = ent.bankName.ifBlank { existing?.bankName ?: "State Bank of India" },
+                    bankName = ent.bankName.ifBlank { existing?.bankName ?: "" },
                     accountNumber = ent.accountNumber.ifBlank { existing?.accountNumber ?: "" },
                     ifscCode = ent.ifscCode.ifBlank { existing?.ifscCode ?: "" },
                     termsAndConditions = ent.termsAndConditions.ifBlank { existing?.termsAndConditions ?: "" },

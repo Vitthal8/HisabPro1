@@ -25,7 +25,7 @@ data class ItemEntity(
     @PrimaryKey
     val id: String,
     @ColumnInfo(name = "business_id")
-    val businessId: String = "default_business",
+    val businessId: String,
     val name: String,
     @ColumnInfo(name = "item_code")
     val itemCode: String = "",

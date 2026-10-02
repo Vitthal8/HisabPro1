@@ -120,9 +120,11 @@ object InvoicePdfGenerator {
             val logoBitmap = loadLogoBitmap(context, profile.logoPath)
 
             val document = PdfDocument()
-            val isGst = (profile.isGstRegistered || invoice.type == InvoiceType.TAX_INVOICE) &&
-                    invoice.type != InvoiceType.NON_GST_BILL &&
-                    invoice.gstMode != GstMode.EXEMPT
+            val isGst = com.hisabpro.app.domain.accounting.GstPolicy.isGstApplicable(
+                profile = profile,
+                invoiceType = invoice.type,
+                gstMode = invoice.gstMode
+            )
 
             // Calculate pagination: max items per page
             val items = invoice.items

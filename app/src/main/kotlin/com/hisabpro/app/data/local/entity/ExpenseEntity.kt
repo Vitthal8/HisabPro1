@@ -26,7 +26,7 @@ data class ExpenseEntity(
     @PrimaryKey
     val id: String,
     @ColumnInfo(name = "business_id")
-    val businessId: String = "default_business",
+    val businessId: String,
     val date: Long,
     val category: String,
     val amount: Long, // In paise

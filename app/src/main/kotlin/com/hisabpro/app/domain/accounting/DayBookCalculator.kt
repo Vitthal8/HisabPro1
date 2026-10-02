@@ -10,8 +10,8 @@ import com.hisabpro.app.data.model.PaymentMode
 import com.hisabpro.app.data.model.PurchaseBill
 import com.hisabpro.app.data.model.Transaction
 import com.hisabpro.app.data.model.TransactionType
-import java.math.BigDecimal
-import java.math.RoundingMode
+import com.hisabpro.app.util.toPaise
+import com.hisabpro.app.util.toRupees
 import java.util.Calendar
 
 enum class DayBookVoucherType(val label: String, val badgeColor: Long) {
@@ -33,13 +33,17 @@ data class DayBookVoucherItem(
     val narration: String,
     val debitAccount: String,  // Dr Account
     val creditAccount: String, // Cr Account
-    val debitAmount: Double,   // Dr Amount
-    val creditAmount: Double,  // Cr Amount
-    val amount: Double,
+    val debitAmount: Double,   // Dr Amount in Rupees
+    val creditAmount: Double,  // Cr Amount in Rupees
+    val amount: Double,        // Amount in Rupees
     val paymentMode: String = "CASH",
     val partyName: String = "",
     val referenceId: String = ""
-)
+) {
+    val debitAmountPaise: Long get() = debitAmount.toPaise()
+    val creditAmountPaise: Long get() = creditAmount.toPaise()
+    val amountPaise: Long get() = amount.toPaise()
+}
 
 data class DayBookCalculationResult(
     val dateMillis: Long,
@@ -60,7 +64,23 @@ data class DayBookCalculationResult(
     val bankIn: Double,
     val bankOut: Double,
     val netDayMovement: Double
-)
+) {
+    val totalDrPaise: Long get() = totalDr.toPaise()
+    val totalCrPaise: Long get() = totalCr.toPaise()
+    val salesTotalPaise: Long get() = salesTotal.toPaise()
+    val purchasesTotalPaise: Long get() = purchasesTotal.toPaise()
+    val receiptsTotalPaise: Long get() = receiptsTotal.toPaise()
+    val paymentsTotalPaise: Long get() = paymentsTotal.toPaise()
+    val expensesTotalPaise: Long get() = expensesTotal.toPaise()
+    val journalsTotalPaise: Long get() = journalsTotal.toPaise()
+    val creditNotesTotalPaise: Long get() = creditNotesTotal.toPaise()
+    val debitNotesTotalPaise: Long get() = debitNotesTotal.toPaise()
+    val cashInPaise: Long get() = cashIn.toPaise()
+    val cashOutPaise: Long get() = cashOut.toPaise()
+    val bankInPaise: Long get() = bankIn.toPaise()
+    val bankOutPaise: Long get() = bankOut.toPaise()
+    val netDayMovementPaise: Long get() = netDayMovement.toPaise()
+}
 
 /**
  * Domain-layer Day Book / Roznamcha calculation engine.
@@ -69,7 +89,7 @@ data class DayBookCalculationResult(
  * - Shows all 8 transaction types: Sales, Purchases, Receipts, Payments, Expenses, Journals, Credit Notes, Debit Notes.
  * - Double-entry Dr & Cr accounting columns.
  * - Prevents transaction duplication between sales and receipts.
- * - High-precision monetary balancing.
+ * - High-precision monetary balancing in Long paise / BigDecimal arithmetic.
  */
 object DayBookCalculator {
 
@@ -95,10 +115,10 @@ object DayBookCalculator {
         val partyMap = parties.associateBy { it.id }
         val vouchers = mutableListOf<DayBookVoucherItem>()
 
-        var cashIn = 0.0
-        var cashOut = 0.0
-        var bankIn = 0.0
-        var bankOut = 0.0
+        var cashInPaise: Long = 0L
+        var cashOutPaise: Long = 0L
+        var bankInPaise: Long = 0L
+        var bankOutPaise: Long = 0L
 
         val processedInvoiceIds = mutableSetOf<String>()
         val processedPurchaseIds = mutableSetOf<String>()
@@ -111,7 +131,8 @@ object DayBookCalculator {
         for (inv in dayInvoices) {
             val isUpiOrBank = isPaymentBankOrUpi(inv.paymentMode, inv.notes)
             val modeStr = if (isUpiOrBank) "Bank/UPI" else "Cash"
-            val amt = AccountingEngine.roundToTwoDecimals(inv.grandTotal)
+            val amtPaise = inv.grandTotal.toPaise()
+            val amtRupees = amtPaise.toRupees()
 
             val drAccount = when (inv.paymentStatus) {
                 InvoiceStatus.PAID -> if (isUpiOrBank) "Bank / UPI A/c" else "Cash in Hand"
@@ -120,8 +141,9 @@ object DayBookCalculator {
                 InvoiceStatus.CANCELLED -> "Cancelled / Void"
             }
 
-            if (inv.paidAmount > 0.009) {
-                if (isUpiOrBank) bankIn += inv.paidAmount else cashIn += inv.paidAmount
+            val paidPaise = inv.paidAmount.toPaise()
+            if (paidPaise > 0L) {
+                if (isUpiOrBank) bankInPaise += paidPaise else cashInPaise += paidPaise
             }
 
             vouchers.add(
@@ -133,9 +155,9 @@ object DayBookCalculator {
                     narration = "Sale to ${inv.customerName} (${inv.items.size} items)",
                     debitAccount = drAccount,
                     creditAccount = "Sales Revenue A/c",
-                    debitAmount = amt,
-                    creditAmount = amt,
-                    amount = amt,
+                    debitAmount = amtRupees,
+                    creditAmount = amtRupees,
+                    amount = amtRupees,
                     paymentMode = modeStr,
                     partyName = inv.customerName,
                     referenceId = inv.id
@@ -153,7 +175,8 @@ object DayBookCalculator {
         for (pur in dayPurchases) {
             val isBank = isPaymentBankOrUpi(pur.paymentMode, pur.notes)
             val modeStr = if (isBank) "Bank/UPI" else "Cash"
-            val amt = AccountingEngine.roundToTwoDecimals(pur.grandTotal)
+            val amtPaise = pur.grandTotal.toPaise()
+            val amtRupees = amtPaise.toRupees()
 
             val crAccount = when (pur.paymentStatus) {
                 InvoiceStatus.PAID -> if (isBank) "Bank A/c" else "Cash in Hand"
@@ -162,8 +185,9 @@ object DayBookCalculator {
                 InvoiceStatus.CANCELLED -> "Cancelled / Void"
             }
 
-            if (pur.paidAmount > 0.009) {
-                if (isBank) bankOut += pur.paidAmount else cashOut += pur.paidAmount
+            val paidPaise = pur.paidAmount.toPaise()
+            if (paidPaise > 0L) {
+                if (isBank) bankOutPaise += paidPaise else cashOutPaise += paidPaise
             }
 
             vouchers.add(
@@ -175,9 +199,9 @@ object DayBookCalculator {
                     narration = "Purchase inward from ${pur.supplierName}",
                     debitAccount = "Purchases A/c",
                     creditAccount = crAccount,
-                    debitAmount = amt,
-                    creditAmount = amt,
-                    amount = amt,
+                    debitAmount = amtRupees,
+                    creditAmount = amtRupees,
+                    amount = amtRupees,
                     paymentMode = modeStr,
                     partyName = pur.supplierName,
                     referenceId = pur.id
@@ -197,15 +221,15 @@ object DayBookCalculator {
             val titleLower = tx.title.trim().lowercase()
             val noteLower = tx.note.trim().lowercase()
 
-            // De-duplicate check
             val isDuplicate = processedInvoiceIds.any { id -> titleLower.contains(id) || noteLower.contains(id) } ||
                     processedPurchaseIds.any { id -> titleLower.contains(id) || noteLower.contains(id) }
             if (isDuplicate) continue
 
-            val amt = AccountingEngine.roundToTwoDecimals(tx.amount)
+            val amtPaise = tx.amount.toPaise()
+            val amtRupees = amtPaise.toRupees()
 
             if (tx.type == TransactionType.INCOME) {
-                if (isBank) bankIn += amt else cashIn += amt
+                if (isBank) bankInPaise += amtPaise else cashInPaise += amtPaise
                 vouchers.add(
                     DayBookVoucherItem(
                         id = "tx_${tx.id}",
@@ -215,15 +239,15 @@ object DayBookCalculator {
                         narration = tx.title,
                         debitAccount = if (isBank) "Bank / UPI A/c" else "Cash in Hand",
                         creditAccount = "${tx.category.label} A/c",
-                        debitAmount = amt,
-                        creditAmount = amt,
-                        amount = amt,
+                        debitAmount = amtRupees,
+                        creditAmount = amtRupees,
+                        amount = amtRupees,
                         paymentMode = tx.paymentMode.label,
                         partyName = tx.title
                     )
                 )
             } else {
-                if (isBank) bankOut += amt else cashOut += amt
+                if (isBank) bankOutPaise += amtPaise else cashOutPaise += amtPaise
                 vouchers.add(
                     DayBookVoucherItem(
                         id = "tx_${tx.id}",
@@ -233,9 +257,9 @@ object DayBookCalculator {
                         narration = tx.title,
                         debitAccount = "${tx.category.label} Expense A/c",
                         creditAccount = if (isBank) "Bank / UPI A/c" else "Cash in Hand",
-                        debitAmount = amt,
-                        creditAmount = amt,
-                        amount = amt,
+                        debitAmount = amtRupees,
+                        creditAmount = amtRupees,
+                        amount = amtRupees,
                         paymentMode = tx.paymentMode.label,
                         partyName = tx.category.label
                     )
@@ -252,24 +276,22 @@ object DayBookCalculator {
             val billLower = e.billNumber.trim().lowercase()
             val noteLower = e.note.trim().lowercase()
 
-            // Check if this khata entry is already counted in an invoice on the same day
             if (billLower.isNotBlank() && (processedInvoiceIds.contains(billLower) || processedPurchaseIds.contains(billLower))) {
                 continue
             }
 
             val party = partyMap[e.partyId]
             val partyName = party?.name ?: "Party"
-            val amt = AccountingEngine.roundToTwoDecimals(e.amount)
+            val amtPaise = e.amount.toPaise()
+            val amtRupees = amtPaise.toRupees()
             val isBank = isPaymentBankOrUpi(e.note, e.billNumber)
             val modeStr = if (isBank) "Bank/UPI" else "Cash"
 
-            // Identify Credit Note / Debit Note / Receipt / Payment
             val isCreditNote = billLower.startsWith("cn") || noteLower.contains("credit note") || noteLower.contains("return")
             val isDebitNote = billLower.startsWith("dn") || noteLower.contains("debit note")
 
             when {
                 isCreditNote -> {
-                    // Credit note: Customer return / credit concession
                     vouchers.add(
                         DayBookVoucherItem(
                             id = "khata_cn_${e.id}",
@@ -279,16 +301,15 @@ object DayBookCalculator {
                             narration = "Credit Note issued to $partyName: ${e.note.ifBlank { "Goods return/discount" }}",
                             debitAccount = "Sales Returns A/c",
                             creditAccount = "$partyName (Cr)",
-                            debitAmount = amt,
-                            creditAmount = amt,
-                            amount = amt,
+                            debitAmount = amtRupees,
+                            creditAmount = amtRupees,
+                            amount = amtRupees,
                             paymentMode = "Journal / Credit",
                             partyName = partyName
                         )
                     )
                 }
                 isDebitNote -> {
-                    // Debit note: Purchase return to supplier
                     vouchers.add(
                         DayBookVoucherItem(
                             id = "khata_dn_${e.id}",
@@ -298,17 +319,16 @@ object DayBookCalculator {
                             narration = "Debit Note issued to $partyName: ${e.note.ifBlank { "Goods return/debit adjustment" }}",
                             debitAccount = "$partyName (Dr)",
                             creditAccount = "Purchase Returns A/c",
-                            debitAmount = amt,
-                            creditAmount = amt,
-                            amount = amt,
+                            debitAmount = amtRupees,
+                            creditAmount = amtRupees,
+                            amount = amtRupees,
                             paymentMode = "Journal / Debit",
                             partyName = partyName
                         )
                     )
                 }
                 e.type == KhataEntryType.YOU_GOT -> {
-                    // Receipt from party (Money collected)
-                    if (isBank) bankIn += amt else cashIn += amt
+                    if (isBank) bankInPaise += amtPaise else cashInPaise += amtPaise
                     vouchers.add(
                         DayBookVoucherItem(
                             id = "khata_rec_${e.id}",
@@ -318,17 +338,16 @@ object DayBookCalculator {
                             narration = "Received from $partyName: ${e.note.ifBlank { "Customer collection" }}",
                             debitAccount = if (isBank) "Bank / UPI A/c" else "Cash in Hand",
                             creditAccount = "$partyName (Cr)",
-                            debitAmount = amt,
-                            creditAmount = amt,
-                            amount = amt,
+                            debitAmount = amtRupees,
+                            creditAmount = amtRupees,
+                            amount = amtRupees,
                             paymentMode = modeStr,
                             partyName = partyName
                         )
                     )
                 }
                 e.type == KhataEntryType.YOU_GAVE -> {
-                    // Payment to party (e.g. Supplier payment or money given)
-                    if (isBank) bankOut += amt else cashOut += amt
+                    if (isBank) bankOutPaise += amtPaise else cashOutPaise += amtPaise
                     vouchers.add(
                         DayBookVoucherItem(
                             id = "khata_pay_${e.id}",
@@ -338,9 +357,9 @@ object DayBookCalculator {
                             narration = "Payment made to $partyName: ${e.note.ifBlank { "Supplier dues settlement" }}",
                             debitAccount = "$partyName (Dr)",
                             creditAccount = if (isBank) "Bank / UPI A/c" else "Cash in Hand",
-                            debitAmount = amt,
-                            creditAmount = amt,
-                            amount = amt,
+                            debitAmount = amtRupees,
+                            creditAmount = amtRupees,
+                            amount = amtRupees,
                             paymentMode = modeStr,
                             partyName = partyName
                         )
@@ -349,44 +368,42 @@ object DayBookCalculator {
             }
         }
 
-        // Sort descending by timestamp for newest on top
         vouchers.sortByDescending { it.dateMillis }
 
-        // Category Totals
-        val salesTotal = vouchers.filter { it.voucherType == DayBookVoucherType.SALE }.sumOf { it.amount }
-        val purchasesTotal = vouchers.filter { it.voucherType == DayBookVoucherType.PURCHASE }.sumOf { it.amount }
-        val receiptsTotal = vouchers.filter { it.voucherType == DayBookVoucherType.RECEIPT }.sumOf { it.amount }
-        val paymentsTotal = vouchers.filter { it.voucherType == DayBookVoucherType.PAYMENT }.sumOf { it.amount }
-        val expensesTotal = vouchers.filter { it.voucherType == DayBookVoucherType.EXPENSE }.sumOf { it.amount }
-        val journalsTotal = vouchers.filter { it.voucherType == DayBookVoucherType.JOURNAL }.sumOf { it.amount }
-        val creditNotesTotal = vouchers.filter { it.voucherType == DayBookVoucherType.CREDIT_NOTE }.sumOf { it.amount }
-        val debitNotesTotal = vouchers.filter { it.voucherType == DayBookVoucherType.DEBIT_NOTE }.sumOf { it.amount }
+        val salesTotalPaise = vouchers.filter { it.voucherType == DayBookVoucherType.SALE }.sumOf { it.amount.toPaise() }
+        val purchasesTotalPaise = vouchers.filter { it.voucherType == DayBookVoucherType.PURCHASE }.sumOf { it.amount.toPaise() }
+        val receiptsTotalPaise = vouchers.filter { it.voucherType == DayBookVoucherType.RECEIPT }.sumOf { it.amount.toPaise() }
+        val paymentsTotalPaise = vouchers.filter { it.voucherType == DayBookVoucherType.PAYMENT }.sumOf { it.amount.toPaise() }
+        val expensesTotalPaise = vouchers.filter { it.voucherType == DayBookVoucherType.EXPENSE }.sumOf { it.amount.toPaise() }
+        val journalsTotalPaise = vouchers.filter { it.voucherType == DayBookVoucherType.JOURNAL }.sumOf { it.amount.toPaise() }
+        val creditNotesTotalPaise = vouchers.filter { it.voucherType == DayBookVoucherType.CREDIT_NOTE }.sumOf { it.amount.toPaise() }
+        val debitNotesTotalPaise = vouchers.filter { it.voucherType == DayBookVoucherType.DEBIT_NOTE }.sumOf { it.amount.toPaise() }
 
-        val totalDr = vouchers.sumOf { it.debitAmount }
-        val totalCr = vouchers.sumOf { it.creditAmount }
-        val isBalanced = kotlin.math.abs(totalDr - totalCr) < 0.01
+        val totalDrPaise = vouchers.sumOf { it.debitAmount.toPaise() }
+        val totalCrPaise = vouchers.sumOf { it.creditAmount.toPaise() }
+        val isBalanced = kotlin.math.abs(totalDrPaise - totalCrPaise) == 0L
 
-        val netMovement = (cashIn + bankIn) - (cashOut + bankOut)
+        val netMovementPaise = (cashInPaise + bankInPaise) - (cashOutPaise + bankOutPaise)
 
         return DayBookCalculationResult(
             dateMillis = dateMillis,
-            totalDr = totalDr,
-            totalCr = totalCr,
+            totalDr = totalDrPaise.toRupees(),
+            totalCr = totalCrPaise.toRupees(),
             isBalanced = isBalanced,
             vouchers = vouchers,
-            salesTotal = salesTotal,
-            purchasesTotal = purchasesTotal,
-            receiptsTotal = receiptsTotal,
-            paymentsTotal = paymentsTotal,
-            expensesTotal = expensesTotal,
-            journalsTotal = journalsTotal,
-            creditNotesTotal = creditNotesTotal,
-            debitNotesTotal = debitNotesTotal,
-            cashIn = cashIn,
-            cashOut = cashOut,
-            bankIn = bankIn,
-            bankOut = bankOut,
-            netDayMovement = netMovement
+            salesTotal = salesTotalPaise.toRupees(),
+            purchasesTotal = purchasesTotalPaise.toRupees(),
+            receiptsTotal = receiptsTotalPaise.toRupees(),
+            paymentsTotal = paymentsTotalPaise.toRupees(),
+            expensesTotal = expensesTotalPaise.toRupees(),
+            journalsTotal = journalsTotalPaise.toRupees(),
+            creditNotesTotal = creditNotesTotalPaise.toRupees(),
+            debitNotesTotal = debitNotesTotalPaise.toRupees(),
+            cashIn = cashInPaise.toRupees(),
+            cashOut = cashOutPaise.toRupees(),
+            bankIn = bankInPaise.toRupees(),
+            bankOut = bankOutPaise.toRupees(),
+            netDayMovement = netMovementPaise.toRupees()
         )
     }
 
@@ -398,8 +415,6 @@ object DayBookCalculator {
                 s.contains("cheque") ||
                 s.contains("neft") ||
                 s.contains("rtgs") ||
-                s.contains("gpay") ||
-                s.contains("phonepe") ||
-                s.contains("paytm")
+                s.contains("card")
     }
 }

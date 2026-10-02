@@ -20,8 +20,8 @@ class SyncAndResilienceTest {
         val offlineQueue = mutableListOf<Invoice>()
 
         // User creates 2 invoices while offline
-        val inv1 = Invoice(id = "inv_off_1", invoiceNumber = "2025-26/INV/801", customerName = "Off Customer 1")
-        val inv2 = Invoice(id = "inv_off_2", invoiceNumber = "2025-26/INV/802", customerName = "Off Customer 2")
+        val inv1 = Invoice(id = "inv_off_1", businessId = "biz_test", invoiceNumber = "2025-26/INV/801", customerName = "Off Customer 1")
+        val inv2 = Invoice(id = "inv_off_2", businessId = "biz_test", invoiceNumber = "2025-26/INV/802", customerName = "Off Customer 2")
 
         offlineQueue.add(inv1)
         offlineQueue.add(inv2)
@@ -69,6 +69,7 @@ class SyncAndResilienceTest {
 
         val localInvoice = Invoice(
             id = invoiceId,
+            businessId = "biz_test",
             invoiceNumber = "INV-001",
             customerName = "Ramesh Kumar (Local Edit)",
             paidAmount = 1000.0,
@@ -77,6 +78,7 @@ class SyncAndResilienceTest {
 
         val remoteInvoice = Invoice(
             id = invoiceId,
+            businessId = "biz_test",
             invoiceNumber = "INV-001",
             customerName = "Ramesh Kumar (Remote Sync)",
             paidAmount = 2000.0,
@@ -93,7 +95,7 @@ class SyncAndResilienceTest {
     @Test
     fun testBusinessAutoHealingAndFkSanitization() {
         val remoteInvoiceBusinessId = "biz_vhhhhhh"
-        val existingBusinessIds = mutableSetOf("default_business")
+        val existingBusinessIds = mutableSetOf("biz_company_a")
 
         // Helper simulation of ensureBusinessExists
         fun ensureBusinessExists(bizId: String) {
@@ -126,6 +128,7 @@ class SyncAndResilienceTest {
         // Simulating an invoice pulled from Supabase where items were not synced/restored
         val restoredInvoice = Invoice(
             id = "inv_synced_gst03",
+            businessId = "biz_test",
             invoiceNumber = "INV-2025-001",
             type = com.hisabpro.app.data.model.InvoiceType.TAX_INVOICE,
             gstMode = com.hisabpro.app.data.model.GstMode.INTER_STATE,
@@ -166,6 +169,7 @@ class SyncAndResilienceTest {
 
         val invoiceWithItems = Invoice(
             id = "inv_with_items",
+            businessId = "biz_test",
             invoiceNumber = "INV-2025-002",
             type = com.hisabpro.app.data.model.InvoiceType.TAX_INVOICE,
             gstMode = com.hisabpro.app.data.model.GstMode.INTER_STATE,
@@ -194,6 +198,7 @@ class SyncAndResilienceTest {
 
         val gst03Invoice = Invoice(
             id = "inv_gst03_verify",
+            businessId = "biz_test",
             invoiceNumber = "INV-GST03-001",
             type = com.hisabpro.app.data.model.InvoiceType.TAX_INVOICE,
             gstMode = com.hisabpro.app.data.model.GstMode.INTER_STATE,
@@ -525,7 +530,7 @@ class SyncAndResilienceTest {
         }
 
         assertEquals("biz_company_b", invoicePayload.getString("business_id"))
-        assertFalse("biz_company_b" == "default_business")
+        assertTrue("biz_company_b" != "biz_company_a")
     }
 
     @Test
@@ -583,7 +588,7 @@ class SyncAndResilienceTest {
     @Test
     fun testMultiCompanyRestorationAndRoomMerge() {
         val roomBusinesses = mutableListOf(
-            com.hisabpro.app.data.local.entity.BusinessEntity(id = "default_business", name = "Company A"),
+            com.hisabpro.app.data.local.entity.BusinessEntity(id = "biz_company_a", name = "Company A"),
             com.hisabpro.app.data.local.entity.BusinessEntity(id = "biz_company_b", name = "Company B")
         )
 
@@ -604,7 +609,7 @@ class SyncAndResilienceTest {
 
         val allMerged = map.values.toList()
         assertEquals(3, allMerged.size)
-        assertTrue(allMerged.any { it.id == "default_business" })
+        assertTrue(allMerged.any { it.id == "biz_company_a" })
         assertTrue(allMerged.any { it.id == "biz_company_b" })
         assertTrue(allMerged.any { it.id == "biz_company_c" })
     }

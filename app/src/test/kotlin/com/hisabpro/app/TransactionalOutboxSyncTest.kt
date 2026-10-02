@@ -40,6 +40,7 @@ class TransactionalOutboxSyncTest {
             operation = "INSERT",
             data = InvoicePayload(
                 id = invoiceId,
+                businessId = "biz_test",
                 invoiceNo = "2026-27/INV/001",
                 date = timestamp,
                 total = 118000L
@@ -158,6 +159,7 @@ class TransactionalOutboxSyncTest {
 
         val invoice = InvoiceEntity(
             id = "inv_atomic_01",
+            businessId = "biz_test",
             invoiceNo = "2026-27/INV/001",
             date = System.currentTimeMillis(),
             total = 100000L

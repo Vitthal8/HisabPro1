@@ -65,6 +65,7 @@ class InventoryStockLifecycleTest {
     fun testInvoiceEditStockReconciliation() {
         val oldInvoice = Invoice(
             id = "inv_edit_test",
+            businessId = "biz_test",
             invoiceNumber = "2025-26/INV/501",
             customerName = "Anil Traders",
             items = listOf(
@@ -77,6 +78,7 @@ class InventoryStockLifecycleTest {
         // Item B increased 5 -> 8 (3 deducted from stock)
         val newInvoice = Invoice(
             id = "inv_edit_test",
+            businessId = "biz_test",
             invoiceNumber = "2025-26/INV/501",
             customerName = "Anil Traders",
             items = listOf(
@@ -99,6 +101,7 @@ class InventoryStockLifecycleTest {
     fun testInvoiceCancellationRestoresFullStock() {
         val invoice = Invoice(
             id = "inv_cancel_test",
+            businessId = "biz_test",
             invoiceNumber = "2025-26/INV/601",
             customerName = "Kiran Kumar",
             paymentStatus = InvoiceStatus.PAID,

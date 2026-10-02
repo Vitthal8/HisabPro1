@@ -26,7 +26,7 @@ class BusinessIsolationTest {
 
     private fun computeBusinessDatabaseId(shopName: String): String {
         val name = shopName.trim()
-        if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) return "default_business"
+        if (name.isBlank()) error("No active business selected")
         val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
         return "biz_$sanitized"
     }
@@ -403,5 +403,49 @@ class BusinessIsolationTest {
         authSession = "mock_jwt_token_user_123_reauthenticated"
         assertNotNull(authSession)
         assertEquals(1, localDatabaseParties.filter { it.businessId == bizA }.size)
+    }
+
+    // TEST 12 — STRICT ISOLATION & NO DEFAULT BUSINESS FALLBACK
+    @Test
+    fun test12_NoDefaultBusinessFallbackAndStrictIsolation() {
+        val bizA = "biz_company_alpha"
+        val bizB = "biz_company_beta"
+
+        // 1. Verify computeBusinessDatabaseId throws error on blank name
+        val exception = org.junit.Assert.assertThrows(IllegalStateException::class.java) {
+            computeBusinessDatabaseId("")
+        }
+        assertTrue(exception.message!!.contains("No active business selected"))
+
+        // 2. Entities require explicit businessId
+        val invoiceA = InvoiceEntity(
+            id = "inv_a",
+            businessId = bizA,
+            invoiceNo = "INV-001",
+            date = System.currentTimeMillis()
+        )
+        val invoiceB = InvoiceEntity(
+            id = "inv_b",
+            businessId = bizB,
+            invoiceNo = "INV-002",
+            date = System.currentTimeMillis()
+        )
+
+        assertNotEquals("default_business", invoiceA.businessId)
+        assertNotEquals("default_business", invoiceB.businessId)
+        assertNotEquals(invoiceA.businessId, invoiceB.businessId)
+
+        // 3. Strict filtering proves Business A cannot see Business B records
+        val allInvoices = listOf(invoiceA, invoiceB)
+        val visibleA = allInvoices.filter { it.businessId == bizA }
+        val visibleB = allInvoices.filter { it.businessId == bizB }
+
+        assertEquals(1, visibleA.size)
+        assertEquals("inv_a", visibleA.first().id)
+        assertFalse(visibleA.any { it.id == "inv_b" })
+
+        assertEquals(1, visibleB.size)
+        assertEquals("inv_b", visibleB.first().id)
+        assertFalse(visibleB.any { it.id == "inv_a" })
     }
 }

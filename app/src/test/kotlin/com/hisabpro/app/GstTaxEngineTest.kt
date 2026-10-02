@@ -101,6 +101,52 @@ class GstTaxEngineTest {
     }
 
     @Test
+    fun testNonGstBusinessCanNeverProduceGstOutputEvenWithTaxInvoiceType() {
+        val items = listOf(
+            InvoiceItem(id = "1", description = "Monitor 18%", quantity = 1.0, unitPrice = 10000.0, gstRate = 18.0)
+        )
+
+        // Even if caller requests TAX_INVOICE and INTRA_STATE, isGstBusinessEnabled = false MUST produce 0 tax!
+        val result = AccountingEngine.calculateInvoiceTotals(
+            items = items,
+            discountAmount = 0.0,
+            paidAmount = 10000.0,
+            gstMode = GstMode.INTRA_STATE,
+            isGstBusinessEnabled = false,
+            invoiceType = InvoiceType.TAX_INVOICE
+        )
+
+        assertEquals(10000.0, result.subtotal, 0.001)
+        assertEquals(0.0, result.totalTax, 0.001)
+        assertEquals(0.0, result.cgstTotal, 0.001)
+        assertEquals(0.0, result.sgstTotal, 0.001)
+        assertEquals(0.0, result.igstTotal, 0.001)
+        assertEquals(10000.0, result.grandTotal, 0.001)
+    }
+
+    @Test
+    fun testCompositionSchemeIsTreatedAsNonGst() {
+        val nonGstProfile = com.hisabpro.app.data.model.BusinessProfile(
+            isGstRegistered = true,
+            isCompositionScheme = true,
+            gstin = "27ABCDE1234F1Z5"
+        )
+
+        // Composition Scheme dealers issue Bill of Supply and cannot collect GST tax from buyers
+        org.junit.Assert.assertFalse(
+            com.hisabpro.app.domain.accounting.GstPolicy.isGstApplicable(nonGstProfile)
+        )
+        assertEquals(
+            InvoiceType.NON_GST_BILL,
+            com.hisabpro.app.domain.accounting.GstPolicy.resolveEffectiveInvoiceType(nonGstProfile, InvoiceType.TAX_INVOICE)
+        )
+        assertEquals(
+            GstMode.EXEMPT,
+            com.hisabpro.app.domain.accounting.GstPolicy.resolveEffectiveGstMode(nonGstProfile, InvoiceType.TAX_INVOICE, GstMode.INTRA_STATE)
+        )
+    }
+
+    @Test
     fun testRoundingHalfUpPrecision() {
         val line = AccountingEngine.calculateGstItem(
             quantity = 3.0,

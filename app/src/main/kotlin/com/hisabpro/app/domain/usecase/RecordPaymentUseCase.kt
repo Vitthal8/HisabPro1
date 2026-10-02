@@ -9,6 +9,8 @@ import com.hisabpro.app.data.repository.PartyRepository
 import com.hisabpro.app.data.repository.TransactionRepository
 import com.hisabpro.app.domain.validation.InputValidator
 import com.hisabpro.app.ui.payments.PaymentDirection
+import com.hisabpro.app.util.toPaise
+import com.hisabpro.app.util.toRupees
 
 /**
  * Use Case: Atomic Payment Processing
@@ -79,8 +81,12 @@ class RecordPaymentUseCase(
         if (!linkedInvoiceId.isNullOrBlank()) {
             val invoice = invoiceRepository.invoices.value.find { it.id == linkedInvoiceId }
             if (invoice != null) {
-                val newPaid = (invoice.paidAmount + amount).coerceAtMost(invoice.grandTotal)
-                val newStatus = if (newPaid >= invoice.grandTotal) {
+                val amountPaise = amount.toPaise()
+                val currentPaidPaise = invoice.paidAmount.toPaise()
+                val grandTotalPaise = invoice.grandTotal.toPaise()
+                val newPaidPaise = (currentPaidPaise + amountPaise).coerceAtMost(grandTotalPaise)
+                val newPaid = newPaidPaise.toRupees()
+                val newStatus = if (newPaidPaise >= grandTotalPaise) {
                     com.hisabpro.app.data.model.InvoiceStatus.PAID
                 } else {
                     com.hisabpro.app.data.model.InvoiceStatus.PARTIAL

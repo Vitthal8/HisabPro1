@@ -3,7 +3,6 @@ package com.hisabpro.app.data.local
 import android.content.Context
 import com.hisabpro.app.data.local.entity.BusinessEntity
 import com.hisabpro.app.data.local.entity.InvoiceEntity
-import com.hisabpro.app.data.local.entity.InvoiceItemEntity
 import com.hisabpro.app.data.local.entity.ItemEntity
 import com.hisabpro.app.data.local.entity.KhataEntryEntity
 import com.hisabpro.app.data.local.entity.PartyEntity
@@ -18,11 +17,14 @@ object DatabaseMigrationHelper {
     fun migrateIfNecessary(context: Context, database: AppDatabase, scope: CoroutineScope = CoroutineScope(Dispatchers.IO)) {
         scope.launch {
             try {
+                val settingsPrefs = context.getSharedPreferences("hisab_pro_settings_v1", Context.MODE_PRIVATE)
+                val businessName = settingsPrefs.getString("business_name", "Ganesh Traders") ?: "Ganesh Traders"
+                val sanitized = businessName.trim().lowercase().replace(Regex("[^a-z0-9]"), "_").ifBlank { "ganesh_traders" }
+                val targetBusinessId = "biz_$sanitized"
+
                 // 1. Business Profile
-                val existingBusiness = database.businessDao().getBusinessSync("default_business")
+                val existingBusiness = database.businessDao().getBusinessSync(targetBusinessId)
                 if (existingBusiness == null) {
-                    val settingsPrefs = context.getSharedPreferences("hisab_pro_settings_v1", Context.MODE_PRIVATE)
-                    val businessName = settingsPrefs.getString("business_name", "Ganesh Traders") ?: "Ganesh Traders"
                     val isGst = settingsPrefs.getBoolean("is_gst_registered", false)
                     val gstin = settingsPrefs.getString("business_gstin", "") ?: ""
                     val phone = settingsPrefs.getString("business_phone", "9822012345") ?: "9822012345"
@@ -31,7 +33,7 @@ object DatabaseMigrationHelper {
 
                     database.businessDao().insertOrUpdate(
                         BusinessEntity(
-                            id = "default_business",
+                            id = targetBusinessId,
                             name = businessName,
                             phone = phone,
                             address = address,
@@ -43,7 +45,7 @@ object DatabaseMigrationHelper {
                 }
 
                 // 2. Parties and Khata Entries
-                val existingParties = database.partyDao().getAllPartiesSync("default_business")
+                val existingParties = database.partyDao().getAllPartiesSync(targetBusinessId)
                 if (existingParties.isEmpty()) {
                     val partyPrefs = context.getSharedPreferences("hisab_pro_parties_v1", Context.MODE_PRIVATE)
                     val partiesJson = partyPrefs.getString("parties_list_v1", null)
@@ -59,7 +61,7 @@ object DatabaseMigrationHelper {
                             partyEntities.add(
                                 PartyEntity(
                                     id = obj.getString("id"),
-                                    businessId = "default_business",
+                                    businessId = targetBusinessId,
                                     name = obj.getString("name"),
                                     phone = obj.getString("phone"),
                                     address = obj.optString("address", ""),
@@ -80,6 +82,7 @@ object DatabaseMigrationHelper {
                             entryEntities.add(
                                 KhataEntryEntity(
                                     id = obj.getString("id"),
+                                    businessId = targetBusinessId,
                                     partyId = obj.getString("partyId"),
                                     amount = obj.getDouble("amount").toPaise(),
                                     type = obj.getString("type"),
@@ -100,7 +103,7 @@ object DatabaseMigrationHelper {
                 }
 
                 // 3. Items / Products
-                val existingItems = database.itemDao().getAllItemsSync("default_business")
+                val existingItems = database.itemDao().getAllItemsSync(targetBusinessId)
                 if (existingItems.isEmpty()) {
                     val itemPrefs = context.getSharedPreferences("hisab_pro_items_v1", Context.MODE_PRIVATE)
                     val itemsJson = itemPrefs.getString("inventory_items_v1", null)
@@ -112,7 +115,7 @@ object DatabaseMigrationHelper {
                             itemEntities.add(
                                 ItemEntity(
                                     id = obj.getString("id"),
-                                    businessId = "default_business",
+                                    businessId = targetBusinessId,
                                     name = obj.getString("name"),
                                     itemCode = obj.optString("itemCode", ""),
                                     category = obj.optString("category", "General"),
@@ -134,7 +137,7 @@ object DatabaseMigrationHelper {
                 }
 
                 // 4. Invoices
-                val existingInvoices = database.invoiceDao().getAllInvoicesSync("default_business")
+                val existingInvoices = database.invoiceDao().getAllInvoicesSync(targetBusinessId)
                 if (existingInvoices.isEmpty()) {
                     val invoicePrefs = context.getSharedPreferences("hisab_pro_invoices_v1", Context.MODE_PRIVATE)
                     val invoicesJson = invoicePrefs.getString("invoices_list_v1", null)
@@ -146,7 +149,7 @@ object DatabaseMigrationHelper {
                             val isGst = obj.optBoolean("isGst", false)
                             val invoiceEntity = InvoiceEntity(
                                 id = invoiceId,
-                                businessId = "default_business",
+                                businessId = targetBusinessId,
                                 invoiceNo = obj.getString("invoiceNumber"),
                                 date = obj.optLong("dateMillis", System.currentTimeMillis()),
                                 customerName = obj.optString("customerName", ""),
@@ -158,59 +161,16 @@ object DatabaseMigrationHelper {
                                 discount = obj.optDouble("discountAmount", 0.0).toPaise(),
                                 notes = obj.optString("notes", ""),
                                 paymentStatus = obj.optString("paymentStatus", "PAID"),
-                                paidAmount = obj.optDouble("paidAmount", 0.0).toPaise(),
                                 paymentMode = obj.optString("paymentMode", "Cash"),
-                                isGst = isGst,
-                                createdAt = obj.optLong("createdAt", System.currentTimeMillis())
+                                isGst = isGst
                             )
-
-                            val itemsList = mutableListOf<InvoiceItemEntity>()
-                            val itemsArray = obj.optJSONArray("items")
-                            if (itemsArray != null) {
-                                for (j in 0 until itemsArray.length()) {
-                                    val itemObj = itemsArray.getJSONObject(j)
-                                    val qty = itemObj.optDouble("quantity", 1.0)
-                                    val rate = itemObj.optDouble("unitPrice", 0.0)
-                                    itemsList.add(
-                                        InvoiceItemEntity(
-                                            id = itemObj.getString("id"),
-                                            invoiceId = invoiceId,
-                                            itemName = itemObj.optString("description", ""),
-                                            hsnCode = itemObj.optString("hsnCode", ""),
-                                            qty = qty,
-                                            unit = itemObj.optString("unit", "Pcs"),
-                                            rate = rate.toPaise(),
-                                            amount = (qty * rate).toPaise()
-                                        )
-                                    )
-                                }
-                            }
-                            database.invoiceDao().insertInvoiceWithItems(invoiceEntity, itemsList)
+                            database.invoiceDao().insertInvoice(invoiceEntity)
                         }
                     }
                 }
-
-                // 4. One-time Data Repair: Align any misrouted khata_entries to match their parent parties
-                repairMisroutedKhataEntries(database)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-        }
-    }
-
-    suspend fun repairMisroutedKhataEntries(database: AppDatabase): Int {
-        return try {
-            val count = database.khataDao().repairMisroutedKhataEntries()
-            if (count > 0) {
-                android.util.Log.i(
-                    "DatabaseMigrationHelper",
-                    "REPAIR SUCCESS: Fixed $count misrouted khata entries to match parent party business_id."
-                )
-            }
-            count
-        } catch (e: Exception) {
-            e.printStackTrace()
-            0
         }
     }
 }

@@ -26,7 +26,7 @@ data class AccountEntity(
     @PrimaryKey
     val id: String,
     @ColumnInfo(name = "business_id")
-    val businessId: String = "default_business",
+    val businessId: String,
     val name: String,
     val type: String, // CASH, BANK, ASSET, LIABILITY, EQUITY
     @ColumnInfo(name = "opening_balance")

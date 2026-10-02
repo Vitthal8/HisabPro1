@@ -28,6 +28,7 @@ class AccountingComprehensiveTest {
     fun testSalesInvoiceAccountingTotalsAndDue() {
         val invoice = Invoice(
             id = "inv_sales_101",
+            businessId = "biz_test",
             invoiceNumber = "2025-26/INV/101",
             type = InvoiceType.TAX_INVOICE,
             gstMode = GstMode.INTRA_STATE,
@@ -122,10 +123,10 @@ class AccountingComprehensiveTest {
         val now = System.currentTimeMillis()
         val day = 24 * 60 * 60 * 1000L
 
-        val invoiceCurrent = Invoice(id = "i1", invoiceNumber = "INV-01", type = InvoiceType.NON_GST_BILL, gstMode = GstMode.EXEMPT, customerName = "A", dateMillis = now - (day * 5), items = listOf(InvoiceItem(description = "X", quantity = 1.0, unitPrice = 1000.0, gstRate = 0.0)), paidAmount = 0.0) // 5 days old -> 0-15 bucket
-        val invoiceDueSoon = Invoice(id = "i2", invoiceNumber = "INV-02", type = InvoiceType.NON_GST_BILL, gstMode = GstMode.EXEMPT, customerName = "B", dateMillis = now - (day * 20), items = listOf(InvoiceItem(description = "Y", quantity = 1.0, unitPrice = 2000.0, gstRate = 0.0)), paidAmount = 0.0) // 20 days old -> 16-30 bucket
-        val invoiceOverdue = Invoice(id = "i3", invoiceNumber = "INV-03", type = InvoiceType.NON_GST_BILL, gstMode = GstMode.EXEMPT, customerName = "C", dateMillis = now - (day * 45), items = listOf(InvoiceItem(description = "Z", quantity = 1.0, unitPrice = 3000.0, gstRate = 0.0)), paidAmount = 0.0) // 45 days old -> 31-60 bucket
-        val invoiceCritical = Invoice(id = "i4", invoiceNumber = "INV-04", type = InvoiceType.NON_GST_BILL, gstMode = GstMode.EXEMPT, customerName = "D", dateMillis = now - (day * 75), items = listOf(InvoiceItem(description = "W", quantity = 1.0, unitPrice = 4000.0, gstRate = 0.0)), paidAmount = 0.0) // 75 days old -> 60+ bucket
+        val invoiceCurrent = Invoice(id = "i1", businessId = "biz_test", invoiceNumber = "INV-01", type = InvoiceType.NON_GST_BILL, gstMode = GstMode.EXEMPT, customerName = "A", dateMillis = now - (day * 5), items = listOf(InvoiceItem(description = "X", quantity = 1.0, unitPrice = 1000.0, gstRate = 0.0)), paidAmount = 0.0) // 5 days old -> 0-15 bucket
+        val invoiceDueSoon = Invoice(id = "i2", businessId = "biz_test", invoiceNumber = "INV-02", type = InvoiceType.NON_GST_BILL, gstMode = GstMode.EXEMPT, customerName = "B", dateMillis = now - (day * 20), items = listOf(InvoiceItem(description = "Y", quantity = 1.0, unitPrice = 2000.0, gstRate = 0.0)), paidAmount = 0.0) // 20 days old -> 16-30 bucket
+        val invoiceOverdue = Invoice(id = "i3", businessId = "biz_test", invoiceNumber = "INV-03", type = InvoiceType.NON_GST_BILL, gstMode = GstMode.EXEMPT, customerName = "C", dateMillis = now - (day * 45), items = listOf(InvoiceItem(description = "Z", quantity = 1.0, unitPrice = 3000.0, gstRate = 0.0)), paidAmount = 0.0) // 45 days old -> 31-60 bucket
+        val invoiceCritical = Invoice(id = "i4", businessId = "biz_test", invoiceNumber = "INV-04", type = InvoiceType.NON_GST_BILL, gstMode = GstMode.EXEMPT, customerName = "D", dateMillis = now - (day * 75), items = listOf(InvoiceItem(description = "W", quantity = 1.0, unitPrice = 4000.0, gstRate = 0.0)), paidAmount = 0.0) // 75 days old -> 60+ bucket
 
         val unpaidInvoices = listOf(invoiceCurrent, invoiceDueSoon, invoiceOverdue, invoiceCritical)
 

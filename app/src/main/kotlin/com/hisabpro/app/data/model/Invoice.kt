@@ -77,7 +77,7 @@ data class InvoiceItem(
 
 data class Invoice(
     val id: String,
-    val businessId: String = "default_business",
+    val businessId: String,
     val invoiceNumber: String,
     val type: InvoiceType = InvoiceType.TAX_INVOICE,
     val gstMode: GstMode = GstMode.INTRA_STATE,

@@ -12,10 +12,10 @@ import java.util.UUID
 @Dao
 interface BusinessDao {
     @Query("SELECT * FROM businesses WHERE id = :id LIMIT 1")
-    fun getBusiness(id: String = "default_business"): Flow<BusinessEntity?>
+    fun getBusiness(id: String): Flow<BusinessEntity?>
 
     @Query("SELECT * FROM businesses WHERE id = :id LIMIT 1")
-    suspend fun getBusinessSync(id: String = "default_business"): BusinessEntity?
+    suspend fun getBusinessSync(id: String): BusinessEntity?
 
     @Query("SELECT * FROM businesses ORDER BY name ASC")
     fun getAllBusinesses(): Flow<List<BusinessEntity>>

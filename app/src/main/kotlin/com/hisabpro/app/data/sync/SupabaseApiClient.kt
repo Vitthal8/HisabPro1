@@ -75,7 +75,8 @@ class SupabaseApiClient(private val context: Context) {
         table: String,
         token: String,
         sinceTimestampMillis: Long,
-        batchSize: Int = 200
+        batchSize: Int = 200,
+        userId: String? = null
     ): Result<JSONArray> = withContext(Dispatchers.IO) {
         if (!SupabaseConfig.isLiveConfigured(context)) {
             return@withContext Result.success(JSONArray())
@@ -83,11 +84,14 @@ class SupabaseApiClient(private val context: Context) {
 
         // Build queryParam:
         // Do NOT append updated_at filter if table is "invoice_items" or if sinceTimestampMillis <= 0 (fresh install)
-        val queryParam = if (table.equals("invoice_items", ignoreCase = true) || sinceTimestampMillis <= 0L) {
-            ""
-        } else {
-            "&updated_at=gt.$sinceTimestampMillis"
+        val queryParamBuilder = StringBuilder()
+        if (!table.equals("invoice_items", ignoreCase = true) && sinceTimestampMillis > 0L) {
+            queryParamBuilder.append("&updated_at=gt.$sinceTimestampMillis")
         }
+        if (!userId.isNullOrBlank()) {
+            queryParamBuilder.append("&user_id=eq.$userId")
+        }
+        val queryParam = queryParamBuilder.toString()
 
         val allRecords = JSONArray()
         var offset = 0

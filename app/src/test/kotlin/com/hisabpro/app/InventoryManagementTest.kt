@@ -149,6 +149,7 @@ class InventoryManagementTest {
         val invoiceNo = "2025-26/INV/008"
         val oldInvoice = Invoice(
             id = "inv_008",
+            businessId = "biz_test",
             invoiceNumber = invoiceNo,
             customerName = "Ramesh Patil",
             items = listOf(
@@ -163,6 +164,7 @@ class InventoryManagementTest {
         // Added Salt 1kg: 0 -> 2 (2 deducted from stock)
         val newInvoice = Invoice(
             id = "inv_008",
+            businessId = "biz_test",
             invoiceNumber = invoiceNo,
             customerName = "Ramesh Patil",
             items = listOf(
@@ -194,6 +196,7 @@ class InventoryManagementTest {
         val invoiceNo = "2025-26/INV/009"
         val activeInvoice = Invoice(
             id = "inv_009",
+            businessId = "biz_test",
             invoiceNumber = invoiceNo,
             customerName = "Suresh Sharma",
             paymentStatus = InvoiceStatus.PAID,

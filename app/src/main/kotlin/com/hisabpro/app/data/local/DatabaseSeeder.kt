@@ -37,7 +37,7 @@ object DatabaseSeeder {
             val now = System.currentTimeMillis()
             val dayMillis = 86_400_000L
 
-            val targetBusinessId = "default_business"
+            val targetBusinessId = "biz_vittal_supermarket_traders"
             val targetOwnerName = "Vittal Mali"
             val targetEmail = "vittalmali3@gmail.com"
             val targetPhone = "+919822012345"

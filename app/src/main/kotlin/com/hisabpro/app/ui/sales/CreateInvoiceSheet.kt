@@ -126,6 +126,7 @@ fun CreateInvoiceSheet(
     onSaveInvoice: (Invoice, saveAction: SaveAction) -> Unit
 ) {
     val context = LocalContext.current
+    val businessManager = remember { com.hisabpro.app.data.repository.BusinessManager.getInstance(context) }
     val settingsRepo = remember { com.hisabpro.app.data.repository.SettingsRepository.getInstance(context) }
     val businessProfile by settingsRepo.profile.collectAsStateWithLifecycle()
     val isGstRegistered = businessProfile.isGstRegistered
@@ -1284,6 +1285,7 @@ fun CreateInvoiceSheet(
 
                     return Invoice(
                         id = invoiceToEdit?.id ?: UUID.randomUUID().toString(),
+                        businessId = invoiceToEdit?.businessId ?: businessManager.activeBusinessDatabaseId,
                         invoiceNumber = invoiceToEdit?.invoiceNumber ?: "", // Will be assigned by repository if blank
                         type = selectedType,
                         gstMode = gstMode,

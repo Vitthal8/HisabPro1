@@ -79,6 +79,7 @@ class IndianAccountingTest {
 
         val nonGstInvoice = Invoice(
             id = "inv_nongst_1",
+            businessId = "biz_test",
             invoiceNumber = "2025-26/BILL/001",
             type = InvoiceType.NON_GST_BILL,
             gstMode = GstMode.EXEMPT,
@@ -115,6 +116,7 @@ class IndianAccountingTest {
 
         val gstInvoice = Invoice(
             id = "inv_gst_intra",
+            businessId = "biz_test",
             invoiceNumber = "2025-26/INV/001",
             type = InvoiceType.TAX_INVOICE,
             gstMode = GstMode.INTRA_STATE,
@@ -147,6 +149,7 @@ class IndianAccountingTest {
 
         val gstInvoice = Invoice(
             id = "inv_gst_inter",
+            businessId = "biz_test",
             invoiceNumber = "2025-26/INV/002",
             type = InvoiceType.TAX_INVOICE,
             gstMode = GstMode.INTER_STATE,
@@ -342,6 +345,7 @@ class IndianAccountingTest {
     fun testInvoicePdfWhatsAppTextGenerationNonGst() {
         val invoice = Invoice(
             id = "inv_101",
+            businessId = "biz_test",
             invoiceNumber = "2025-26/BILL/001",
             type = InvoiceType.NON_GST_BILL,
             gstMode = GstMode.EXEMPT,
@@ -405,7 +409,7 @@ class IndianAccountingTest {
                 "khata_entries": 6
             },
             "data": {
-                "businesses": [{"id": "default_business", "name": "Ganesh Kirana Stores"}],
+                "businesses": [{"id": "biz_ganesh_kirana_stores", "name": "Ganesh Kirana Stores"}],
                 "parties": [],
                 "items": [],
                 "invoices": [],
@@ -647,6 +651,7 @@ class IndianAccountingTest {
         )
         val invoice = Invoice(
             id = "inv_intra_1",
+            businessId = "biz_test",
             invoiceNumber = "2025-26/INV/010",
             type = InvoiceType.TAX_INVOICE,
             gstMode = mode,
@@ -704,6 +709,7 @@ class IndianAccountingTest {
         )
         val invoice = Invoice(
             id = "inv_inter_1",
+            businessId = "biz_test",
             invoiceNumber = "2025-26/INV/011",
             type = InvoiceType.TAX_INVOICE,
             gstMode = mode,
@@ -786,6 +792,7 @@ class IndianAccountingTest {
         )
         val nonGstInvoice = Invoice(
             id = "inv_nongst_test",
+            businessId = "biz_test",
             invoiceNumber = "2025-26/BILL/005",
             type = InvoiceType.NON_GST_BILL,
             gstMode = GstMode.EXEMPT,
@@ -823,7 +830,7 @@ class IndianAccountingTest {
         )
         val originalInvoice = Invoice(
             id = "inv_db_1",
-            businessId = "default_business",
+            businessId = "biz_ganesh_kirana_stores",
             invoiceNumber = "2025-26/INV/012",
             type = InvoiceType.TAX_INVOICE,
             gstMode = GstMode.INTER_STATE,
@@ -965,6 +972,7 @@ class IndianAccountingTest {
         )
         val invoice = Invoice(
             id = "inv_pdf_1",
+            businessId = "biz_test",
             invoiceNumber = "2025-26/INV/015",
             type = InvoiceType.TAX_INVOICE,
             gstMode = GstMode.INTER_STATE,

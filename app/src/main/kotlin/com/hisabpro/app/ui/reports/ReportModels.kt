@@ -6,6 +6,7 @@ import com.hisabpro.app.data.model.PartyType
 import com.hisabpro.app.data.model.PartyWithBalance
 import com.hisabpro.app.data.model.PurchaseBill
 import com.hisabpro.app.data.model.Transaction
+import com.hisabpro.app.util.toPaise
 
 enum class ReportPeriod(val label: String) {
     TODAY("Today"),

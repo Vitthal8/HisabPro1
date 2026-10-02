@@ -933,6 +933,8 @@ internal fun validateBackupJsonInternal(jsonString: String, fileName: String, fi
             }
         }
 
+        val fallbackBizId = businesses.firstOrNull()?.id ?: "biz_restored"
+
         // 2. Parties
         val parties = mutableListOf<PartyEntity>()
         val pArray = dataObj.optJSONArray("parties")
@@ -942,7 +944,7 @@ internal fun validateBackupJsonInternal(jsonString: String, fileName: String, fi
                 parties.add(
                     PartyEntity(
                         id = p.getString("id"),
-                        businessId = p.optString("business_id", "default_business"),
+                        businessId = p.optString("business_id", "").ifBlank { fallbackBizId },
                         name = p.getString("name"),
                         phone = p.optString("phone", ""),
                         email = p.optString("email", ""),
@@ -967,7 +969,7 @@ internal fun validateBackupJsonInternal(jsonString: String, fileName: String, fi
                 items.add(
                     ItemEntity(
                         id = item.getString("id"),
-                        businessId = item.optString("business_id", "default_business"),
+                        businessId = item.optString("business_id", "").ifBlank { fallbackBizId },
                         name = item.getString("name"),
                         itemCode = item.optString("item_code", ""),
                         unit = item.optString("unit", "Pcs"),
@@ -995,7 +997,7 @@ internal fun validateBackupJsonInternal(jsonString: String, fileName: String, fi
                 invoices.add(
                     InvoiceEntity(
                         id = inv.getString("id"),
-                        businessId = inv.optString("business_id", "default_business"),
+                        businessId = inv.optString("business_id", "").ifBlank { fallbackBizId },
                         invoiceNo = inv.getString("invoice_no"),
                         date = inv.getLong("date"),
                         partyId = partyIdVal,
@@ -1061,7 +1063,7 @@ internal fun validateBackupJsonInternal(jsonString: String, fileName: String, fi
                 payments.add(
                     PaymentEntity(
                         id = pay.getString("id"),
-                        businessId = pay.optString("business_id", "default_business"),
+                        businessId = pay.optString("business_id", "").ifBlank { fallbackBizId },
                         partyId = partyIdVal,
                         date = pay.getLong("date"),
                         amount = pay.getLong("amount"),
@@ -1085,7 +1087,7 @@ internal fun validateBackupJsonInternal(jsonString: String, fileName: String, fi
                 expenses.add(
                     ExpenseEntity(
                         id = exp.getString("id"),
-                        businessId = exp.optString("business_id", "default_business"),
+                        businessId = exp.optString("business_id", "").ifBlank { fallbackBizId },
                         date = exp.getLong("date"),
                         category = exp.getString("category"),
                         amount = exp.getLong("amount"),
@@ -1108,7 +1110,7 @@ internal fun validateBackupJsonInternal(jsonString: String, fileName: String, fi
                 accounts.add(
                     AccountEntity(
                         id = acc.getString("id"),
-                        businessId = acc.optString("business_id", "default_business"),
+                        businessId = acc.optString("business_id", "").ifBlank { fallbackBizId },
                         name = acc.getString("name"),
                         type = acc.getString("type"),
                         openingBalance = acc.optLong("opening_balance", 0L),
@@ -1130,7 +1132,7 @@ internal fun validateBackupJsonInternal(jsonString: String, fileName: String, fi
                 journalEntries.add(
                     JournalEntryEntity(
                         id = je.getString("id"),
-                        businessId = je.optString("business_id", "default_business"),
+                        businessId = je.optString("business_id", "").ifBlank { fallbackBizId },
                         date = je.getLong("date"),
                         voucherNo = je.optString("voucher_no", ""),
                         narration = je.optString("narration", ""),
@@ -1173,6 +1175,7 @@ internal fun validateBackupJsonInternal(jsonString: String, fileName: String, fi
                 khataEntries.add(
                     KhataEntryEntity(
                         id = ke.getString("id"),
+                        businessId = ke.optString("business_id", "").ifBlank { fallbackBizId },
                         partyId = ke.getString("party_id"),
                         amount = ke.getLong("amount"),
                         type = ke.getString("type"),

@@ -20,6 +20,7 @@ class EscPosAndSubscriptionTest {
     fun testEscPosBinaryCommandsGeneration() {
         val invoice = Invoice(
             id = "test_inv_001",
+            businessId = "biz_shree_ganesh",
             invoiceNumber = "2025-26/INV/001",
             type = InvoiceType.NON_GST_BILL,
             customerName = "Ramesh Kirana",

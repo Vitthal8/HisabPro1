@@ -80,7 +80,7 @@ class CompanyDeletionTest {
     @Test
     fun testCannotDeleteSingleRemainingCompanyProfile() {
         val currentBusinesses = listOf(
-            BusinessProfile(id = "default_business", shopName = "Vittal Supermarket & Traders")
+            BusinessProfile(id = "biz_vittal_supermarket", shopName = "Vittal Supermarket & Traders")
         )
 
         fun canDeleteCompany(bizList: List<BusinessProfile>): Boolean {
@@ -90,7 +90,7 @@ class CompanyDeletionTest {
         assertFalse("Deletion must be prevented if only one company remains", canDeleteCompany(currentBusinesses))
 
         val multiBusinesses = listOf(
-            BusinessProfile(id = "default_business", shopName = "Vittal Supermarket"),
+            BusinessProfile(id = "biz_vittal_supermarket", shopName = "Vittal Supermarket"),
             BusinessProfile(id = "biz_branch_2", shopName = "Vittal Electronics")
         )
 

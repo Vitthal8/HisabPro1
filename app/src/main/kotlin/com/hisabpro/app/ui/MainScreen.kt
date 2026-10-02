@@ -153,7 +153,9 @@ private fun MainScreenContent(
     val hisabUiState by hisabViewModel.uiState.collectAsStateWithLifecycle()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    var showBusinessSetup by rememberSaveable { mutableStateOf(!businessProfile.hasCompletedOnboarding) }
+    var showBusinessSetup by rememberSaveable(businessProfile.id, businessProfile.shopName, businessProfile.hasCompletedOnboarding) {
+        mutableStateOf(!businessProfile.hasCompletedOnboarding || businessProfile.shopName.isBlank())
+    }
     var activeSubScreen by rememberSaveable { mutableStateOf<String?>(null) } // "items", "cashbook", "backup", "cloud_sync", "bank_reconciliation"
 
     var showBusinessSwitcher by remember { mutableStateOf(false) }

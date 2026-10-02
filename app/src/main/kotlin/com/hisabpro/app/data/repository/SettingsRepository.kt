@@ -47,7 +47,7 @@ class SettingsRepository(context: Context) {
         val json = prefs.getString(KEY_PROFILE, null)
         if (json.isNullOrBlank()) {
             val uninitialized = BusinessProfile(
-                id = "default_business",
+                id = "",
                 shopName = "",
                 ownerName = "",
                 phone = "",
@@ -126,7 +126,7 @@ class SettingsRepository(context: Context) {
     fun resetProfile(newProfile: BusinessProfile? = null) {
         prefs.edit().remove(KEY_PROFILE).apply()
         val target = newProfile ?: BusinessProfile(
-            id = "default_business",
+            id = "",
             shopName = "",
             ownerName = "",
             phone = "",

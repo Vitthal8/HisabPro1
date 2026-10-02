@@ -25,7 +25,7 @@ class DatabaseSeederTest {
         val gstin = "27ABCDE1234F1Z5"
 
         val profile = BusinessProfile(
-            id = "default_business",
+            id = "biz_vittal_supermarket_traders",
             shopName = shopName,
             ownerName = ownerName,
             phone = "+919822012345",
@@ -45,7 +45,7 @@ class DatabaseSeederTest {
             hasCompletedOnboarding = true
         )
 
-        assertEquals("default_business", profile.id)
+        assertEquals("biz_vittal_supermarket_traders", profile.id)
         assertEquals("vittalmali3@gmail.com", profile.email)
         assertEquals("Vittal Mali", profile.ownerName)
         assertEquals("Vittal Supermarket & Traders", profile.shopName)
@@ -57,7 +57,7 @@ class DatabaseSeederTest {
     @Test
     fun testSeededSampleDataIntegrity() {
         val biz = BusinessEntity(
-            id = "default_business",
+            id = "biz_vittal_supermarket_traders",
             name = "Vittal Supermarket & Traders",
             ownerName = "Vittal Mali",
             email = "vittalmali3@gmail.com",

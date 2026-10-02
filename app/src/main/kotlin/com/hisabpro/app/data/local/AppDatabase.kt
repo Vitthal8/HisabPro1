@@ -50,8 +50,8 @@ import com.hisabpro.app.data.local.entity.SyncQueueEntity
         SyncMetadataEntity::class,
         SyncOutbox::class
     ],
-    version = 5,
-    exportSchema = false
+    version = 6,
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
 
@@ -479,6 +479,7 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_khata_entries_party_id` ON `khata_entries` (`party_id`);")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_khata_entries_date` ON `khata_entries` (`date`);")
 
+                db.execSQL("PRAGMA foreign_key_check;")
                 db.execSQL("PRAGMA foreign_keys = ON;")
             }
         }
@@ -563,6 +564,7 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_khata_entries_business_id` ON `khata_entries` (`business_id`);")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_khata_entries_party_id` ON `khata_entries` (`party_id`);")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_khata_entries_date` ON `khata_entries` (`date`);")
+                db.execSQL("PRAGMA foreign_key_check;")
                 db.execSQL("PRAGMA foreign_keys = ON;")
             }
         }
@@ -585,6 +587,85 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("PRAGMA foreign_keys = OFF;")
+
+                val fallbackTargetId = "biz_main_store"
+                val cursor = db.query("SELECT id FROM businesses WHERE id != 'default_business' LIMIT 1")
+                var targetId = fallbackTargetId
+                if (cursor.moveToFirst()) {
+                    val existingId = cursor.getString(0)
+                    if (!existingId.isNullOrBlank()) {
+                        targetId = existingId
+                    }
+                }
+                cursor.close()
+
+                val bizCursor = db.query("SELECT COUNT(*) FROM businesses WHERE id = '$targetId'")
+                var targetBizExists = false
+                if (bizCursor.moveToFirst()) {
+                    targetBizExists = bizCursor.getInt(0) > 0
+                }
+                bizCursor.close()
+
+                if (!targetBizExists) {
+                    val defaultBizCursor = db.query("SELECT name, owner_name, address, phone, email, gstin, pan, logo_path, gst_enabled, financial_year_start, upi_id, bank_name, account_number, ifsc_code, terms_and_conditions, created_at, updated_at FROM businesses WHERE id = 'default_business'")
+                    if (defaultBizCursor.moveToFirst()) {
+                        val name = defaultBizCursor.getString(0)
+                        val ownerName = defaultBizCursor.getString(1)
+                        val address = defaultBizCursor.getString(2)
+                        val phone = defaultBizCursor.getString(3)
+                        val email = defaultBizCursor.getString(4)
+                        val gstin = defaultBizCursor.getString(5)
+                        val pan = defaultBizCursor.getString(6)
+                        val logoPath = defaultBizCursor.getString(7)
+                        val gstEnabled = defaultBizCursor.getInt(8)
+                        val fyStart = defaultBizCursor.getString(9)
+                        val upiId = defaultBizCursor.getString(10)
+                        val bankName = defaultBizCursor.getString(11)
+                        val accNum = defaultBizCursor.getString(12)
+                        val ifsc = defaultBizCursor.getString(13)
+                        val terms = defaultBizCursor.getString(14)
+                        val createdAt = defaultBizCursor.getLong(15)
+                        val updatedAt = defaultBizCursor.getLong(16)
+
+                        db.execSQL("""
+                            INSERT OR REPLACE INTO `businesses` (
+                                `id`, `name`, `owner_name`, `address`, `phone`, `email`, `gstin`, `pan`,
+                                `logo_path`, `gst_enabled`, `financial_year_start`, `upi_id`, `bank_name`,
+                                `account_number`, `ifsc_code`, `terms_and_conditions`, `created_at`, `updated_at`
+                            ) VALUES (
+                                '$targetId', '$name', '$ownerName', '$address', '$phone', '$email', '$gstin', '$pan',
+                                '$logoPath', $gstEnabled, '$fyStart', '$upiId', '$bankName',
+                                '$accNum', '$ifsc', '$terms', $createdAt, $updatedAt
+                            )
+                        """.trimIndent())
+                    } else {
+                        db.execSQL("""
+                            INSERT OR REPLACE INTO `businesses` (`id`, `name`) VALUES ('$targetId', 'Main Store')
+                        """.trimIndent())
+                    }
+                    defaultBizCursor.close()
+                }
+
+                val tables = listOf(
+                    "parties", "items", "invoices", "payments",
+                    "expenses", "accounts", "journal_entries", "khata_entries"
+                )
+                for (tbl in tables) {
+                    db.execSQL("UPDATE `$tbl` SET `business_id` = '$targetId' WHERE `business_id` = 'default_business';")
+                }
+
+                if (targetId != "default_business") {
+                    db.execSQL("DELETE FROM `businesses` WHERE `id` = 'default_business';")
+                }
+
+                db.execSQL("PRAGMA foreign_key_check;")
+                db.execSQL("PRAGMA foreign_keys = ON;")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -592,8 +673,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "hisabpro_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
-                    .fallbackToDestructiveMigrationOnDowngrade()
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build().also { INSTANCE = it }
             }
         }

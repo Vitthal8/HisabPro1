@@ -39,7 +39,7 @@ data class PaymentEntity(
     @PrimaryKey
     val id: String,
     @ColumnInfo(name = "business_id")
-    val businessId: String = "default_business",
+    val businessId: String,
     @ColumnInfo(name = "party_id")
     val partyId: String? = null,
     val date: Long,

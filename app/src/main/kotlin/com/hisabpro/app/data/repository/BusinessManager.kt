@@ -34,7 +34,7 @@ class BusinessManager private constructor(private val context: Context) {
     private val _businesses = MutableStateFlow<List<BusinessProfile>>(emptyList())
     val businesses: StateFlow<List<BusinessProfile>> = _businesses.asStateFlow()
 
-    private val _activeBusinessId = MutableStateFlow("default_business")
+    private val _activeBusinessId = MutableStateFlow("")
     val activeBusinessId: StateFlow<String> = _activeBusinessId.asStateFlow()
 
     private val _activeBusiness = MutableStateFlow(BusinessProfile())
@@ -45,7 +45,7 @@ class BusinessManager private constructor(private val context: Context) {
             val active = _activeBusiness.value
             if (active.id.isNotBlank()) return active.id
             val name = active.shopName.trim()
-            if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) return "default_business"
+            if (name.isBlank()) error("No active business selected")
             val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
             return "biz_$sanitized"
         }
@@ -56,7 +56,7 @@ class BusinessManager private constructor(private val context: Context) {
                 profile.id
             } else {
                 val name = profile.shopName.trim()
-                if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) "default_business"
+                if (name.isBlank()) error("No active business selected")
                 else {
                     val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
                     "biz_$sanitized"
@@ -89,7 +89,7 @@ class BusinessManager private constructor(private val context: Context) {
 
     private fun loadBusinesses() {
         val rawJson = prefs.getString(KEY_BUSINESS_LIST, null)
-        val activeId = prefs.getString(KEY_ACTIVE_ID, "default_business") ?: "default_business"
+        val activeId = prefs.getString(KEY_ACTIVE_ID, "") ?: ""
         _activeBusinessId.value = activeId
 
         if (!rawJson.isNullOrBlank()) {
@@ -129,7 +129,7 @@ class BusinessManager private constructor(private val context: Context) {
                 val existing = map[ent.id]
                 val merged = BusinessProfile(
                     id = ent.id,
-                    shopName = ent.name.ifBlank { existing?.shopName ?: "HisabPro Business" },
+                    shopName = ent.name.ifBlank { existing?.shopName ?: "" },
                     ownerName = ent.ownerName.ifBlank { existing?.ownerName ?: "" },
                     phone = ent.phone.ifBlank { existing?.phone ?: "" },
                     email = ent.email.ifBlank { existing?.email ?: "" },
@@ -138,7 +138,7 @@ class BusinessManager private constructor(private val context: Context) {
                     gstin = ent.gstin.ifBlank { existing?.gstin ?: "" },
                     pan = ent.pan.ifBlank { existing?.pan ?: "" },
                     upiId = ent.upiId.ifBlank { existing?.upiId ?: "" },
-                    bankName = ent.bankName.ifBlank { existing?.bankName ?: "State Bank of India" },
+                    bankName = ent.bankName.ifBlank { existing?.bankName ?: "" },
                     accountNumber = ent.accountNumber.ifBlank { existing?.accountNumber ?: "" },
                     ifscCode = ent.ifscCode.ifBlank { existing?.ifscCode ?: "" },
                     termsAndConditions = ent.termsAndConditions.ifBlank { existing?.termsAndConditions ?: "" },
@@ -164,7 +164,7 @@ class BusinessManager private constructor(private val context: Context) {
 
     private fun sanitizeBizId(name: String): String {
         val trimmed = name.trim()
-        if (trimmed.isBlank() || trimmed.equals("HisabPro Enterprises", ignoreCase = true)) return "default_business"
+        if (trimmed.isBlank()) error("No active business selected")
         val sanitized = trimmed.lowercase().replace(Regex("[^a-z0-9]"), "_")
         return "biz_$sanitized"
     }
@@ -296,11 +296,13 @@ class BusinessManager private constructor(private val context: Context) {
         try {
             val entities = _businesses.value.map { p ->
                 val name = p.shopName.trim()
-                val bizId = if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) {
-                    "default_business"
-                } else {
+                val bizId = if (p.id.isNotBlank()) {
+                    p.id
+                } else if (name.isNotBlank()) {
                     val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
                     "biz_$sanitized"
+                } else {
+                    error("No active business selected")
                 }
                 BusinessEntity(
                     id = bizId,
@@ -393,9 +395,9 @@ class BusinessManager private constructor(private val context: Context) {
             persistBusinessesToPrefs(list, initialProfile.id.ifBlank { initialProfile.shopName })
         } else {
             _businesses.value = emptyList()
-            _activeBusinessId.value = "default_business"
+            _activeBusinessId.value = ""
             _activeBusiness.value = BusinessProfile(
-                id = "default_business",
+                id = "",
                 shopName = "",
                 ownerName = "",
                 email = "",

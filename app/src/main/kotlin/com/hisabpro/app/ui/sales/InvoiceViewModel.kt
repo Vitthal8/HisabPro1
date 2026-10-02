@@ -53,13 +53,15 @@ class InvoiceViewModel @JvmOverloads constructor(
     private val partyRepository = PartyRepository.getInstance(application.applicationContext)
     private val itemRepository = ItemRepository.getInstance(application.applicationContext)
     private val transactionRepository = TransactionRepository.getInstance(application.applicationContext)
+    private val settingsRepository = SettingsRepository.getInstance(application.applicationContext)
 
     // Domain Use Cases
     private val createInvoiceUseCase = CreateInvoiceUseCase(
         invoiceRepository = repository,
         itemRepository = itemRepository,
         partyRepository = partyRepository,
-        transactionRepository = transactionRepository
+        transactionRepository = transactionRepository,
+        settingsRepository = settingsRepository
     )
     private val deleteInvoiceUseCase = DeleteInvoiceUseCase(
         invoiceRepository = repository,
@@ -67,7 +69,8 @@ class InvoiceViewModel @JvmOverloads constructor(
     )
     private val updateInvoiceUseCase = UpdateInvoiceUseCase(
         invoiceRepository = repository,
-        itemRepository = itemRepository
+        itemRepository = itemRepository,
+        settingsRepository = settingsRepository
     )
 
     private val _searchQuery = MutableStateFlow("")

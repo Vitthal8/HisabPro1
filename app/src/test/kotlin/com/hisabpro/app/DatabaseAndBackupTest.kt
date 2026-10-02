@@ -26,26 +26,26 @@ class DatabaseAndBackupTest {
     }
 
     @Test
-    fun testBusinessDataIsolationDefaultBusinessId() {
-        val defaultBusinessId = "default_business"
+    fun testBusinessDataIsolationExplicitBusinessId() {
+        val testBusinessId = "biz_test_store"
 
-        // Verify entities default to defaultBusinessId
+        // Verify entities carry explicit testBusinessId
         val partyEntity = com.hisabpro.app.data.local.entity.PartyEntity(
             id = "p_iso_1",
-            businessId = defaultBusinessId,
+            businessId = testBusinessId,
             name = "Isolated Party",
             phone = "9822012345"
         )
 
         val invoiceEntity = com.hisabpro.app.data.local.entity.InvoiceEntity(
             id = "inv_iso_1",
-            businessId = defaultBusinessId,
+            businessId = testBusinessId,
             invoiceNo = "2025-26/INV/999",
             date = System.currentTimeMillis()
         )
 
-        assertEquals(defaultBusinessId, partyEntity.businessId)
-        assertEquals(defaultBusinessId, invoiceEntity.businessId)
+        assertEquals(testBusinessId, partyEntity.businessId)
+        assertEquals(testBusinessId, invoiceEntity.businessId)
     }
 
     @Test

@@ -23,6 +23,8 @@ import com.hisabpro.app.data.repository.PartyRepository
 import com.hisabpro.app.data.repository.PurchaseRepository
 import com.hisabpro.app.data.repository.SettingsRepository
 import com.hisabpro.app.data.repository.TransactionRepository
+import com.hisabpro.app.util.toPaise
+import com.hisabpro.app.util.toRupees
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -196,25 +198,28 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
         // Calculate parties with balance
         val partiesWithBalances = parties.map { party ->
             val partyEntries = entries.filter { it.partyId == party.id }
-            var totalGave = 0.0
-            var totalGot = 0.0
+            var totalGavePaise = 0L
+            var totalGotPaise = 0L
             var lastDate: Long? = null
 
             for (entry in partyEntries) {
                 if (entry.type == KhataEntryType.YOU_GAVE) {
-                    totalGave += entry.amount
+                    totalGavePaise += entry.amount.toPaise()
                 } else {
-                    totalGot += entry.amount
+                    totalGotPaise += entry.amount.toPaise()
                 }
                 if (lastDate == null || entry.dateMillis > lastDate) {
                     lastDate = entry.dateMillis
                 }
             }
+            val totalGave = totalGavePaise.toRupees()
+            val totalGot = totalGotPaise.toRupees()
+            val netBalance = (totalGavePaise - totalGotPaise).toRupees()
             PartyWithBalance(
                 party = party,
                 totalGave = totalGave,
                 totalGot = totalGot,
-                netBalance = totalGave - totalGot,
+                netBalance = netBalance,
                 lastEntryDateMillis = lastDate
             )
         }
@@ -264,8 +269,10 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
         )
 
         // Advanced Reports
-        val gstr1 = calculateGstr1(periodInvoices)
-        val gstr3b = calculateGstr3b(periodInvoices, periodPurchases)
+        val profile = settingsRepo.profile.value
+        val isGstActive = com.hisabpro.app.domain.accounting.GstPolicy.isGstApplicable(profile)
+        val gstr1 = if (isGstActive) calculateGstr1(periodInvoices) else Gstr1Summary()
+        val gstr3b = if (isGstActive) calculateGstr3b(periodInvoices, periodPurchases) else Gstr3bSummary()
         val profitLoss = calculateProfitLoss(periodInvoices, periodTransactions, periodPurchases, items)
         val partyAging = calculatePartyAging(partiesWithBalances)
         val stockValuation = calculateStockValuation(items)

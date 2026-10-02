@@ -32,7 +32,7 @@ data class KhataEntryEntity(
     @PrimaryKey
     val id: String,
     @ColumnInfo(name = "business_id")
-    val businessId: String = "default_business",
+    val businessId: String,
     @ColumnInfo(name = "party_id")
     val partyId: String,
     val amount: Long, // In paise

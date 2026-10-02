@@ -26,7 +26,8 @@ class CreateInvoiceUseCase(
     private val invoiceRepository: InvoiceRepository,
     private val itemRepository: ItemRepository,
     private val partyRepository: PartyRepository,
-    private val transactionRepository: TransactionRepository
+    private val transactionRepository: TransactionRepository,
+    private val settingsRepository: com.hisabpro.app.data.repository.SettingsRepository? = null
 ) {
 
     fun execute(invoice: Invoice): Result<Invoice> {
@@ -43,8 +44,12 @@ class CreateInvoiceUseCase(
             return Result.failure(IllegalStateException(check.message))
         }
 
-        // 3. Save Invoice
-        val saved = invoiceRepository.addInvoice(invoice)
+        // 3. Sanitize invoice according to GstPolicy single source of truth
+        val profile = settingsRepository?.profile?.value ?: com.hisabpro.app.data.model.BusinessProfile()
+        val sanitizedInvoice = com.hisabpro.app.domain.accounting.GstPolicy.sanitizeInvoiceForStorage(invoice, profile)
+
+        // 4. Save Invoice
+        val saved = invoiceRepository.addInvoice(sanitizedInvoice)
 
         // 4. Atomic Inventory Stock Deduction
         invoice.items.forEach { lineItem ->

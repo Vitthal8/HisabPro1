@@ -9,8 +9,8 @@ import com.hisabpro.app.data.model.PaymentMode
 import com.hisabpro.app.data.model.PurchaseBill
 import com.hisabpro.app.data.model.Transaction
 import com.hisabpro.app.data.model.TransactionType
-import java.math.BigDecimal
-import java.math.RoundingMode
+import com.hisabpro.app.util.toPaise
+import com.hisabpro.app.util.toRupees
 
 data class CashBookRow(
     val id: String,
@@ -23,7 +23,11 @@ data class CashBookRow(
     val runningBalance: Double,
     val paymentMode: String,
     val referenceInfo: String = ""
-)
+) {
+    val receiptAmountPaise: Long get() = receiptAmount.toPaise()
+    val paymentAmountPaise: Long get() = paymentAmount.toPaise()
+    val runningBalancePaise: Long get() = runningBalance.toPaise()
+}
 
 data class CashBookCalculationResult(
     val isBankMode: Boolean,
@@ -33,7 +37,13 @@ data class CashBookCalculationResult(
     val netMovement: Double,
     val closingBalance: Double,
     val rows: List<CashBookRow>
-)
+) {
+    val openingBalancePaise: Long get() = openingBalance.toPaise()
+    val totalReceiptsPaise: Long get() = totalReceipts.toPaise()
+    val totalPaymentsPaise: Long get() = totalPayments.toPaise()
+    val netMovementPaise: Long get() = netMovement.toPaise()
+    val closingBalancePaise: Long get() = closingBalance.toPaise()
+}
 
 /**
  * Domain-layer Cash Book & Bank Book calculation engine.
@@ -42,7 +52,7 @@ data class CashBookCalculationResult(
  * - Columns: Date, Particulars, Receipt, Payment, Balance
  * - Separate cash transactions from bank transactions
  * - De-duplicate transactions (prevent counting invoice paid amount and payment record twice)
- * - Calculate balances with double-precision accuracy
+ * - Calculate running balance with Long paise / BigDecimal accuracy without floating-point accumulation drift.
  */
 object CashBookCalculator {
 
@@ -59,17 +69,18 @@ object CashBookCalculator {
         val partyMap = parties.associateBy { it.id }
         val rawRows = mutableListOf<CashBookRow>()
 
-        // Keep track of invoice numbers and purchase numbers already accounted for
         val processedInvoiceIds = mutableSetOf<String>()
         val processedPurchaseIds = mutableSetOf<String>()
 
         // 1. Invoices (Sales with immediate payment)
         for (inv in invoices) {
             if (inv.type == InvoiceType.PROFORMA) continue
-            if (inv.paidAmount > 0.009) {
+            val paidPaise = inv.paidAmount.toPaise()
+            if (paidPaise > 0L) {
                 val isBank = isPaymentBankOrUpi(inv.paymentMode, inv.notes)
                 if (isBank == isBankMode) {
                     val rowDate = inv.dateMillis
+                    val amtRupees = paidPaise.toRupees()
                     rawRows.add(
                         CashBookRow(
                             id = "inv_${inv.id}",
@@ -77,7 +88,7 @@ object CashBookCalculator {
                             particulars = "Sale: ${inv.customerName}",
                             voucherNo = inv.invoiceNumber,
                             voucherType = "Sale",
-                            receiptAmount = AccountingEngine.roundToTwoDecimals(inv.paidAmount),
+                            receiptAmount = amtRupees,
                             paymentAmount = 0.0,
                             runningBalance = 0.0,
                             paymentMode = if (isBankMode) "Bank / UPI" else "Cash",
@@ -92,10 +103,12 @@ object CashBookCalculator {
 
         // 2. Purchases (Purchase bills with immediate payment)
         for (pur in purchases) {
-            if (pur.paidAmount > 0.009) {
+            val paidPaise = pur.paidAmount.toPaise()
+            if (paidPaise > 0L) {
                 val isBank = isPaymentBankOrUpi(pur.paymentMode, pur.notes)
                 if (isBank == isBankMode) {
                     val rowDate = pur.dateMillis
+                    val amtRupees = paidPaise.toRupees()
                     rawRows.add(
                         CashBookRow(
                             id = "pur_${pur.id}",
@@ -104,7 +117,7 @@ object CashBookCalculator {
                             voucherNo = pur.purchaseNumber,
                             voucherType = "Purchase",
                             receiptAmount = 0.0,
-                            paymentAmount = AccountingEngine.roundToTwoDecimals(pur.paidAmount),
+                            paymentAmount = amtRupees,
                             runningBalance = 0.0,
                             paymentMode = pur.paymentMode,
                             referenceInfo = "Purchase Bill #${pur.purchaseNumber}"
@@ -121,7 +134,6 @@ object CashBookCalculator {
             val isBank = tx.paymentMode != PaymentMode.CASH
             if (isBank != isBankMode) continue
 
-            // De-duplicate: check if transaction was auto-created from an already processed invoice or purchase
             val titleLower = tx.title.trim().lowercase()
             val noteLower = tx.note.trim().lowercase()
             val isDuplicateInvoice = processedInvoiceIds.any { id ->
@@ -132,6 +144,8 @@ object CashBookCalculator {
             }
             if (isDuplicateInvoice || isDuplicatePurchase) continue
 
+            val amtRupees = tx.amount.toPaise().toRupees()
+
             if (tx.type == TransactionType.INCOME) {
                 rawRows.add(
                     CashBookRow(
@@ -140,7 +154,7 @@ object CashBookCalculator {
                         particulars = "${tx.category.label}: ${tx.title}",
                         voucherNo = "REC-${tx.id.take(4)}",
                         voucherType = "Receipt",
-                        receiptAmount = AccountingEngine.roundToTwoDecimals(tx.amount),
+                        receiptAmount = amtRupees,
                         paymentAmount = 0.0,
                         runningBalance = 0.0,
                         paymentMode = tx.paymentMode.label,
@@ -156,7 +170,7 @@ object CashBookCalculator {
                         voucherNo = "EXP-${tx.id.take(4)}",
                         voucherType = "Expense",
                         receiptAmount = 0.0,
-                        paymentAmount = AccountingEngine.roundToTwoDecimals(tx.amount),
+                        paymentAmount = amtRupees,
                         runningBalance = 0.0,
                         paymentMode = tx.paymentMode.label,
                         referenceInfo = tx.note
@@ -167,7 +181,6 @@ object CashBookCalculator {
 
         // 4. Khata Entries (Independent collections / payments from parties)
         for (e in khataEntries) {
-            // De-duplicate: if billNumber matches an invoice already counted on same day, skip
             if (e.billNumber.isNotBlank()) {
                 val billLower = e.billNumber.trim().lowercase()
                 if (processedInvoiceIds.contains(billLower) || processedPurchaseIds.contains(billLower)) {
@@ -178,12 +191,12 @@ object CashBookCalculator {
             val party = partyMap[e.partyId]
             val partyName = party?.name ?: "Party"
 
-            // Infer payment mode from note if present
             val isBank = isPaymentBankOrUpi(e.note, e.billNumber)
             if (isBank != isBankMode) continue
 
+            val amtRupees = e.amount.toPaise().toRupees()
+
             if (e.type == KhataEntryType.YOU_GOT) {
-                // Receipt from party (Money collected) -> Receipt / Inflow
                 rawRows.add(
                     CashBookRow(
                         id = "khata_${e.id}",
@@ -191,7 +204,7 @@ object CashBookCalculator {
                         particulars = "Received from $partyName",
                         voucherNo = e.billNumber.ifBlank { "REC-${e.id.take(4)}" },
                         voucherType = "Receipt",
-                        receiptAmount = AccountingEngine.roundToTwoDecimals(e.amount),
+                        receiptAmount = amtRupees,
                         paymentAmount = 0.0,
                         runningBalance = 0.0,
                         paymentMode = if (isBankMode) "Bank / UPI" else "Cash",
@@ -199,7 +212,6 @@ object CashBookCalculator {
                     )
                 )
             } else {
-                // Payment to party (e.g. Supplier paid in cash) -> Payment / Outflow
                 rawRows.add(
                     CashBookRow(
                         id = "khata_${e.id}",
@@ -208,7 +220,7 @@ object CashBookCalculator {
                         voucherNo = e.billNumber.ifBlank { "PAY-${e.id.take(4)}" },
                         voucherType = "Payment",
                         receiptAmount = 0.0,
-                        paymentAmount = AccountingEngine.roundToTwoDecimals(e.amount),
+                        paymentAmount = amtRupees,
                         runningBalance = 0.0,
                         paymentMode = if (isBankMode) "Bank / UPI" else "Cash",
                         referenceInfo = e.note
@@ -217,48 +229,45 @@ object CashBookCalculator {
             }
         }
 
-        // Calculate Opening Balance from all transactions occurring BEFORE startDateMillis
+        // Calculate Opening Balance in Long paise
         val priorRows = rawRows.filter { it.dateMillis < startDateMillis }
-        val openingReceipts = priorRows.sumOf { it.receiptAmount }
-        val openingPayments = priorRows.sumOf { it.paymentAmount }
-        val openingBalance = AccountingEngine.roundToTwoDecimals(openingReceipts - openingPayments)
+        val openingReceiptsPaise = priorRows.sumOf { it.receiptAmount.toPaise() }
+        val openingPaymentsPaise = priorRows.sumOf { it.paymentAmount.toPaise() }
+        val openingBalancePaise = openingReceiptsPaise - openingPaymentsPaise
 
-        // Filter rows in current period
         val periodRows = rawRows.filter { it.dateMillis in startDateMillis..endDateMillis }
-            .sortedBy { it.dateMillis } // Chronological ascending for running balance
+            .sortedBy { it.dateMillis }
 
-        var running = BigDecimal(openingBalance.toString())
-        var periodTotalReceipts = BigDecimal.ZERO
-        var periodTotalPayments = BigDecimal.ZERO
+        var runningPaise = openingBalancePaise
+        var periodTotalReceiptsPaise = 0L
+        var periodTotalPaymentsPaise = 0L
 
         val finalizedRows = mutableListOf<CashBookRow>()
 
         for (row in periodRows) {
-            val r = BigDecimal(row.receiptAmount.toString())
-            val p = BigDecimal(row.paymentAmount.toString())
+            val rPaise = row.receiptAmount.toPaise()
+            val pPaise = row.paymentAmount.toPaise()
 
-            periodTotalReceipts = periodTotalReceipts.add(r)
-            periodTotalPayments = periodTotalPayments.add(p)
-            running = running.add(r).subtract(p)
+            periodTotalReceiptsPaise += rPaise
+            periodTotalPaymentsPaise += pPaise
+            runningPaise += (rPaise - pPaise)
 
             finalizedRows.add(
-                row.copy(runningBalance = running.setScale(2, RoundingMode.HALF_UP).toDouble())
+                row.copy(runningBalance = runningPaise.toRupees())
             )
         }
 
-        val totalReceipts = periodTotalReceipts.setScale(2, RoundingMode.HALF_UP).toDouble()
-        val totalPayments = periodTotalPayments.setScale(2, RoundingMode.HALF_UP).toDouble()
-        val netMovement = AccountingEngine.roundToTwoDecimals(totalReceipts - totalPayments)
-        val closingBalance = running.setScale(2, RoundingMode.HALF_UP).toDouble()
+        val netMovementPaise = periodTotalReceiptsPaise - periodTotalPaymentsPaise
+        val closingBalancePaise = openingBalancePaise + netMovementPaise
 
         return CashBookCalculationResult(
             isBankMode = isBankMode,
-            openingBalance = openingBalance,
-            totalReceipts = totalReceipts,
-            totalPayments = totalPayments,
-            netMovement = netMovement,
-            closingBalance = closingBalance,
-            rows = finalizedRows.reversed() // Return newest at top for viewing convenience
+            openingBalance = openingBalancePaise.toRupees(),
+            totalReceipts = periodTotalReceiptsPaise.toRupees(),
+            totalPayments = periodTotalPaymentsPaise.toRupees(),
+            netMovement = netMovementPaise.toRupees(),
+            closingBalance = closingBalancePaise.toRupees(),
+            rows = finalizedRows
         )
     }
 
@@ -270,8 +279,6 @@ object CashBookCalculator {
                 s.contains("cheque") ||
                 s.contains("neft") ||
                 s.contains("rtgs") ||
-                s.contains("gpay") ||
-                s.contains("phonepe") ||
-                s.contains("paytm")
+                s.contains("card")
     }
 }

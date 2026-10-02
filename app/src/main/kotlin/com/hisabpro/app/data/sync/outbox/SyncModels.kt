@@ -35,7 +35,7 @@ data class InvoicePayload(
     val userId: String = "",
 
     @SerialName("business_id")
-    val businessId: String = "default_business",
+    val businessId: String,
 
     @SerialName("invoice_no")
     val invoiceNo: String,

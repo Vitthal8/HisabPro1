@@ -160,4 +160,64 @@ class GSTArchitectureTest {
         assertEquals(58000.0, result.grandTotal, 0.001)
         assertEquals(0.0, result.dueAmount, 0.001)
     }
+
+    // 9. Thermal slip Non-GST formatting
+    @Test
+    fun testThermalSlipFormatForNonGstBusinessOmitsGst() {
+        val nonGstProfile = com.hisabpro.app.data.model.BusinessProfile(
+            shopName = "Ramesh General Store",
+            isGstRegistered = false,
+            gstin = ""
+        )
+        val invoice = com.hisabpro.app.data.model.Invoice(
+            id = "inv_001",
+            businessId = "biz_ramesh",
+            invoiceNumber = "BILL-001",
+            type = InvoiceType.NON_GST_BILL,
+            gstMode = GstMode.EXEMPT,
+            items = listOf(
+                InvoiceItem(id = "i1", description = "Sugar 5kg", quantity = 1.0, unitPrice = 200.0, gstRate = 5.0)
+            )
+        )
+
+        val thermalText = com.hisabpro.app.util.ThermalSlipGenerator.formatThermalSlipText(invoice, nonGstProfile)
+
+        org.junit.Assert.assertFalse("Non-GST thermal slip must not contain GSTIN", thermalText.contains("GSTIN:"))
+        org.junit.Assert.assertFalse("Non-GST thermal slip must not contain line GST %", thermalText.contains("GST 5%"))
+        org.junit.Assert.assertFalse("Non-GST thermal slip must not contain Total GST", thermalText.contains("Total GST:"))
+        org.junit.Assert.assertTrue("Non-GST thermal slip must contain RETAIL BILL title", thermalText.contains("RETAIL BILL / CASH SLIP"))
+    }
+
+    // 10. Historical Invoice Preservation on Business GST Toggle
+    @Test
+    fun testBusinessSwitchFromNonGstToGstPreservesHistoricalInvoices() {
+        val oldNonGstProfile = com.hisabpro.app.data.model.BusinessProfile(
+            shopName = "Shree Kirana",
+            isGstRegistered = false
+        )
+        val oldInvoice = com.hisabpro.app.data.model.Invoice(
+            id = "inv_old_1",
+            businessId = "biz_shree",
+            invoiceNumber = "BILL-2024-001",
+            type = InvoiceType.NON_GST_BILL,
+            gstMode = GstMode.EXEMPT,
+            items = listOf(InvoiceItem(description = "Oil", quantity = 1.0, unitPrice = 150.0, gstRate = 12.0))
+        )
+
+        // Historical invoice created during non-GST phase
+        assertEquals(0.0, oldInvoice.totalTax, 0.001)
+
+        // Business switches to GST
+        val newGstProfile = oldNonGstProfile.copy(
+            isGstRegistered = true,
+            gstin = "27AAAAA1234A1Z5"
+        )
+        org.junit.Assert.assertTrue(newGstProfile.isGstRegistered)
+
+        // Historical invoice remains Non-GST Bill with 0 tax
+        val sanitizedOldInvoice = com.hisabpro.app.domain.accounting.GstPolicy.sanitizeInvoiceForStorage(oldInvoice, oldNonGstProfile)
+        assertEquals(InvoiceType.NON_GST_BILL, sanitizedOldInvoice.type)
+        assertEquals(GstMode.EXEMPT, sanitizedOldInvoice.gstMode)
+        assertEquals(0.0, sanitizedOldInvoice.totalTax, 0.001)
+    }
 }

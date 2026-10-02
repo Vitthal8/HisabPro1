@@ -78,6 +78,7 @@ class InvoiceRepository(private val context: Context) {
                     list.add(
                         Invoice(
                             id = obj.getString("id"),
+                            businessId = obj.optString("businessId", "").ifBlank { activeBizId },
                             invoiceNumber = obj.getString("invoiceNumber"),
                             type = InvoiceType.fromString(obj.optString("type", "TAX_INVOICE")),
                             gstMode = GstMode.fromString(obj.optString("gstMode", "INTRA_STATE")),
@@ -416,11 +417,9 @@ class InvoiceRepository(private val context: Context) {
     }
 
     fun addInvoice(invoice: Invoice): Invoice {
-        val prepared = if (invoice.businessId.isBlank() || invoice.businessId == "default_business") {
-            invoice.copy(businessId = activeBizId)
-        } else {
-            invoice
-        }
+        val bizId = if (invoice.businessId.isNotBlank()) invoice.businessId else activeBizId
+        if (bizId.isBlank()) error("No active business selected")
+        val prepared = invoice.copy(businessId = bizId)
         val updated = listOf(prepared) + _invoices.value
         saveInternal(updated, syncAllRoom = false)
         scope.launch {
@@ -430,11 +429,9 @@ class InvoiceRepository(private val context: Context) {
     }
 
     fun updateInvoice(invoice: Invoice) {
-        val prepared = if (invoice.businessId.isBlank() || invoice.businessId == "default_business") {
-            invoice.copy(businessId = activeBizId)
-        } else {
-            invoice
-        }
+        val bizId = if (invoice.businessId.isNotBlank()) invoice.businessId else activeBizId
+        if (bizId.isBlank()) error("No active business selected")
+        val prepared = invoice.copy(businessId = bizId)
         val updated = _invoices.value.map {
             if (it.id == prepared.id) prepared else it
         }
@@ -491,6 +488,7 @@ class InvoiceRepository(private val context: Context) {
         // 1. Quick Sale Cash Bill (Walk-in customer)
         val inv1 = Invoice(
             id = "inv_demo_quick_1",
+            businessId = activeBizId,
             invoiceNumber = "BILL-24-25-001",
             type = InvoiceType.NON_GST_BILL,
             gstMode = GstMode.EXEMPT,
@@ -528,6 +526,7 @@ class InvoiceRepository(private val context: Context) {
         // 2. Full GST Tax Invoice with Ramesh Sharma (intra-state CGST + SGST)
         val inv2 = Invoice(
             id = "inv_demo_gst_2",
+            businessId = activeBizId,
             invoiceNumber = "INV-24-25-001",
             type = InvoiceType.TAX_INVOICE,
             gstMode = GstMode.INTRA_STATE,
@@ -567,6 +566,7 @@ class InvoiceRepository(private val context: Context) {
         // 3. Proforma Quotation for Anjali Verma
         val inv3 = Invoice(
             id = "inv_demo_quot_3",
+            businessId = activeBizId,
             invoiceNumber = "QUOT-24-25-001",
             type = InvoiceType.PROFORMA,
             gstMode = GstMode.INTRA_STATE,

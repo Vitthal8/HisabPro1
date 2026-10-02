@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "businesses")
 data class BusinessEntity(
     @PrimaryKey
-    val id: String = "default_business",
+    val id: String,
     val name: String,
     @ColumnInfo(name = "owner_name")
     val ownerName: String = "",

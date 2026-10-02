@@ -243,17 +243,18 @@ object IndianAccountingFormat {
     }
 
     /**
-     * Formats amount according to Indian numbering system (Lakhs, Crores):
-     * e.g. 1234567.50 -> ₹12,34,567.50
+     * Formats amount in Long paise according to Indian numbering system (Lakhs, Crores):
+     * e.g. 10000000L paise (₹100,000.00) -> ₹1,00,000
+     * e.g. 1000000000L paise (₹10,00,00,000.00) -> ₹10,00,00,000
      */
-    fun formatIndianCurrency(amount: Double, showSymbol: Boolean = true): String {
-        val isNegative = amount < 0
-        val absAmount = kotlin.math.abs(amount)
-        val longPart = absAmount.toLong()
-        val decimalPart = kotlin.math.round((absAmount - longPart) * 100).toInt()
+    fun formatIndianCurrency(paise: Long, showSymbol: Boolean = true): String {
+        val isNegative = paise < 0
+        val absPaise = kotlin.math.abs(paise)
+        val rupees = absPaise / 100
+        val remainingPaise = (absPaise % 100).toInt()
 
-        val s = longPart.toString()
-        val formattedLong = if (s.length <= 3) {
+        val s = rupees.toString()
+        val formattedRupees = if (s.length <= 3) {
             s
         } else {
             val lastThree = s.substring(s.length - 3)
@@ -270,14 +271,27 @@ object IndianAccountingFormat {
             sb.reverse().append(',').append(lastThree).toString()
         }
 
-        val formatted = if (decimalPart > 0) {
-            "$formattedLong.${String.format(Locale.ROOT, "%02d", decimalPart)}"
+        val formatted = if (remainingPaise > 0) {
+            "$formattedRupees.${String.format(Locale.ROOT, "%02d", remainingPaise)}"
         } else {
-            formattedLong
+            formattedRupees
         }
 
         val symbolPrefix = if (showSymbol) "₹" else ""
         return if (isNegative) "-$symbolPrefix$formatted" else "$symbolPrefix$formatted"
+    }
+
+    fun formatIndianCurrency(amount: java.math.BigDecimal, showSymbol: Boolean = true): String {
+        val paise = amount.multiply(java.math.BigDecimal("100")).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact()
+        return formatIndianCurrency(paise, showSymbol)
+    }
+
+    /**
+     * Formats amount according to Indian numbering system (Lakhs, Crores):
+     * e.g. 1234567.50 -> ₹12,34,567.50
+     */
+    fun formatIndianCurrency(amount: Double, showSymbol: Boolean = true): String {
+        return formatIndianCurrency(amount.toPaise(), showSymbol)
     }
 
     /**
@@ -289,30 +303,38 @@ object IndianAccountingFormat {
     }
 
     /**
-     * Returns Dr / Cr descriptor for party running balances:
+     * Returns Dr / Cr descriptor for party running balances (in Long paise):
      * - Customer positive balance: Dr (Debit = Money to Receive)
      * - Supplier positive balance: Cr (Credit = Money to Pay)
      */
-    fun getDrCrIndicator(balance: Double, isCustomer: Boolean = true): String {
-        if (kotlin.math.abs(balance) < 0.01) return "-"
+    fun getDrCrIndicator(balancePaise: Long, isCustomer: Boolean = true): String {
+        if (balancePaise == 0L) return "-"
         return if (isCustomer) {
-            if (balance > 0) "Dr" else "Cr"
+            if (balancePaise > 0) "Dr" else "Cr"
         } else {
-            if (balance > 0) "Cr" else "Dr"
+            if (balancePaise > 0) "Cr" else "Dr"
         }
     }
 
-    fun getDrCrBalanceLabel(balance: Double, isCustomer: Boolean): String {
-        val formatted = formatIndianCurrency(kotlin.math.abs(balance))
+    fun getDrCrIndicator(balance: Double, isCustomer: Boolean = true): String {
+        return getDrCrIndicator(balance.toPaise(), isCustomer)
+    }
+
+    fun getDrCrBalanceLabel(balancePaise: Long, isCustomer: Boolean): String {
+        val formatted = formatIndianCurrency(kotlin.math.abs(balancePaise))
         return when {
-            balance > 0 -> {
+            balancePaise > 0 -> {
                 if (isCustomer) "$formatted Dr (To Collect)" else "$formatted Cr (To Pay)"
             }
-            balance < 0 -> {
+            balancePaise < 0 -> {
                 if (isCustomer) "$formatted Cr (Advance Paid)" else "$formatted Dr (Advance Given)"
             }
             else -> "₹0 (Settled)"
         }
+    }
+
+    fun getDrCrBalanceLabel(balance: Double, isCustomer: Boolean): String {
+        return getDrCrBalanceLabel(balance.toPaise(), isCustomer)
     }
 
     /**

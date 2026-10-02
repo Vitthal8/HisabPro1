@@ -32,6 +32,12 @@ object ThermalSlipGenerator {
         profile: BusinessProfile,
         widthChars: Int = 32
     ): String {
+        val isGst = com.hisabpro.app.domain.accounting.GstPolicy.isGstApplicable(
+            profile = profile,
+            invoiceType = invoice.type,
+            gstMode = invoice.gstMode
+        )
+
         val lineDivider = "-".repeat(widthChars)
         val doubleDivider = "=".repeat(widthChars)
 
@@ -50,17 +56,17 @@ object ThermalSlipGenerator {
         if (profile.phone.isNotBlank()) {
             sb.appendLine(centerText("Ph: ${profile.phone}", widthChars))
         }
-        if (profile.gstin.isNotBlank()) {
+        if (isGst && profile.gstin.isNotBlank()) {
             sb.appendLine(centerText("GSTIN: ${profile.gstin.uppercase()}", widthChars))
         }
 
         sb.appendLine(doubleDivider)
 
         // Title and Meta
-        val title = when (invoice.type) {
-            InvoiceType.TAX_INVOICE -> "TAX INVOICE"
-            InvoiceType.NON_GST_BILL -> "RETAIL BILL / CASH SLIP"
-            InvoiceType.PROFORMA -> "ESTIMATE / QUOTATION"
+        val title = when {
+            invoice.type == InvoiceType.PROFORMA -> "ESTIMATE / QUOTATION"
+            isGst -> "TAX INVOICE"
+            else -> "RETAIL BILL / CASH SLIP"
         }
         sb.appendLine(centerText(title, widthChars))
         sb.appendLine(lineDivider)
@@ -73,7 +79,7 @@ object ThermalSlipGenerator {
         if (invoice.customerPhone.isNotBlank()) {
             sb.appendLine(leftRightText("Phone: ${invoice.customerPhone}", "", widthChars))
         }
-        if (invoice.customerGstin.isNotBlank()) {
+        if (isGst && invoice.customerGstin.isNotBlank()) {
             sb.appendLine(leftRightText("GSTIN: ${invoice.customerGstin}", "", widthChars))
         }
 
@@ -90,7 +96,7 @@ object ThermalSlipGenerator {
             sb.appendLine(leftRightText(desc, itemTotal, widthChars))
 
             val qtyRate = "   ${item.quantity} ${item.unit} @ ${String.format(Locale.ENGLISH, "%.2f", item.unitPrice)}"
-            val taxInfo = if (invoice.gstMode != GstMode.EXEMPT && item.gstRate > 0) " (GST ${item.gstRate.toInt()}%)" else ""
+            val taxInfo = if (isGst && item.gstRate > 0) " (GST ${item.gstRate.toInt()}%)" else ""
             sb.appendLine(qtyRate + taxInfo)
         }
 
@@ -98,7 +104,7 @@ object ThermalSlipGenerator {
 
         // Summary Calculations
         sb.appendLine(leftRightText("Sub Total:", String.format(Locale.ENGLISH, "%.2f", invoice.subtotal), widthChars))
-        if (invoice.gstMode != GstMode.EXEMPT && invoice.totalTax > 0) {
+        if (isGst && invoice.totalTax > 0) {
             sb.appendLine(leftRightText("Total GST:", String.format(Locale.ENGLISH, "%.2f", invoice.totalTax), widthChars))
         }
         if (invoice.discountAmount > 0) {

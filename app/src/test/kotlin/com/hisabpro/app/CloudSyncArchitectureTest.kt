@@ -32,7 +32,7 @@ class CloudSyncArchitectureTest {
         val now = System.currentTimeMillis()
         val localParty = PartyEntity(
             id = "party_123",
-            businessId = "default_business",
+            businessId = "biz_main_store",
             name = "Ramesh Kumar",
             phone = "9822011111",
             address = "Pune",
@@ -40,7 +40,7 @@ class CloudSyncArchitectureTest {
         )
         val remoteParty = PartyEntity(
             id = "party_123",
-            businessId = "default_business",
+            businessId = "biz_main_store",
             name = "Ramesh Kumar Sharma",
             phone = "9822099999",
             address = "Shivajinagar Pune",
@@ -57,6 +57,7 @@ class CloudSyncArchitectureTest {
         val now = System.currentTimeMillis()
         val localItem = ItemEntity(
             id = "item_100",
+             businessId = "biz_test",
             name = "Atta 10kg",
             sellPrice = 45000L,
             updatedAt = now - 10000L,
@@ -64,6 +65,7 @@ class CloudSyncArchitectureTest {
         )
         val remoteItem = ItemEntity(
             id = "item_100",
+            businessId = "biz_test",
             name = "Atta 10kg",
             sellPrice = 45000L,
             updatedAt = now - 1000L,
@@ -80,6 +82,7 @@ class CloudSyncArchitectureTest {
         val now = System.currentTimeMillis()
         val localInvoice = InvoiceEntity(
             id = "inv_001",
+            businessId = "biz_test",
             invoiceNo = "2026-27/INV/001",
             date = now,
             subtotal = 100000L, // ₹1,000 in paise
@@ -91,6 +94,7 @@ class CloudSyncArchitectureTest {
         )
         val remoteInvoice = InvoiceEntity(
             id = "inv_001",
+            businessId = "biz_test",
             invoiceNo = "2026-27/INV/001",
             date = now,
             subtotal = 100000L,
@@ -112,6 +116,7 @@ class CloudSyncArchitectureTest {
         val now = System.currentTimeMillis()
         val localPayment = PaymentEntity(
             id = "pay_001",
+            businessId = "biz_test",
             amount = 50000L, // ₹500 in paise
             mode = "UPI",
             referenceNo = "UPI-REF-12345",
@@ -200,11 +205,11 @@ class CloudSyncArchitectureTest {
         val p3 = BusinessProfile(shopName = "Vhhhhhh Store")
 
         fun sanitize(name: String): String {
-            if (name.isBlank() || name.equals("HisabPro Enterprises", ignoreCase = true)) return "default_business"
+            if (name.isBlank()) error("No active business selected")
             return "biz_" + name.lowercase().replace(Regex("[^a-z0-9]"), "_")
         }
 
-        assertEquals("default_business", sanitize(p1.shopName))
+        assertEquals("biz_hisabpro_enterprises", sanitize(p1.shopName))
         assertEquals("biz_vittal_supermarket", sanitize(p2.shopName))
         assertEquals("biz_vhhhhhh_store", sanitize(p3.shopName))
     }
@@ -274,7 +279,7 @@ class CloudSyncArchitectureTest {
         // Customer details on invoice are fully preserved despite partyId being null
         val invoice = InvoiceEntity(
             id = "inv_002",
-            businessId = "default_business",
+            businessId = "biz_main_store",
             invoiceNo = "2026-27/INV/002",
             date = System.currentTimeMillis(),
             partyId = safePartyId,
@@ -379,7 +384,7 @@ class CloudSyncArchitectureTest {
     fun testMultiBusinessRecordsRemainIsolated() {
         val invShop1 = InvoiceEntity(
             id = "inv_1",
-            businessId = "default_business",
+            businessId = "biz_main_store",
             invoiceNo = "2026-27/INV/001",
             date = System.currentTimeMillis(),
             total = 10000L
@@ -392,7 +397,7 @@ class CloudSyncArchitectureTest {
             total = 20000L
         )
 
-        assertEquals("default_business", invShop1.businessId)
+        assertEquals("biz_main_store", invShop1.businessId)
         assertEquals("biz_vhhhhhh", invShop2.businessId)
         assertEquals(invShop1.invoiceNo, invShop2.invoiceNo) // Valid Indian multi-business accounting
     }
@@ -401,7 +406,7 @@ class CloudSyncArchitectureTest {
     fun testNonGstInvoicesRestoreAndDisplayCorrectly() {
         val nonGstInvoice = InvoiceEntity(
             id = "inv_nongst_1",
-            businessId = "default_business",
+            businessId = "biz_main_store",
             invoiceNo = "2026-27/BILL/001",
             date = System.currentTimeMillis(),
             type = "NON_GST_BILL",
@@ -454,7 +459,7 @@ class CloudSyncArchitectureTest {
     @Test
     fun testExactUserSupabaseDatabaseRestoreScenario() {
         // Exact dataset from user's live Supabase database
-        val businessesFromCloud = setOf("default_business") // biz_vhhhhhh is missing from businesses table!
+        val businessesFromCloud = setOf("biz_main_store") // biz_vhhhhhh is missing from businesses table!
         val partiesFromCloud = mapOf(
             "0ea3b22e-0146-4fa9-8ec2-d8611ab9438f" to "Abc",
             "155fd2bd-b5ad-4d05-b551-b84cded130e4" to "Bbb",
@@ -465,10 +470,10 @@ class CloudSyncArchitectureTest {
 
         // Raw invoices as returned from Supabase
         val rawInvoices = listOf(
-            Triple("4880d3de-df53-4ae4-b048-9b6cf80bcb78", "default_business", ""),
-            Triple("5c545286-0c66-42e7-a9f8-28e6db426cc8", "default_business", ""),
-            Triple("ba4f0037-2886-46a0-9eac-d0d5cf6f09ac", "default_business", "0ea3b22e-0146-4fa9-8ec2-d8611ab9438f"),
-            Triple("d2012541-3ed5-4220-856d-1d7bc14cc6f7", "default_business", ""),
+            Triple("4880d3de-df53-4ae4-b048-9b6cf80bcb78", "biz_main_store", ""),
+            Triple("5c545286-0c66-42e7-a9f8-28e6db426cc8", "biz_main_store", ""),
+            Triple("ba4f0037-2886-46a0-9eac-d0d5cf6f09ac", "biz_main_store", "0ea3b22e-0146-4fa9-8ec2-d8611ab9438f"),
+            Triple("d2012541-3ed5-4220-856d-1d7bc14cc6f7", "biz_main_store", ""),
             Triple("da60209b-011b-4cc8-b059-45aebcf9ec6c", "biz_vhhhhhh", "cea0b808-b66a-47fc-885f-467e44507006")
         )
 
@@ -498,7 +503,7 @@ class CloudSyncArchitectureTest {
 
         // Verify all 5 invoices and biz_vhhhhhh are safely resolved
         assertTrue(localBusinesses.contains("biz_vhhhhhh"))
-        assertTrue(localBusinesses.contains("default_business"))
+        assertTrue(localBusinesses.contains("biz_main_store"))
     }
 
     @Test
@@ -535,12 +540,12 @@ class CloudSyncArchitectureTest {
         assertEquals("biz_abc_ltd", khata.businessId)
         assertEquals(partyId, khata.partyId)
         assertEquals(invoice.businessId, khata.businessId)
-        assertFalse(khata.businessId == "default_business")
+        assertFalse(khata.businessId == "biz_other")
     }
 
     @Test
     fun testKhataAlignmentGuardPreventsMismatchedBusinessWrite() {
-        val invoiceBizId = "default_business"
+        val invoiceBizId = "biz_main_store"
         val partyBizId = "biz_abc_ltd"
 
         val exception = org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
@@ -555,7 +560,7 @@ class CloudSyncArchitectureTest {
     fun testKhataAlignmentFunctionCorrectsMisroutedEntity() {
         val misrouted = KhataEntryEntity(
             id = "k_misrouted",
-            businessId = "default_business",
+            businessId = "biz_main_store",
             partyId = "p_abc",
             amount = 6000000L,
             type = "YOU_GAVE",
@@ -702,7 +707,7 @@ class CloudSyncArchitectureTest {
         val invoiceId = "inv_multi_items_100"
         val invoiceEntity = InvoiceEntity(
             id = invoiceId,
-            businessId = "default_business",
+            businessId = "biz_main_store",
             invoiceNo = "2026-27/INV/100",
             date = System.currentTimeMillis(),
             subtotal = 300000L, // ₹3,000.00
@@ -748,7 +753,7 @@ class CloudSyncArchitectureTest {
             put("amount", 150000L)
             put("created_at", System.currentTimeMillis())
             put("updated_at", System.currentTimeMillis())
-            put("business_id", "default_business")
+            put("business_id", "biz_main_store")
         }
 
         val allowedColumns = setOf(

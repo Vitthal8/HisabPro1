@@ -15,7 +15,8 @@ import com.hisabpro.app.domain.validation.InputValidator
  */
 class UpdateInvoiceUseCase(
     private val invoiceRepository: InvoiceRepository,
-    private val itemRepository: ItemRepository
+    private val itemRepository: ItemRepository,
+    private val settingsRepository: com.hisabpro.app.data.repository.SettingsRepository? = null
 ) {
 
     fun execute(updatedInvoice: Invoice): Result<Invoice> {
@@ -24,13 +25,16 @@ class UpdateInvoiceUseCase(
             return Result.failure(IllegalArgumentException(validation.errorMessage ?: "Validation error"))
         }
 
-        val oldInvoice = invoiceRepository.invoices.value.find { it.id == updatedInvoice.id }
+        val profile = settingsRepository?.profile?.value ?: com.hisabpro.app.data.model.BusinessProfile()
+        val sanitizedInvoice = com.hisabpro.app.domain.accounting.GstPolicy.sanitizeInvoiceForStorage(updatedInvoice, profile)
+
+        val oldInvoice = invoiceRepository.invoices.value.find { it.id == sanitizedInvoice.id }
         if (oldInvoice != null) {
             // Reconcile stock for items added, removed, or quantity altered, or status changed
-            itemRepository.adjustStockForInvoiceUpdate(oldInvoice, updatedInvoice)
+            itemRepository.adjustStockForInvoiceUpdate(oldInvoice, sanitizedInvoice)
         }
 
-        invoiceRepository.updateInvoice(updatedInvoice)
-        return Result.success(updatedInvoice)
+        invoiceRepository.updateInvoice(sanitizedInvoice)
+        return Result.success(sanitizedInvoice)
     }
 }

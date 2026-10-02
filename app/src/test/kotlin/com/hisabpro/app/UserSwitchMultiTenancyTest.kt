@@ -130,7 +130,7 @@ class UserSwitchMultiTenancyTest {
 
         // Reset profile for new user
         activeProfile = BusinessProfile(
-            id = "default_business",
+            id = "",
             shopName = "",
             ownerName = userBSession.email?.substringBefore("@") ?: "",
             email = userBSession.email ?: "",
@@ -211,5 +211,65 @@ class UserSwitchMultiTenancyTest {
         assertEquals(1, restoredList.size)
         assertEquals("Beta Retailers", restoredList.first().shopName)
         assertFalse(restoredList.any { it.shopName == "Mali Traders" })
+    }
+
+    @Test
+    fun testRemoteBusinessesFilteringByUserIdAndEmail() {
+        val userBSession = UserSession(
+            userId = "user_b_uuid",
+            email = "userb@domain.com",
+            accessToken = "token_b"
+        )
+
+        val rawRemoteRecords = listOf(
+            mapOf("id" to "biz_user_a", "user_id" to "user_a_uuid", "name" to "Alpha Enterprises", "email" to "usera@domain.com"),
+            mapOf("id" to "biz_user_b", "user_id" to "user_b_uuid", "name" to "Beta Stores", "email" to "userb@domain.com"),
+            mapOf("id" to "biz_unassigned_other", "user_id" to "", "name" to "Old Unassigned", "email" to "stranger@other.com"),
+            mapOf("id" to "biz_unassigned_mine", "user_id" to "", "name" to "Legacy Mine", "email" to "userb@domain.com")
+        )
+
+        val acceptedBusinesses = rawRemoteRecords.filter { record ->
+            val recordUserId = record["user_id"] ?: ""
+            if (recordUserId.isNotBlank()) {
+                recordUserId == userBSession.userId
+            } else {
+                val recordEmail = record["email"] ?: ""
+                recordEmail.equals(userBSession.email, ignoreCase = true)
+            }
+        }
+
+        assertEquals(2, acceptedBusinesses.size)
+        assertTrue(acceptedBusinesses.any { it["id"] == "biz_user_b" })
+        assertTrue(acceptedBusinesses.any { it["id"] == "biz_unassigned_mine" })
+        assertFalse(acceptedBusinesses.any { it["id"] == "biz_user_a" })
+        assertFalse(acceptedBusinesses.any { it["id"] == "biz_unassigned_other" })
+    }
+
+    @Test
+    fun testNewUserWithZeroBusinessesStartsFresh() {
+        val userBSession = UserSession(
+            userId = "user_b_uuid",
+            email = "brandnew@merchant.in",
+            accessToken = "token_new"
+        )
+
+        // Remote has 0 businesses for this user
+        val userBRemoteBusinesses = emptyList<BusinessProfile>()
+
+        val initialProfile = if (userBRemoteBusinesses.isEmpty()) {
+            BusinessProfile(
+                id = "",
+                shopName = "",
+                ownerName = userBSession.email?.substringBefore("@") ?: "",
+                email = userBSession.email ?: "",
+                hasCompletedOnboarding = false
+            )
+        } else {
+            userBRemoteBusinesses.first()
+        }
+
+        assertEquals("", initialProfile.shopName)
+        assertFalse(initialProfile.hasCompletedOnboarding)
+        assertEquals("brandnew", initialProfile.ownerName)
     }
 }

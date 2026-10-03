@@ -42,7 +42,8 @@ class StringTranslationCompletenessTest {
         "Cards",
         "Table (Dr/Cr)",
         "हिंदी (Hindi)",
-        "मराठी (Marathi)"
+        "मराठी (Marathi)",
+        "1:100000000000:android:0000000000000000"
     )
 
     @Test

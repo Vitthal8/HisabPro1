@@ -17,9 +17,11 @@ if (localPropertiesFile.exists()) {
 
 val supabaseUrl = localProperties.getProperty("SUPABASE_URL")
     ?: (project.findProperty("SUPABASE_URL") as? String)
+    ?: System.getenv("SUPABASE_URL")
     ?: ""
 val supabaseAnonKey = localProperties.getProperty("SUPABASE_ANON_KEY")
     ?: (project.findProperty("SUPABASE_ANON_KEY") as? String)
+    ?: System.getenv("SUPABASE_ANON_KEY")
     ?: ""
 
 android {

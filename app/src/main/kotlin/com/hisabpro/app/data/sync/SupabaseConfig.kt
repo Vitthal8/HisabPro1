@@ -39,10 +39,24 @@ object SupabaseConfig {
     }
 
     fun setCustomConfig(context: Context, url: String, anonKey: String) {
+        val trimmed = url.trim().trimEnd('/')
+        val cleanUrl = if (trimmed.isNotBlank() && !trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+            "https://$trimmed"
+        } else {
+            trimmed
+        }
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
-            .putString(KEY_PROJECT_URL, url.trim().trimEnd('/'))
+            .putString(KEY_PROJECT_URL, cleanUrl)
             .putString(KEY_ANON_KEY, anonKey.trim())
+            .apply()
+    }
+
+    fun clearCustomConfig(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .remove(KEY_PROJECT_URL)
+            .remove(KEY_ANON_KEY)
             .apply()
     }
 }

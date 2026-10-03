@@ -357,4 +357,5 @@
     <string name="payment_notes_remarks">पेमेंट तपशील / शेरा</string>
     <string name="payment_notes_placeholder">उदा. बिल इनवॉइस पूर्ण केले</string>
     <string name="select_party_placeholder">पार्टी निवडा</string>
+    <string name="google_app_id" translatable="false">1:100000000000:android:0000000000000000</string>
 </resources>

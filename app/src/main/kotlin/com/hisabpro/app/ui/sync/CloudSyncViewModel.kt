@@ -105,4 +105,13 @@ class CloudSyncViewModel(application: Application) : AndroidViewModel(applicatio
     fun clearError() {
         _authError.value = null
     }
+
+    fun getSavedSupabaseUrl(): String = com.hisabpro.app.data.sync.SupabaseConfig.getProjectUrl(getApplication())
+
+    fun getSavedSupabaseAnonKey(): String = com.hisabpro.app.data.sync.SupabaseConfig.getAnonKey(getApplication())
+
+    fun saveSupabaseConfig(url: String, key: String) {
+        com.hisabpro.app.data.sync.SupabaseConfig.setCustomConfig(getApplication(), url, key)
+        _authError.value = null
+    }
 }

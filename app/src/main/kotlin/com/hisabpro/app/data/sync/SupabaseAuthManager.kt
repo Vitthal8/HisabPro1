@@ -104,9 +104,10 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
         val userId = prefs.getString("user_id", null)
         val token = prefs.getString("access_token", null)
         val expiresAt = prefs.getLong("expires_at", 0L)
+        val isDemo = prefs.getBoolean("is_demo_account", false)
 
         if (!userId.isNullOrBlank() && !token.isNullOrBlank()) {
-            if (expiresAt > 0 && System.currentTimeMillis() > expiresAt) {
+            if (!isDemo && expiresAt > 0 && System.currentTimeMillis() > expiresAt) {
                 // Expired session - clear credentials for security
                 signOut()
             } else {
@@ -117,13 +118,28 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
                     accessToken = token,
                     refreshToken = prefs.getString("refresh_token", null),
                     expiresAt = expiresAt,
-                    isDemoAccount = false
+                    isDemoAccount = isDemo
                 )
                 _authState.value = AuthState.Authenticated(session)
             }
         } else {
             _authState.value = AuthState.Unauthenticated
         }
+    }
+
+    fun continueOffline(): UserSession {
+        val offlineSession = UserSession(
+            userId = "offline_user_local",
+            email = "local@offline.hisabpro",
+            phone = null,
+            accessToken = "offline_local_token",
+            refreshToken = null,
+            expiresAt = 0L,
+            isDemoAccount = true
+        )
+        saveSession(offlineSession)
+        _authState.value = AuthState.Authenticated(offlineSession)
+        return offlineSession
     }
 
     fun getCurrentSession(): UserSession? {
@@ -199,8 +215,10 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
         try {
             val projectUrl = SupabaseConfig.getProjectUrl(appContext)
             val anonKey = SupabaseConfig.getAnonKey(appContext)
-            if (SupabaseConfig.isLiveConfigured(appContext).not() && (projectUrl.contains("placeholder") || anonKey.contains("placeholder"))) {
-                return@withContext Result.failure(Exception("Supabase project is not configured with valid credentials."))
+            if (!SupabaseConfig.isLiveConfigured(appContext)) {
+                return@withContext Result.failure(
+                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key, or tap 'Continue Offline' to use HisabPro locally.")
+                )
             }
 
             val authUrl = "$projectUrl/auth/v1/token?grant_type=password"
@@ -246,8 +264,10 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
         try {
             val projectUrl = SupabaseConfig.getProjectUrl(appContext)
             val anonKey = SupabaseConfig.getAnonKey(appContext)
-            if (SupabaseConfig.isLiveConfigured(appContext).not() && (projectUrl.contains("placeholder") || anonKey.contains("placeholder"))) {
-                return@withContext Result.failure(Exception("Supabase project is not configured with valid credentials."))
+            if (!SupabaseConfig.isLiveConfigured(appContext)) {
+                return@withContext Result.failure(
+                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key, or tap 'Continue Offline'.")
+                )
             }
 
             val authUrl = "$projectUrl/auth/v1/otp"
@@ -273,8 +293,10 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
         try {
             val projectUrl = SupabaseConfig.getProjectUrl(appContext)
             val anonKey = SupabaseConfig.getAnonKey(appContext)
-            if (SupabaseConfig.isLiveConfigured(appContext).not() && (projectUrl.contains("placeholder") || anonKey.contains("placeholder"))) {
-                return@withContext Result.failure(Exception("Supabase project is not configured with valid credentials."))
+            if (!SupabaseConfig.isLiveConfigured(appContext)) {
+                return@withContext Result.failure(
+                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key, or tap 'Continue Offline'.")
+                )
             }
 
             val authUrl = "$projectUrl/auth/v1/verify"
@@ -318,8 +340,10 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
         try {
             val projectUrl = SupabaseConfig.getProjectUrl(appContext)
             val anonKey = SupabaseConfig.getAnonKey(appContext)
-            if (SupabaseConfig.isLiveConfigured(appContext).not() && (projectUrl.contains("placeholder") || anonKey.contains("placeholder"))) {
-                return@withContext Result.failure(Exception("Supabase project is not configured with valid credentials."))
+            if (!SupabaseConfig.isLiveConfigured(appContext)) {
+                return@withContext Result.failure(
+                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key, or tap 'Continue Offline' to use HisabPro locally.")
+                )
             }
 
             val authUrl = "$projectUrl/auth/v1/signup"
@@ -343,8 +367,10 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
         try {
             val projectUrl = SupabaseConfig.getProjectUrl(appContext)
             val anonKey = SupabaseConfig.getAnonKey(appContext)
-            if (SupabaseConfig.isLiveConfigured(appContext).not() && (projectUrl.contains("placeholder") || anonKey.contains("placeholder"))) {
-                return@withContext Result.failure(Exception("Supabase project is not configured with valid credentials."))
+            if (!SupabaseConfig.isLiveConfigured(appContext)) {
+                return@withContext Result.failure(
+                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key, or tap 'Continue Offline'.")
+                )
             }
 
             val authUrl = "$projectUrl/auth/v1/recover"
@@ -384,6 +410,11 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
     }
 
     private fun executeAuthPost(urlString: String, apiKey: String, body: String): Result<String> {
+        if (!urlString.startsWith("http://") && !urlString.startsWith("https://")) {
+            return Result.failure(
+                Exception("Supabase server URL is missing or invalid. Please tap 'Configure Server' to enter your Supabase Project URL (e.g. https://xyz.supabase.co), or tap 'Continue Offline'.")
+            )
+        }
         var connection: HttpURLConnection? = null
         return try {
             val url = URL(urlString)

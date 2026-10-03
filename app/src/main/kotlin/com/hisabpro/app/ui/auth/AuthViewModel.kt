@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hisabpro.app.data.sync.SupabaseAuthManager
+import com.hisabpro.app.data.sync.SupabaseConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +17,11 @@ enum class AuthMode {
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private val authManager = SupabaseAuthManager.getInstance(application)
+
+    val isCloudConfigured = MutableStateFlow(SupabaseConfig.isLiveConfigured(application))
+
+    private val _showConfigDialog = MutableStateFlow(false)
+    val showConfigDialog: StateFlow<Boolean> = _showConfigDialog.asStateFlow()
 
     private val _authMode = MutableStateFlow(AuthMode.LOGIN)
     val authMode: StateFlow<AuthMode> = _authMode.asStateFlow()
@@ -134,5 +140,29 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 _errorMessage.value = result.exceptionOrNull()?.localizedMessage ?: "Password recovery failed."
             }
         }
+    }
+
+    fun openConfigDialog() {
+        _showConfigDialog.value = true
+    }
+
+    fun closeConfigDialog() {
+        _showConfigDialog.value = false
+    }
+
+    fun getSavedSupabaseUrl(): String = SupabaseConfig.getProjectUrl(getApplication())
+
+    fun getSavedSupabaseAnonKey(): String = SupabaseConfig.getAnonKey(getApplication())
+
+    fun saveSupabaseConfig(url: String, anonKey: String) {
+        SupabaseConfig.setCustomConfig(getApplication(), url, anonKey)
+        isCloudConfigured.value = SupabaseConfig.isLiveConfigured(getApplication())
+        _errorMessage.value = null
+        _successMessage.value = "Supabase server configured successfully! You can now sign in or register."
+        _showConfigDialog.value = false
+    }
+
+    fun continueOffline() {
+        authManager.continueOffline()
     }
 }

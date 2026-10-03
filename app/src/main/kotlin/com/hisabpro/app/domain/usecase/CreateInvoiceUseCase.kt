@@ -37,8 +37,8 @@ class CreateInvoiceUseCase(
             return Result.failure(IllegalArgumentException(validation.errorMessage ?: "Validation error"))
         }
 
-        // 2. Subscription check
-        val currentMonthCount = invoiceRepository.invoices.value.size
+        // 2. Subscription entitlement check for current calendar month
+        val currentMonthCount = countCurrentMonthInvoices(invoiceRepository.invoices.value, invoice.dateMillis)
         val check = SubscriptionManager.checkInvoiceCreationAllowed(currentMonthCount)
         if (check is EntitlementCheck.LimitExceeded) {
             return Result.failure(IllegalStateException(check.message))
@@ -94,5 +94,23 @@ class CreateInvoiceUseCase(
         }
 
         return Result.success(saved)
+    }
+
+    companion object {
+        fun countCurrentMonthInvoices(invoices: List<Invoice>, targetDateMillis: Long = System.currentTimeMillis()): Int {
+            val cal = java.util.Calendar.getInstance().apply {
+                timeInMillis = targetDateMillis
+            }
+            val targetYear = cal.get(java.util.Calendar.YEAR)
+            val targetMonth = cal.get(java.util.Calendar.MONTH)
+
+            return invoices.count { inv ->
+                val invCal = java.util.Calendar.getInstance().apply {
+                    timeInMillis = inv.dateMillis
+                }
+                invCal.get(java.util.Calendar.YEAR) == targetYear &&
+                invCal.get(java.util.Calendar.MONTH) == targetMonth
+            }
+        }
     }
 }

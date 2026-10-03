@@ -1,4 +1,4 @@
-name: Build & Upload Android APK
+name: Build & Test HisabPro APK
 
 on:
   push:
@@ -9,20 +9,18 @@ on:
 
 jobs:
   build:
-    name: Build APK
+    name: Build & Test HisabPro
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17 & 21
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: |
-            17
-            21
+          java-version: '21'
 
       - name: Make gradlew executable
         run: chmod +x gradlew
@@ -30,124 +28,14 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Prepare Keystore, Config & Fix Build Scripts
-        run: |
-          # 1. CRITICAL: Remove rogue/empty build.gradle shadowing build.gradle.kts
-          # If app/build.gradle exists, Gradle prioritizes Groovy over Kotlin DSL,
-          # completely ignoring app/build.gradle.kts and wiping out all tasks in :app
-          # (e.g. assembleDemoDebug, assembleDebug).
-          if [ -f "app/build.gradle" ] && [ -f "app/build.gradle.kts" ]; then
-            echo "Removing shadowing app/build.gradle so Gradle evaluates app/build.gradle.kts..."
-            rm -f app/build.gradle
-          fi
-
-          # Clean up any other shadowing Groovy build files across modules
-          find . -name "build.gradle" -not -path "*/.*" | while read -r f; do
-            if [ -f "${f}.kts" ]; then
-              echo "Removing shadowing Groovy file: $f"
-              rm -f "$f"
-            fi
-          done
-
-          # 2. Copy repository CI gradle.properties if provided
-          if [ -f .github/ci-gradle.properties ]; then
-            echo "Applying repository .github/ci-gradle.properties..."
-            mkdir -p ~/.gradle
-            cp -f .github/ci-gradle.properties ~/.gradle/gradle.properties
-          fi
-
-          # 3. Create .env if missing for secrets plugin
-          touch .env
-          if [ -f .env.example ]; then
-            cp .env.example .env
-          fi
-
-          # 4. Ensure debug.keystore exists
-          if [ ! -f debug.keystore ] && [ -f debug.keystore.base64 ]; then
-            echo "Restoring debug.keystore from debug.keystore.base64..."
-            base64 -d debug.keystore.base64 > debug.keystore
-          elif [ ! -f debug.keystore ]; then
-            echo "Generating fallback debug keystore..."
-            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          fi
-
-          mkdir -p ~/.android
-          cp -f debug.keystore ~/.android/debug.keystore || true
-          if [ -d app ]; then
-            cp -f debug.keystore app/debug.keystore || true
-          fi
+      - name: Run Unit Tests
+        run: ./gradlew testDebugUnitTest --no-daemon
 
       - name: Build Debug APK
-        run: |
-          echo "=== Diagnosing :app Tasks ==="
-          ./gradlew :app:tasks --all 2>&1 | grep -i "assemble" || true
+        run: ./gradlew assembleDebug --no-daemon
 
-          echo "=== Building Main Application Module (:app) ==="
-          if ./gradlew :app:assembleDemoDebug --no-daemon --stacktrace; then
-            echo "Successfully built :app:assembleDemoDebug"
-          elif ./gradlew :app:assembleProdDebug --no-daemon --stacktrace; then
-            echo "Successfully built :app:assembleProdDebug"
-          elif ./gradlew :app:assembleDebug --no-daemon --stacktrace; then
-            echo "Successfully built :app:assembleDebug"
-          elif ./gradlew assembleDemoDebug -x :app-nia-catalog:assembleDebug -x :app-nia-catalog:assembleDemoDebug --no-daemon --stacktrace; then
-            echo "Successfully built assembleDemoDebug (excluding catalog)"
-          else
-            echo "Attempting fallback :app:assemble..."
-            ./gradlew :app:assemble --no-daemon --stacktrace
-          fi
-
-      - name: Prepare APK Artifact
-        run: |
-          mkdir -p release_apks
-
-          echo "=== Searching for generated APKs ==="
-          find . -type f -name "*.apk" -ls || true
-
-          # Target the primary application module (:app) and strictly exclude catalog and test APKs
-          APK_FILE=""
-          if [ -d "app/build/outputs/apk" ]; then
-            APK_FILE=$(find app/build/outputs/apk -type f -name "*demo*debug*.apk" ! -name "*androidTest*.apk" ! -name "*Test*.apk" ! -name "*catalog*" | head -n 1)
-            if [ -z "$APK_FILE" ]; then
-              APK_FILE=$(find app/build/outputs/apk -type f -name "*prod*debug*.apk" ! -name "*androidTest*.apk" ! -name "*Test*.apk" ! -name "*catalog*" | head -n 1)
-            fi
-            if [ -z "$APK_FILE" ]; then
-              APK_FILE=$(find app/build/outputs/apk -type f -name "*debug*.apk" ! -name "*androidTest*.apk" ! -name "*Test*.apk" ! -name "*catalog*" | head -n 1)
-            fi
-            if [ -z "$APK_FILE" ]; then
-              APK_FILE=$(find app/build/outputs/apk -type f -name "*.apk" ! -name "*androidTest*.apk" ! -name "*Test*.apk" ! -name "*catalog*" | head -n 1)
-            fi
-          fi
-
-          # Fallback: search repository while strictly excluding app-nia-catalog and test APKs
-          if [ -z "$APK_FILE" ]; then
-            APK_FILE=$(find . -type f -name "*demo*debug*.apk" ! -path "*/app-nia-catalog/*" ! -name "*catalog*" ! -name "*androidTest*.apk" ! -name "*Test*.apk" | head -n 1)
-          fi
-          if [ -z "$APK_FILE" ]; then
-            APK_FILE=$(find . -type f -name "*prod*debug*.apk" ! -path "*/app-nia-catalog/*" ! -name "*catalog*" ! -name "*androidTest*.apk" ! -name "*Test*.apk" | head -n 1)
-          fi
-          if [ -z "$APK_FILE" ]; then
-            APK_FILE=$(find . -type f -name "*debug*.apk" ! -path "*/app-nia-catalog/*" ! -name "*catalog*" ! -name "*androidTest*.apk" ! -name "*Test*.apk" | head -n 1)
-          fi
-          if [ -z "$APK_FILE" ]; then
-            APK_FILE=$(find . -type f -name "*.apk" ! -path "*/app-nia-catalog/*" ! -name "*catalog*" ! -name "*androidTest*.apk" ! -name "*Test*.apk" | head -n 1)
-          fi
-
-          if [ -n "$APK_FILE" ] && [ -f "$APK_FILE" ]; then
-            echo "Found Main App APK at: $APK_FILE"
-            APK_BASENAME=$(basename "$APK_FILE")
-            cp "$APK_FILE" "release_apks/$APK_BASENAME"
-            cp "$APK_FILE" "release_apks/HisabPro-debug.apk"
-            echo "Copied main application APK to release_apks/ successfully:"
-            ls -lh release_apks/
-          else
-            echo "ERROR: No main app APK generated! Listing outputs directory for diagnostics:"
-            find . -maxdepth 6 \( -path "*/build/outputs/*" -o -name "outputs" \) || true
-            exit 1
-          fi
-
-      - name: Upload APK as Workflow Artifact
+      - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: HisabPro-debug-apk
-          path: release_apks/
-          retention-days: 30
+          path: app/build/outputs/apk/debug/app-debug.apk

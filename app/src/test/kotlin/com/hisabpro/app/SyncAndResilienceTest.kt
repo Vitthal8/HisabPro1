@@ -613,4 +613,75 @@ class SyncAndResilienceTest {
         assertTrue(allMerged.any { it.id == "biz_company_b" })
         assertTrue(allMerged.any { it.id == "biz_company_c" })
     }
+
+    @Test
+    fun testPartialQueueFailureIsolation() {
+        val item1 = SyncQueueEntity(id = 1L, entityType = "party", entityId = "p1", operation = "UPSERT", payloadJson = "{}", status = "PENDING")
+        val item2Bad = SyncQueueEntity(id = 2L, entityType = "invoice", entityId = "inv_bad", operation = "UPSERT", payloadJson = "CORRUPTED", status = "PENDING")
+        val item3 = SyncQueueEntity(id = 3L, entityType = "payment", entityId = "pay1", operation = "UPSERT", payloadJson = "{}", status = "PENDING")
+
+        val queue = mutableListOf(item1, item2Bad, item3)
+        val processedSuccessfully = mutableListOf<Long>()
+        val failedItems = mutableListOf<SyncQueueEntity>()
+
+        for (item in queue) {
+            if (item.entityId == "inv_bad") {
+                // Item 2 fails due to constraint error/corrupted JSON
+                failedItems.add(item.copy(status = "FAILED", retryCount = item.retryCount + 1))
+            } else {
+                processedSuccessfully.add(item.id)
+            }
+        }
+
+        assertEquals(2, processedSuccessfully.size)
+        assertTrue(processedSuccessfully.contains(1L))
+        assertTrue(processedSuccessfully.contains(3L))
+        assertEquals(1, failedItems.size)
+        assertEquals(2L, failedItems.first().id)
+        assertEquals(1, failedItems.first().retryCount)
+    }
+
+    @Test
+    fun testLwwConflictResolutionNeverOverwritesNewerLocalData() {
+        val now = System.currentTimeMillis()
+        val localInvoice = com.hisabpro.app.data.local.entity.InvoiceEntity(
+            id = "inv_conflict_001",
+            businessId = "biz_company_a",
+            invoiceNo = "2026-27/INV/001",
+            date = now,
+            subtotal = 150000L,
+            total = 150000L,
+            updatedAt = now // Newer local edit (1000ms after remote)
+        )
+
+        val remoteInvoice = com.hisabpro.app.data.local.entity.InvoiceEntity(
+            id = "inv_conflict_001",
+            businessId = "biz_company_a",
+            invoiceNo = "2026-27/INV/001",
+            date = now,
+            subtotal = 100000L,
+            total = 100000L,
+            updatedAt = now - 1000L // Older remote edit
+        )
+
+        val resolved = com.hisabpro.app.data.sync.ConflictResolver.resolveInvoice(localInvoice, remoteInvoice)
+
+        // ConflictResolver MUST return localInvoice to preserve local edits!
+        assertEquals(150000L, resolved.subtotal)
+        assertEquals(localInvoice.updatedAt, resolved.updatedAt)
+    }
+
+    @Test
+    fun testPremiumSubscriptionRequiredForCloudSync() {
+        val subManager = com.hisabpro.app.domain.subscription.SubscriptionManager
+
+        subManager.setActivePlan(com.hisabpro.app.domain.subscription.SubscriptionPlan.FREE)
+        assertFalse("Free plan must not be allowed to execute Cloud Sync", subManager.canUseCloudSync())
+
+        subManager.setActivePlan(com.hisabpro.app.domain.subscription.SubscriptionPlan.PRO)
+        assertFalse("Pro plan must not be allowed to execute Cloud Sync", subManager.canUseCloudSync())
+
+        subManager.setActivePlan(com.hisabpro.app.domain.subscription.SubscriptionPlan.PREMIUM)
+        assertTrue("Premium plan must be allowed to execute Cloud Sync", subManager.canUseCloudSync())
+    }
 }

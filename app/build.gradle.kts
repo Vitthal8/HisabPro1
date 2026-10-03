@@ -1,9 +1,26 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
 }
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use { stream ->
+        localProperties.load(stream)
+    }
+}
+
+val supabaseUrl = localProperties.getProperty("SUPABASE_URL")
+    ?: (project.findProperty("SUPABASE_URL") as? String)
+    ?: ""
+val supabaseAnonKey = localProperties.getProperty("SUPABASE_ANON_KEY")
+    ?: (project.findProperty("SUPABASE_ANON_KEY") as? String)
+    ?: ""
 
 android {
     namespace = "com.hisabpro.app"
@@ -17,6 +34,9 @@ android {
         versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
     }
 
     buildTypes {
@@ -28,7 +48,8 @@ android {
             buildConfigField("Boolean", "IS_PRODUCTION_ADS", "false")
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -80,6 +101,9 @@ dependencies {
     // Google Mobile Ads & User Messaging Platform (UMP)
     implementation("com.google.android.gms:play-services-ads:23.3.0")
     implementation("com.google.android.ump:user-messaging-platform:2.2.0")
+
+    // Google Play Billing Library 6+
+    implementation("com.android.billingclient:billing-ktx:7.1.1")
 
     // Kotlinx Serialization & WorkManager
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")

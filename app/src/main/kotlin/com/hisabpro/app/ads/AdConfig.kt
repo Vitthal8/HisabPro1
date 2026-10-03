@@ -2,7 +2,6 @@ package com.hisabpro.app.ads
 
 import com.hisabpro.app.BuildConfig
 import com.hisabpro.app.domain.subscription.SubscriptionManager
-import com.hisabpro.app.domain.subscription.SubscriptionPlan
 
 /**
  * AdMob Configuration for HisabPro.
@@ -41,6 +40,6 @@ object AdConfig {
      * Future Pro/Premium tiers will disable ads for a clean ad-free experience.
      */
     fun shouldShowAds(): Boolean {
-        return SubscriptionManager.getActivePlan() == SubscriptionPlan.FREE
+        return !SubscriptionManager.entitlements.value.isAdFree
     }
 }

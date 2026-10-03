@@ -1,5 +1,11 @@
 # HisabPro Production ProGuard & R8 Rules
 
+# Keep androidx.annotation.Keep annotated elements
+-keep @androidx.annotation.Keep class * { *; }
+-keepclassmembers class * {
+    @androidx.annotation.Keep *;
+}
+
 # Room Database
 -keep class androidx.room.** { *; }
 -dontwarn androidx.room.**
@@ -7,11 +13,12 @@
 -keep @androidx.room.Entity class * { *; }
 -keep @androidx.room.Dao interface * { *; }
 
-# Keep Room entity and data models
+# Keep Room entity, domain, and data models
 -keep class com.hisabpro.app.data.local.entity.** { *; }
 -keep class com.hisabpro.app.data.model.** { *; }
 -keep class com.hisabpro.app.data.backup.** { *; }
 -keep class com.hisabpro.app.data.sync.** { *; }
+-keep class com.hisabpro.app.domain.subscription.** { *; }
 
 # Kotlinx Serialization
 -keepattributes *Annotation*, InnerClasses
@@ -36,6 +43,10 @@
 -keep public class com.google.android.ump.** {
    public *;
 }
+
+# Google Play Billing 6+ / 7+
+-keep class com.android.billingclient.api.** { *; }
+-dontwarn com.android.billingclient.api.**
 
 # ZXing Core
 -keep class com.google.zxing.** { *; }

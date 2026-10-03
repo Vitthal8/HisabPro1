@@ -2,6 +2,8 @@ package com.hisabpro.app.ui.sales
 
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.res.stringResource
+import com.hisabpro.app.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -322,8 +324,8 @@ fun CreateInvoiceSheet(
                     }
                 }
             },
-            title = { Text("Discard changes?") },
-            text = { Text("You have unsaved changes in this invoice. Are you sure you want to discard them?") },
+            title = { Text(stringResource(R.string.discard_changes)) },
+            text = { Text(stringResource(R.string.discard_invoice_changes_desc)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -331,7 +333,7 @@ fun CreateInvoiceSheet(
                         onDismiss()
                     }
                 ) {
-                    Text("Discard", color = ExpenseRed, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.delete), color = ExpenseRed, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -574,7 +576,7 @@ fun CreateInvoiceSheet(
                         FilterChip(
                             selected = gstMode == GstMode.INTRA_STATE,
                             onClick = { gstMode = GstMode.INTRA_STATE },
-                            label = { Text("Intra-State (CGST + SGST)") },
+                            label = { Text(stringResource(R.string.intra_state_gst)) },
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("chip_gst_mode_intra"),
@@ -586,7 +588,7 @@ fun CreateInvoiceSheet(
                         FilterChip(
                             selected = gstMode == GstMode.INTER_STATE,
                             onClick = { gstMode = GstMode.INTER_STATE },
-                            label = { Text("Inter-State (IGST)") },
+                            label = { Text(stringResource(R.string.inter_state_gst)) },
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("chip_gst_mode_inter"),
@@ -602,7 +604,7 @@ fun CreateInvoiceSheet(
 
                 // Customer Details Section
                 Text(
-                    text = "Customer Details",
+                    text = stringResource(R.string.customer_details),
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp
                 )
@@ -621,8 +623,8 @@ fun CreateInvoiceSheet(
                         ) {
                             Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = Emerald700)
                             Column {
-                                Text("Cash Customer (Counter Walk-in)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                                Text("Customer profile not required for cash bills.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(stringResource(R.string.cash_customer_counter), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text(stringResource(R.string.customer_profile_not_required), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -684,7 +686,7 @@ fun CreateInvoiceSheet(
                     OutlinedTextField(
                         value = customerName,
                         onValueChange = { customerName = it },
-                        label = { Text("Customer / Party Name *") },
+                        label = { Text(stringResource(R.string.customer_party_name_req)) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_customer_name"),
@@ -699,7 +701,7 @@ fun CreateInvoiceSheet(
                         OutlinedTextField(
                             value = customerPhone,
                             onValueChange = { customerPhone = it },
-                            label = { Text("Phone Number") },
+                            label = { Text(stringResource(R.string.customer_phone)) },
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("input_customer_phone"),
@@ -724,7 +726,7 @@ fun CreateInvoiceSheet(
                                         )
                                     }
                                 },
-                                label = { Text("GSTIN (Optional)") },
+                                label = { Text(stringResource(R.string.gstin_optional)) },
                                 modifier = Modifier
                                     .weight(1f)
                                     .testTag("input_customer_gstin"),
@@ -749,7 +751,7 @@ fun CreateInvoiceSheet(
                                 )
                             }
                         },
-                        label = { Text("Billing Address (Optional)") },
+                        label = { Text(stringResource(R.string.billing_address_optional)) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_customer_address"),
@@ -884,7 +886,7 @@ fun CreateInvoiceSheet(
                                             tint = Emerald800
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Pick", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Emerald800)
+                                        Text(stringResource(R.string.pick_from_inventory), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Emerald800)
                                     }
 
                                     OutlinedButton(
@@ -903,7 +905,7 @@ fun CreateInvoiceSheet(
                                             tint = Emerald800
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Barcode", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Emerald800)
+                                        Text(stringResource(R.string.barcode_scan), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Emerald800)
                                     }
                                 }
                             }
@@ -912,8 +914,8 @@ fun CreateInvoiceSheet(
                         OutlinedTextField(
                             value = itemDesc,
                             onValueChange = { itemDesc = it },
-                            label = { Text("Item Name / Description") },
-                            placeholder = { Text("e.g. Copper Wire 90m, Rice Bag") },
+                            label = { Text(stringResource(R.string.item_name_description)) },
+                            placeholder = { Text(stringResource(R.string.item_name_placeholder)) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("input_item_desc"),
@@ -928,7 +930,7 @@ fun CreateInvoiceSheet(
                             OutlinedTextField(
                                 value = itemQtyText,
                                 onValueChange = { itemQtyText = it },
-                                label = { Text("Qty") },
+                                label = { Text(stringResource(R.string.qty_label)) },
                                 modifier = Modifier
                                     .weight(1f)
                                     .testTag("input_item_qty"),
@@ -970,7 +972,7 @@ fun CreateInvoiceSheet(
                             OutlinedTextField(
                                 value = itemPriceText,
                                 onValueChange = { itemPriceText = it },
-                                label = { Text("Rate (₹)") },
+                                label = { Text(stringResource(R.string.rate)) },
                                 modifier = Modifier
                                     .weight(1.5f)
                                     .testTag("input_item_price"),
@@ -989,7 +991,7 @@ fun CreateInvoiceSheet(
                                 OutlinedTextField(
                                     value = itemHsn,
                                     onValueChange = { itemHsn = it },
-                                    label = { Text("HSN / SAC") },
+                                    label = { Text(stringResource(R.string.hsn_sac)) },
                                     modifier = Modifier.weight(1f),
                                     singleLine = true,
                                     shape = RoundedCornerShape(8.dp)
@@ -998,7 +1000,7 @@ fun CreateInvoiceSheet(
                                 // GST Slab chips
                                 if (gstMode != GstMode.EXEMPT) {
                                     Column(modifier = Modifier.weight(2f)) {
-                                        Text("GST Rate", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(stringResource(R.string.tax_rate), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         Row(
                                             modifier = Modifier.horizontalScroll(rememberScrollState()),
                                             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -1062,7 +1064,7 @@ fun CreateInvoiceSheet(
                         ) {
                             Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Add Line Item")
+                            Text(stringResource(R.string.add_item))
                         }
                     }
                 }
@@ -1077,7 +1079,7 @@ fun CreateInvoiceSheet(
                     OutlinedTextField(
                         value = discountText,
                         onValueChange = { discountText = it },
-                        label = { Text("Discount (₹)") },
+                        label = { Text(stringResource(R.string.discount)) },
                         modifier = Modifier
                             .weight(1f)
                             .testTag("input_discount"),
@@ -1088,7 +1090,7 @@ fun CreateInvoiceSheet(
 
                     // Payment status selector
                     Column(modifier = Modifier.weight(1.5f)) {
-                        Text("Payment Status", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.payment_status), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
@@ -1116,7 +1118,7 @@ fun CreateInvoiceSheet(
                     OutlinedTextField(
                         value = paidAmountText,
                         onValueChange = { paidAmountText = it },
-                        label = { Text("Paid Amount (₹)") },
+                        label = { Text(stringResource(R.string.amount_paid)) },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
@@ -1127,7 +1129,7 @@ fun CreateInvoiceSheet(
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Notes / Payment Terms (Optional)") },
+                    label = { Text(stringResource(R.string.terms_conditions)) },
                     placeholder = { Text("e.g. Thanks for your visit! Payment via UPI.") },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 2,
@@ -1323,7 +1325,7 @@ fun CreateInvoiceSheet(
                         Icon(imageVector = Icons.Default.Check, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (invoiceToEdit != null) "Update Invoice" else "Save & Complete Bill",
+                            text = if (invoiceToEdit != null) stringResource(R.string.edit_invoice) else stringResource(R.string.save_bill),
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
@@ -1347,7 +1349,7 @@ fun CreateInvoiceSheet(
                         ) {
                             Icon(imageVector = Icons.Default.Share, contentDescription = null, tint = Color(0xFF1EBE5D), modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Save & WhatsApp", fontSize = 12.sp, color = Color(0xFF128C7E), fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.save_and_whatsapp), fontSize = 12.sp, color = Color(0xFF128C7E), fontWeight = FontWeight.SemiBold)
                         }
 
                         OutlinedButton(
@@ -1364,7 +1366,7 @@ fun CreateInvoiceSheet(
                         ) {
                             Icon(imageVector = Icons.Default.PictureAsPdf, contentDescription = null, tint = Slate700, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Save & PDF", fontSize = 12.sp, color = Slate800, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.save_and_pdf), fontSize = 12.sp, color = Slate800, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }

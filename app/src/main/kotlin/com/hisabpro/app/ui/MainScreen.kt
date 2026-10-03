@@ -414,7 +414,11 @@ private fun MainScreenContent(
                     onSaveInvoice = { invoice, action ->
                         val nextNum = invoiceViewModel.getNextInvoiceNumber(invoice.type)
                         val toSave = invoice.copy(invoiceNumber = nextNum)
-                        val saved = invoiceViewModel.createInvoice(toSave)
+                        val result = invoiceViewModel.createInvoice(toSave)
+                        if (result.isFailure) {
+                            val msg = result.exceptionOrNull()?.localizedMessage ?: "Monthly invoice limit reached"
+                            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                        }
                     },
                     onSavePayment = { record ->
                         partyViewModel.recordPartyPayment(

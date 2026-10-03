@@ -112,7 +112,7 @@ fun ThermalReceiptSheet(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "POS Thermal Receipt",
+                            text = androidx.compose.ui.res.stringResource(com.hisabpro.app.R.string.thermal_pos_receipt),
                             fontWeight = FontWeight.Bold,
                             fontSize = 17.sp,
                             color = MaterialTheme.colorScheme.onSurface

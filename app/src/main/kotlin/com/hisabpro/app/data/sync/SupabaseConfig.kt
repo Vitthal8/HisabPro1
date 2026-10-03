@@ -2,11 +2,13 @@ package com.hisabpro.app.data.sync
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.hisabpro.app.BuildConfig
 
 /**
  * Configuration and secure credential manager for Supabase Cloud Sync.
- * Stores standard public Supabase Anon key & Project URL.
- * NEVER stores Supabase service_role keys.
+ * Standard public Supabase Anon key & Project URL are loaded securely from BuildConfig
+ * (read from local.properties or environment, defaulting to empty string for offline-first).
+ * NEVER stores or exposes Supabase service_role keys.
  */
 object SupabaseConfig {
 
@@ -14,27 +16,25 @@ object SupabaseConfig {
     private const val KEY_PROJECT_URL = "supabase_url"
     private const val KEY_ANON_KEY = "supabase_anon_key"
 
-    // Default Supabase project configuration (can be updated dynamically or via build config)
-    const val DEFAULT_PROJECT_URL = "https://yadqiswozvcusgkcxsgy.supabase.co"
-    const val DEFAULT_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhZHFpc3dvenZjdXNna2N4c2d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NzMwODEsImV4cCI6MjEwNjI0OTA4MX0.PRr-f86_zbOQ0Lp70FwV1Kf9gtl1JnL7NY45uUya_Jg"
+    val DEFAULT_PROJECT_URL: String get() = BuildConfig.SUPABASE_URL
+    val DEFAULT_ANON_KEY: String get() = BuildConfig.SUPABASE_ANON_KEY
 
     fun getProjectUrl(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_PROJECT_URL, DEFAULT_PROJECT_URL) ?: DEFAULT_PROJECT_URL
+        return prefs.getString(KEY_PROJECT_URL, null)?.ifBlank { null } ?: DEFAULT_PROJECT_URL
     }
 
     fun getAnonKey(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_ANON_KEY, DEFAULT_ANON_KEY) ?: DEFAULT_ANON_KEY
+        return prefs.getString(KEY_ANON_KEY, null)?.ifBlank { null } ?: DEFAULT_ANON_KEY
     }
 
     fun isLiveConfigured(context: Context): Boolean {
         val url = getProjectUrl(context)
         val key = getAnonKey(context)
-        return url.isNotBlank() && 
-               !url.contains("hisabpro-cloud-sync.supabase.co") && 
+        return url.isNotBlank() &&
                !url.contains("placeholder") &&
-               key.isNotBlank() && 
+               key.isNotBlank() &&
                !key.contains("placeholder")
     }
 

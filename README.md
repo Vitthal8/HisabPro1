@@ -1,56 +1,65 @@
-# HisabPro — GST Billing & Khata App for Indian SMBs
+# HisabPro — Indian Billing, GST & Khata App for Small Businesses
 
-<p align="center">
-  <img src="docs/screenshot_sales.png" width="200" alt="Sales Screen"/>
-  <img src="docs/screenshot_khata.png" width="200" alt="Party Khata"/>
-  <img src="docs/screenshot_reports.png" width="200" alt="Reports"/>
-</p>
-
-A **free, offline-first Android app** for Indian small businesses to manage:
-- 📋 GST Tax Invoices, Non-GST Bills & Proforma Quotations
-- 🧾 Party Khata Ledger (Customer & Supplier credit tracking)
-- 📦 Item / Stock management with low-stock alerts
-- 💰 Cashbook — daily income & expense tracking
-- 📊 Reports — Daybook, GSTR-1, GSTR-3B, P&L, Party Aging, Stock Valuation
-
-All data stays **on device** — no login, no cloud dependency.
+A production-ready **100% offline-first Android accounting app** designed for Indian shop owners, kirana stores, traders, and small businesses to manage daily billing, customer ledgers (Khata), inventory, cashbook, and GST filing reports.
 
 ---
 
-## Features
+## Key Highlights
 
-| Module | Highlights |
-|--------|-----------|
-| **Sales** | Tax Invoice (CGST/SGST/IGST), Non-GST Bill, Proforma; PDF share via WhatsApp |
-| **Parties** | Customer & Supplier ledger, Khata entries, balance aging, PDF statement |
-| **Items** | SKU/barcode, HSN codes, GST rate per item, stock history |
-| **Cashbook** | Income/Expense with category & payment-mode filters, CSV export |
-| **Reports** | GSTR-1, GSTR-3B, Profit & Loss, Party Aging, Stock Valuation |
-| **UPI** | QR code on invoice, one-tap UPI payment link to customer |
+- ⚡ **100% Offline-First Architecture**: Core billing, accounting, and Khata ledger function completely without internet connectivity.
+- 🏢 **Multi-Tenant Business Isolation**: Manage multiple shops/businesses independently with strict data isolation.
+- 💰 **Exact Monetary Calculation Precision**: All financial arithmetic uses `Long` paise or `BigDecimal` scale 2 with `RoundingMode.HALF_UP`. Zero float/double rounding errors.
+- ⚖️ **Centralized GST Policy Enforcement**: Composition scheme and non-GST shops NEVER produce GST output headers, tax columns, or GSTR filing entries.
+- ☁️ **Optional Supabase Cloud Sync**: Encrypted multi-tenant synchronization backed by PostgreSQL Row-Level Security (RLS).
+- 💳 **Google Play Billing 6+ / 7+ Integration**: Transparent monetization with single entitlement management.
 
 ---
 
-## Tech Stack
+## Monetization & Plans
 
-- **Language**: Kotlin
-- **UI**: Jetpack Compose + Material 3
-- **Storage**: SharedPreferences (JSON) — Room migration planned
-- **PDF**: Android Canvas / PdfDocument API
-- **QR Code**: ZXing
-- **Architecture**: MVVM + Repository pattern
-- **Min SDK**: 24 (Android 7.0) | **Target SDK**: 36
+| Feature | Free Starter | Pro Business (₹99/mo, ₹799/yr) | Premium Enterprise (₹199/mo, ₹1499/yr) |
+| :--- | :---: | :---: | :---: |
+| **Parties & Items** | Unlimited | Unlimited | Unlimited |
+| **Offline Billing & Khata** | Unlimited | Unlimited | Unlimited |
+| **Monthly Bill Limit** | **50 bills / month** | **Unlimited** | **Unlimited** |
+| **AdMob Ads** | Banner Enabled | **Ad-Free** | **Ad-Free** |
+| **Business Profiles** | 1 Business | 1 Business | **Up to 5 Businesses** |
+| **Custom Business Logo on Bills** | ❌ | ✅ | ✅ |
+| **WhatsApp Direct Bill Sharing** | ❌ | ✅ | ✅ |
+| **CSV / Excel Export** | ❌ | ✅ | ✅ |
+| **GSTR-1 & GSTR-3B Tax Filing** | ❌ | ✅ | ✅ |
+| **Supabase Cloud Sync & Backup** | ❌ | ❌ | ✅ |
+
+---
+
+## Technology Stack
+
+- **Language**: Kotlin 2.1
+- **UI Framework**: Jetpack Compose + Material 3
+- **Database**: Room 2.8.5 (Version 6, non-destructive migration `MIGRATION_5_6`)
+- **Background Operations**: WorkManager 2.10.0
+- **Cloud Backend (Optional)**: Custom Supabase Ktor/REST Client with Auth Session handling
+- **In-App Billing**: Google Play Billing Library 7.1.1 (`billing-ktx`)
+- **Advertising**: Google Mobile Ads (AdMob) & User Messaging Platform (UMP)
+- **PDF Generation**: Native Android `PdfDocument` Canvas API
+- **Thermal POS Printing**: ESC/POS Binary Protocol (58mm & 80mm)
+- **Min SDK**: 24 (Android 7.0) | **Target SDK**: 36 (Android 15)
 
 ---
 
 ## Getting Started
 
+### Build Prerequisites
+- Android Studio Meerkat (2024.3) or later
+- JDK 21
+
+### Local Compilation
 ```bash
 git clone https://github.com/Vitthal8/HisabPro1.git
 cd HisabPro1
+./gradlew testDebugUnitTest
 ./gradlew assembleDebug
 ```
-
-Open in **Android Studio Meerkat (2024.3)** or later and run on any Android 7+ device or emulator.
 
 ---
 
@@ -59,40 +68,24 @@ Open in **Android Studio Meerkat (2024.3)** or later and run on any Android 7+ d
 ```
 app/src/main/kotlin/com/hisabpro/app/
 ├── data/
+│   ├── local/          # AppDatabase, DAOs (InvoiceDao, PartyDao...), Entities
 │   ├── model/          # Invoice, Party, Item, Transaction, BusinessProfile
-│   └── repository/     # InvoiceRepository, PartyRepository, ItemRepository …
+│   ├── repository/     # InvoiceRepository, PartyRepository, BillingRepository
+│   └── sync/           # CloudSyncManager, SupabaseAuthManager, SupabaseApiClient
+├── domain/
+│   ├── accounting/     # GstPolicy, AccountingEngine, DayBookCalculator
+│   ├── subscription/   # SubscriptionManager, Entitlements, BillingConstants
+│   └── usecase/        # CreateInvoiceUseCase, RecordPaymentUseCase...
 ├── ui/
-│   ├── sales/          # CreateInvoiceSheet, SalesScreen, InvoiceViewModel
+│   ├── sales/          # SalesScreen, CreateInvoiceSheet, InvoiceViewModel
 │   ├── party/          # PartiesListScreen, PartyKhataScreen, PartyViewModel
 │   ├── items/          # ItemsScreen, AddEditItemSheet, StockAdjustSheet
 │   ├── purchases/      # CreatePurchaseSheet, PurchasesScreen
-│   ├── reports/        # GSTR-1, GSTR-3B, P&L, Daybook, Aging, Stock sheets
+│   ├── reports/        # ReportsScreen, Daybook, GSTR-1, P&L sheets
 │   └── theme/          # Color, Theme
 └── util/
     ├── InvoicePdfGenerator.kt
-    ├── CashbookPdfGenerator.kt
-    ├── PartyStatementPdfGenerator.kt
-    └── UpiPaymentHelper.kt
+    ├── ThermalSlipGenerator.kt
+    ├── MonetaryUtils.kt
+    └── IndianAccountingFormat.kt
 ```
-
----
-
-## Roadmap
-
-- [ ] Room DB migration (replace SharedPreferences JSON)
-- [ ] Cloud backup (Google Drive / local file export)
-- [ ] Barcode scanner for item lookup
-- [ ] Multi-business profile support
-- [ ] Recurring invoice / subscription billing
-- [ ] WhatsApp payment reminder automation
-
----
-
-## License
-
-MIT — free to use, modify and distribute.
-
----
-
-> Built by [Vitthal](https://github.com/Vitthal8) · Navi Mumbai, Maharashtra 🇮🇳
-> Designed for Indian kirana stores, traders, and service businesses.

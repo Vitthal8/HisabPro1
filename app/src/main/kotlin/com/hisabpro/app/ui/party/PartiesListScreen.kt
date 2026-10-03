@@ -264,7 +264,7 @@ fun PartiesListScreen(
                     }
                 },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Add Party", fontWeight = FontWeight.Bold) },
+                text = { Text(stringResource(R.string.add_party), fontWeight = FontWeight.Bold) },
                 containerColor = Emerald700,
                 contentColor = PureWhite,
                 shape = RoundedCornerShape(16.dp),
@@ -285,7 +285,7 @@ fun PartiesListScreen(
                     OutlinedTextField(
                         value = uiState.searchQuery,
                         onValueChange = { viewModel.setSearchQuery(it) },
-                        placeholder = { Text("Search by name, phone, or GSTIN...") },
+                        placeholder = { Text(stringResource(R.string.search_party_placeholder)) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                         trailingIcon = {
                             if (uiState.searchQuery.isNotEmpty()) {
@@ -595,19 +595,19 @@ private fun PartyFilterSection(
             FilterChip(
                 selected = selectedType == null,
                 onClick = { onTypeSelected(null) },
-                label = { Text("All Parties") },
+                label = { Text(stringResource(R.string.all_parties)) },
                 modifier = Modifier.testTag("filter_all_parties")
             )
             FilterChip(
                 selected = selectedType == PartyType.CUSTOMER,
                 onClick = { onTypeSelected(if (selectedType == PartyType.CUSTOMER) null else PartyType.CUSTOMER) },
-                label = { Text("Customers") },
+                label = { Text(stringResource(R.string.customers)) },
                 modifier = Modifier.testTag("filter_customers")
             )
             FilterChip(
                 selected = selectedType == PartyType.SUPPLIER,
                 onClick = { onTypeSelected(if (selectedType == PartyType.SUPPLIER) null else PartyType.SUPPLIER) },
-                label = { Text("Suppliers") },
+                label = { Text(stringResource(R.string.suppliers)) },
                 modifier = Modifier.testTag("filter_suppliers")
             )
         }
@@ -620,7 +620,7 @@ private fun PartyFilterSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "Tags:",
+                text = stringResource(R.string.tags_label),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.CenterVertically)

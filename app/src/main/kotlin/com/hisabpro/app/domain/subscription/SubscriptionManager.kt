@@ -67,18 +67,16 @@ sealed class BillingState {
 
 /**
  * Centralized Entitlement & Monetization Layer for HisabPro.
- * Ready for Google Play Billing 6+ / In-App Subscriptions.
+ * Exposes a single [entitlements] StateFlow as the SINGLE SOURCE OF TRUTH for features & limits.
+ * UI components query [entitlements] rather than checking plan enums directly.
  */
 object SubscriptionManager {
 
-    // Google Play Billing In-App Product / Subscription IDs
-    const val SKU_PRO_MONTHLY = "hisabpro_pro_monthly"
-    const val SKU_PRO_YEARLY = "hisabpro_pro_yearly"
-    const val SKU_PREMIUM_MONTHLY = "hisabpro_premium_monthly"
-    const val SKU_PREMIUM_YEARLY = "hisabpro_premium_yearly"
-
     private val _activePlanFlow = MutableStateFlow(SubscriptionPlan.FREE)
     val activePlanFlow: StateFlow<SubscriptionPlan> = _activePlanFlow.asStateFlow()
+
+    private val _entitlementsFlow = MutableStateFlow(Entitlements.FREE)
+    val entitlements: StateFlow<Entitlements> = _entitlementsFlow.asStateFlow()
 
     private val _billingStateFlow = MutableStateFlow<BillingState>(BillingState.Idle)
     val billingStateFlow: StateFlow<BillingState> = _billingStateFlow.asStateFlow()
@@ -87,58 +85,59 @@ object SubscriptionManager {
 
     fun setActivePlan(plan: SubscriptionPlan) {
         _activePlanFlow.value = plan
+        _entitlementsFlow.value = Entitlements.fromPlan(plan)
     }
 
     val isAdFree: Boolean
-        get() = _activePlanFlow.value != SubscriptionPlan.FREE
+        get() = _entitlementsFlow.value.isAdFree
 
     val isCustomLogoEnabled: Boolean
-        get() = _activePlanFlow.value != SubscriptionPlan.FREE
+        get() = _entitlementsFlow.value.isCustomLogoEnabled
 
     val isWhatsAppDirectShareEnabled: Boolean
-        get() = _activePlanFlow.value != SubscriptionPlan.FREE
+        get() = _entitlementsFlow.value.isWhatsAppDirectShareEnabled
 
     val isExcelExportEnabled: Boolean
-        get() = _activePlanFlow.value != SubscriptionPlan.FREE
+        get() = _entitlementsFlow.value.isExcelExportEnabled
 
     fun canExportGstr1(): Boolean {
-        return _activePlanFlow.value == SubscriptionPlan.PRO || _activePlanFlow.value == SubscriptionPlan.PREMIUM
+        return _entitlementsFlow.value.isGstr1ExportEnabled
     }
 
     fun canUseCloudSync(): Boolean {
-        return _activePlanFlow.value == SubscriptionPlan.PREMIUM
+        return _entitlementsFlow.value.isCloudSyncEnabled
     }
 
     fun getMaxBusinesses(): Int {
-        return _activePlanFlow.value.maxBusinesses
+        return _entitlementsFlow.value.maxBusinesses
     }
 
     /**
-     * Checks if creating an invoice is permitted under current tier.
+     * Checks if creating an invoice is permitted for current calendar month invoice count.
      */
     fun checkInvoiceCreationAllowed(currentMonthInvoiceCount: Int): EntitlementCheck {
-        val currentPlan = _activePlanFlow.value
-        if (currentPlan == SubscriptionPlan.FREE && currentMonthInvoiceCount >= currentPlan.invoiceLimitPerMonth) {
+        val currentEntitlements = _entitlementsFlow.value
+        if (!currentEntitlements.canCreateInvoice(currentMonthInvoiceCount)) {
             return EntitlementCheck.LimitExceeded(
-                message = "You have reached the free limit of ${currentPlan.invoiceLimitPerMonth} bills this month. Upgrade to Pro for unlimited billing.",
+                message = "You have reached the limit of ${currentEntitlements.monthlyInvoiceLimit} bills for this month. Upgrade to Pro for unlimited billing.",
                 currentCount = currentMonthInvoiceCount,
-                maxAllowed = currentPlan.invoiceLimitPerMonth
+                maxAllowed = currentEntitlements.monthlyInvoiceLimit
             )
         }
         return EntitlementCheck.Granted
     }
 
     /**
-     * Checks if adding a new business profile is allowed under current tier.
+     * Checks if adding a new business profile is allowed under current entitlements.
      */
     fun checkBusinessCreationAllowed(currentBusinessCount: Int): EntitlementCheck {
-        val maxAllowed = getMaxBusinesses()
-        if (currentBusinessCount >= maxAllowed) {
-            val upgradeTarget = if (_activePlanFlow.value == SubscriptionPlan.FREE) "Pro / Premium" else "Premium"
+        val currentEntitlements = _entitlementsFlow.value
+        if (!currentEntitlements.canAddBusiness(currentBusinessCount)) {
+            val upgradeTarget = if (currentEntitlements.plan == SubscriptionPlan.FREE) "Pro / Premium" else "Premium"
             return EntitlementCheck.LimitExceeded(
-                message = "You have reached the maximum limit of $maxAllowed business profiles. Upgrade to $upgradeTarget to manage up to 5 shops.",
+                message = "You have reached the maximum limit of ${currentEntitlements.maxBusinesses} business profile(s). Upgrade to $upgradeTarget to manage up to 5 shops.",
                 currentCount = currentBusinessCount,
-                maxAllowed = maxAllowed
+                maxAllowed = currentEntitlements.maxBusinesses
             )
         }
         return EntitlementCheck.Granted
@@ -162,10 +161,10 @@ object SubscriptionManager {
     )
 
     /**
-     * Simulates purchase activation (used in debug or when purchase completes).
+     * Activates a subscription plan and updates entitlements.
      */
     fun activatePlan(plan: SubscriptionPlan) {
-        _activePlanFlow.value = plan
+        setActivePlan(plan)
         _billingStateFlow.value = BillingState.Success(
             plan = plan,
             message = "Congratulations! You have upgraded to ${plan.title}."

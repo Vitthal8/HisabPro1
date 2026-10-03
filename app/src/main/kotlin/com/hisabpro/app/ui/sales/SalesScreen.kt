@@ -254,7 +254,7 @@ fun SalesScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Sales (Outward)",
+                                    text = stringResource(R.string.sales_outward),
                                     fontWeight = if (selectedBillingTab == 0) FontWeight.Bold else FontWeight.Medium,
                                     fontSize = 13.sp,
                                     color = if (selectedBillingTab == 0) Emerald800 else Slate600
@@ -286,7 +286,7 @@ fun SalesScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Purchases (Inward)",
+                                    text = stringResource(R.string.purchases_inward),
                                     fontWeight = if (selectedBillingTab == 1) FontWeight.Bold else FontWeight.Medium,
                                     fontSize = 13.sp,
                                     color = if (selectedBillingTab == 1) Emerald800 else Slate600
@@ -308,7 +308,7 @@ fun SalesScreen(
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
                     text = {
                         Text(
-                            text = if (businessProfile.isGstRegistered) "New Invoice" else "New Bill",
+                            text = if (businessProfile.isGstRegistered) stringResource(R.string.new_invoice) else stringResource(R.string.new_bill),
                             fontWeight = FontWeight.Bold
                         )
                     },
@@ -341,7 +341,7 @@ fun SalesScreen(
                         OutlinedTextField(
                             value = uiState.searchQuery,
                             onValueChange = { viewModel.setSearchQuery(it) },
-                            placeholder = { Text("Search by Inv #, Customer, or Item...", color = Slate400) },
+                            placeholder = { Text(stringResource(R.string.search_sales_placeholder), color = Slate400) },
                             leadingIcon = {
                                 Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = Emerald700)
                             },
@@ -422,13 +422,13 @@ fun SalesScreen(
                             }
                             Column {
                                 Text(
-                                    text = "⚡ Quick Cash Sale",
+                                    text = stringResource(R.string.quick_cash_sale),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
                                     color = Emerald900
                                 )
                                 Text(
-                                    text = "Fast 5-sec bill",
+                                    text = stringResource(R.string.fast_5sec_bill),
                                     fontSize = 11.sp,
                                     color = Emerald800
                                 )
@@ -469,13 +469,13 @@ fun SalesScreen(
                             }
                             Column {
                                 Text(
-                                    text = if (businessProfile.isGstRegistered) "+ GST Invoice" else "+ Sales Bill",
+                                    text = if (businessProfile.isGstRegistered) stringResource(R.string.gst_invoice_plus) else stringResource(R.string.sales_bill_plus),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
                                     color = Slate900
                                 )
                                 Text(
-                                    text = "Itemized & Party",
+                                    text = stringResource(R.string.itemized_and_party),
                                     fontSize = 11.sp,
                                     color = Slate600
                                 )
@@ -498,7 +498,7 @@ fun SalesScreen(
                             viewModel.setTypeFilter(null)
                             viewModel.setStatusFilter(null)
                         },
-                        label = { Text("All (${uiState.invoices.size})", fontWeight = FontWeight.SemiBold) },
+                        label = { Text(stringResource(R.string.all_count, uiState.invoices.size), fontWeight = FontWeight.SemiBold) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Emerald700,
                             selectedLabelColor = PureWhite
@@ -512,7 +512,7 @@ fun SalesScreen(
                                 viewModel.setTypeFilter(if (uiState.typeFilter == InvoiceType.TAX_INVOICE) null else InvoiceType.TAX_INVOICE)
                                 viewModel.setStatusFilter(null)
                             },
-                            label = { Text("GST Invoices", fontWeight = FontWeight.SemiBold) },
+                            label = { Text(stringResource(R.string.gst_invoices), fontWeight = FontWeight.SemiBold) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = Emerald700,
                                 selectedLabelColor = PureWhite
@@ -526,7 +526,7 @@ fun SalesScreen(
                             viewModel.setTypeFilter(if (uiState.typeFilter == InvoiceType.NON_GST_BILL) null else InvoiceType.NON_GST_BILL)
                             viewModel.setStatusFilter(null)
                         },
-                        label = { Text(if (businessProfile.isGstRegistered) "Simple Bills" else "Sales Bills", fontWeight = FontWeight.SemiBold) },
+                        label = { Text(if (businessProfile.isGstRegistered) stringResource(R.string.simple_bills) else stringResource(R.string.sales_bills), fontWeight = FontWeight.SemiBold) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Emerald700,
                             selectedLabelColor = PureWhite
@@ -539,7 +539,7 @@ fun SalesScreen(
                             viewModel.setTypeFilter(if (uiState.typeFilter == InvoiceType.PROFORMA) null else InvoiceType.PROFORMA)
                             viewModel.setStatusFilter(null)
                         },
-                        label = { Text("Quotations", fontWeight = FontWeight.SemiBold) },
+                        label = { Text(stringResource(R.string.quotations), fontWeight = FontWeight.SemiBold) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Emerald700,
                             selectedLabelColor = PureWhite
@@ -552,7 +552,7 @@ fun SalesScreen(
                             viewModel.setStatusFilter(if (uiState.statusFilter == InvoiceStatus.UNPAID) null else InvoiceStatus.UNPAID)
                             viewModel.setTypeFilter(null)
                         },
-                        label = { Text("Unpaid / Due", fontWeight = FontWeight.SemiBold) },
+                        label = { Text(stringResource(R.string.unpaid_due), fontWeight = FontWeight.SemiBold) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = ExpenseRed,
                             selectedLabelColor = PureWhite
@@ -587,14 +587,14 @@ fun SalesScreen(
                                 }
                             }
                             Text(
-                                text = if (uiState.searchQuery.isNotBlank()) "No matching invoices found" else "No invoices recorded yet",
+                                text = if (uiState.searchQuery.isNotBlank()) stringResource(R.string.no_matching_invoices) else stringResource(R.string.no_invoices_yet),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 17.sp,
                                 color = Slate800
                             )
                             Text(
-                                text = if (uiState.searchQuery.isNotBlank()) "Try searching with a different term"
-                                else "Create your first cash bill or GST tax invoice to get started.",
+                                text = if (uiState.searchQuery.isNotBlank()) stringResource(R.string.try_searching_different)
+                                else stringResource(R.string.create_first_bill_desc),
                                 fontSize = 13.sp,
                                 color = Slate600
                             )
@@ -608,7 +608,7 @@ fun SalesScreen(
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Create First Bill", fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.create_first_bill), fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -698,25 +698,33 @@ fun SalesScreen(
                 if (invoiceToEdit != null) {
                     viewModel.updateInvoice(invoice)
                     Toast.makeText(context, "Invoice ${invoice.invoiceNumber} updated!", Toast.LENGTH_SHORT).show()
+                    showCreateSheet = false
+                    invoiceToEdit = null
                 } else {
                     val nextNum = viewModel.getNextInvoiceNumber(invoice.type)
                     val toSave = invoice.copy(invoiceNumber = nextNum)
-                    val saved = viewModel.createInvoice(toSave)
+                    val result = viewModel.createInvoice(toSave)
 
-                    when (action) {
-                        SaveAction.SAVE_ONLY -> {
-                            Toast.makeText(context, "Invoice ${saved.invoiceNumber} saved!", Toast.LENGTH_SHORT).show()
+                    if (result.isSuccess) {
+                        val saved = result.getOrThrow()
+                        showCreateSheet = false
+                        invoiceToEdit = null
+                        when (action) {
+                            SaveAction.SAVE_ONLY -> {
+                                Toast.makeText(context, "Invoice ${saved.invoiceNumber} saved!", Toast.LENGTH_SHORT).show()
+                            }
+                            SaveAction.SAVE_AND_WHATSAPP -> {
+                                viewModel.shareWhatsAppSummary(context, saved)
+                            }
+                            SaveAction.SAVE_AND_PDF -> {
+                                viewModel.sharePdf(context, saved, false)
+                            }
                         }
-                        SaveAction.SAVE_AND_WHATSAPP -> {
-                            viewModel.shareWhatsAppSummary(context, saved)
-                        }
-                        SaveAction.SAVE_AND_PDF -> {
-                            viewModel.sharePdf(context, saved, false)
-                        }
+                    } else {
+                        val errorMsg = result.exceptionOrNull()?.localizedMessage ?: "Monthly invoice limit reached"
+                        Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
                     }
                 }
-                showCreateSheet = false
-                invoiceToEdit = null
             }
         )
     }
@@ -773,7 +781,7 @@ private fun SalesSummaryCard(
                     }
                     Column {
                         Text(
-                            text = "TOTAL SALES REVENUE",
+                            text = stringResource(R.string.total_sales_revenue),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = Slate500,
@@ -826,7 +834,7 @@ private fun SalesSummaryCard(
                                     .background(IncomeGreen)
                             )
                             Text(
-                                text = "RECEIVED",
+                                text = stringResource(R.string.received),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = IncomeGreen
@@ -860,7 +868,7 @@ private fun SalesSummaryCard(
                                     .background(if (totalDue > 0) ExpenseRed else Slate400)
                             )
                             Text(
-                                text = "PENDING DUE",
+                                text = stringResource(R.string.pending_due),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (totalDue > 0) ExpenseRed else Slate600
@@ -887,7 +895,7 @@ private fun SalesSummaryCard(
                     ) {
                         Column {
                             Text(
-                                text = "GST TAX",
+                                text = stringResource(R.string.gst_tax),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Emerald800
@@ -1253,7 +1261,7 @@ fun InvoiceCard(
                         onDismissRequest = { showMenu = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Repeat / Duplicate") },
+                            text = { Text(stringResource(R.string.repeat_duplicate)) },
                             leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Emerald700) },
                             onClick = {
                                 showMenu = false
@@ -1261,7 +1269,7 @@ fun InvoiceCard(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Edit Invoice") },
+                            text = { Text(stringResource(R.string.edit_invoice)) },
                             leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Slate700) },
                             onClick = {
                                 showMenu = false
@@ -1270,7 +1278,7 @@ fun InvoiceCard(
                         )
                         if (invoice.paymentStatus != InvoiceStatus.PAID) {
                             DropdownMenuItem(
-                                text = { Text("Mark as Full Paid") },
+                                text = { Text(stringResource(R.string.mark_as_full_paid)) },
                                 leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = IncomeGreen) },
                                 onClick = {
                                     showMenu = false

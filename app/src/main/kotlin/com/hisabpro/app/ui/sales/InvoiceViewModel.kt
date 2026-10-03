@@ -167,10 +167,8 @@ class InvoiceViewModel @JvmOverloads constructor(
         return repository.generateNextInvoiceNumber(type, prefixOverride)
     }
 
-    fun createInvoice(invoice: Invoice): Invoice {
-        return createInvoiceUseCase.execute(invoice).getOrElse {
-            repository.addInvoice(invoice)
-        }
+    fun createInvoice(invoice: Invoice): Result<Invoice> {
+        return createInvoiceUseCase.execute(invoice)
     }
 
     fun updateInvoice(invoice: Invoice) {

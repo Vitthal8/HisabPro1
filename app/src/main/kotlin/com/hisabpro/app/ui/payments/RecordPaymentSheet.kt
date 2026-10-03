@@ -2,6 +2,8 @@ package com.hisabpro.app.ui.payments
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.res.stringResource
+import com.hisabpro.app.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -85,8 +87,6 @@ import com.hisabpro.app.ui.theme.Emerald800
 import com.hisabpro.app.ui.theme.ExpenseRed
 import com.hisabpro.app.ui.theme.IncomeGreen
 import com.hisabpro.app.ui.theme.PureWhite
-import androidx.compose.ui.res.stringResource
-import com.hisabpro.app.R
 import com.hisabpro.app.ui.theme.Slate100
 import com.hisabpro.app.ui.theme.Slate200
 import com.hisabpro.app.ui.theme.Slate700
@@ -248,8 +248,8 @@ fun RecordPaymentSheet(
                     }
                 }
             },
-            title = { Text("Discard changes?") },
-            text = { Text("You have unsaved changes in this payment form. Are you sure you want to discard them?") },
+            title = { Text(stringResource(R.string.discard_changes)) },
+            text = { Text(stringResource(R.string.discard_khata_changes_desc)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -257,7 +257,7 @@ fun RecordPaymentSheet(
                         onDismiss()
                     }
                 ) {
-                    Text("Discard", color = ExpenseRed, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.delete), color = ExpenseRed, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -273,7 +273,7 @@ fun RecordPaymentSheet(
                         }
                     }
                 ) {
-                    Text("Cancel", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.cancel), fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -339,7 +339,7 @@ fun RecordPaymentSheet(
                             )
                             Text(
                                 text = if (direction == PaymentDirection.RECEIPT_IN)
-                                    "Customer Receipt • Settle Balance" else "Supplier Payment • Clear Due",
+                                    stringResource(R.string.customer_receipt_settle) else stringResource(R.string.supplier_payment_clear),
                                 color = PureWhite.copy(alpha = 0.85f),
                                 fontSize = 11.sp
                             )
@@ -376,7 +376,7 @@ fun RecordPaymentSheet(
                             direction = PaymentDirection.RECEIPT_IN
                             selectedParty = parties.firstOrNull { it.type == PartyType.CUSTOMER }
                         },
-                        label = { Text("Payment In (Customer)") },
+                        label = { Text(stringResource(R.string.payment_in_customer)) },
                         leadingIcon = {
                             Icon(Icons.Default.ArrowDownward, contentDescription = null, modifier = Modifier.size(16.dp))
                         },
@@ -395,7 +395,7 @@ fun RecordPaymentSheet(
                             direction = PaymentDirection.PAYMENT_OUT
                             selectedParty = parties.firstOrNull { it.type == PartyType.SUPPLIER }
                         },
-                        label = { Text("Payment Out (Supplier)") },
+                        label = { Text(stringResource(R.string.payment_out_supplier)) },
                         leadingIcon = {
                             Icon(Icons.Default.ArrowUpward, contentDescription = null, modifier = Modifier.size(16.dp))
                         },
@@ -415,11 +415,11 @@ fun RecordPaymentSheet(
                     onExpandedChange = { showPartyDropdown = it }
                 ) {
                     OutlinedTextField(
-                        value = selectedParty?.name ?: "Select Party...",
+                        value = selectedParty?.name ?: stringResource(R.string.select_party_placeholder),
                         onValueChange = {},
                         readOnly = true,
                         label = {
-                            Text(if (direction == PaymentDirection.RECEIPT_IN) "From Customer" else "To Supplier")
+                            Text(if (direction == PaymentDirection.RECEIPT_IN) stringResource(R.string.from_customer) else stringResource(R.string.to_supplier))
                         },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showPartyDropdown) },
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = Emerald700) },
@@ -467,10 +467,10 @@ fun RecordPaymentSheet(
                         onExpandedChange = { showInvoiceDropdown = it }
                     ) {
                         OutlinedTextField(
-                            value = selectedInvoice?.let { "${it.invoiceNumber} (Due: ₹${String.format(Locale.ENGLISH, "%.2f", it.dueAmount)})" } ?: "General Credit / Custom Ref",
+                            value = selectedInvoice?.let { "${it.invoiceNumber} (Due: ₹${String.format(Locale.ENGLISH, "%.2f", it.dueAmount)})" } ?: stringResource(R.string.general_credit_custom_ref),
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Against Reference Invoice *") },
+                            label = { Text(stringResource(R.string.against_ref_invoice)) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showInvoiceDropdown) },
                             leadingIcon = { Icon(Icons.Default.Receipt, contentDescription = null, tint = Emerald700) },
                             modifier = Modifier
@@ -521,8 +521,8 @@ fun RecordPaymentSheet(
                             isUserEdited = true
                         }
                     },
-                    label = { Text("Amount Paid (₹) *") },
-                    placeholder = { Text("0.00") },
+                    label = { Text(stringResource(R.string.amount_paid_rupees_req)) },
+                    placeholder = { Text(stringResource(R.string.amount_zero_placeholder)) },
                     leadingIcon = {
                         Text("₹", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Emerald800, modifier = Modifier.padding(start = 12.dp))
                     },
@@ -551,7 +551,7 @@ fun RecordPaymentSheet(
                 // Payment Mode Selection
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "Payment Mode",
+                        text = stringResource(R.string.payment_mode_label),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Slate800
@@ -611,8 +611,8 @@ fun RecordPaymentSheet(
                 OutlinedTextField(
                     value = referenceNo,
                     onValueChange = { referenceNo = it },
-                    label = { Text("Reference / Cheque # / UPI UTR") },
-                    placeholder = { Text("e.g. UTR-982173 or CHQ-00123") },
+                    label = { Text(stringResource(R.string.ref_cheque_upi_utr)) },
+                    placeholder = { Text(stringResource(R.string.ref_placeholder)) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -624,8 +624,8 @@ fun RecordPaymentSheet(
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Payment Notes / Remarks") },
-                    placeholder = { Text("e.g. Cleared bill invoice") },
+                    label = { Text(stringResource(R.string.payment_notes_remarks)) },
+                    placeholder = { Text(stringResource(R.string.payment_notes_placeholder)) },
                     maxLines = 2,
                     modifier = Modifier
                         .fillMaxWidth()

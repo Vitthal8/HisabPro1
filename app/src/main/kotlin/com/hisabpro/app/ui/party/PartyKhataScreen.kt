@@ -3,6 +3,8 @@ package com.hisabpro.app.ui.party
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.res.stringResource
+import com.hisabpro.app.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -238,7 +240,7 @@ fun PartyKhataScreen(
                         onDismissRequest = { showMenu = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Share PDF Statement") },
+                            text = { Text(stringResource(R.string.share_pdf_statement)) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.PictureAsPdf,
@@ -258,7 +260,7 @@ fun PartyKhataScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("WhatsApp PDF Statement") },
+                            text = { Text(stringResource(R.string.whatsapp_pdf_statement)) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Share,
@@ -278,7 +280,7 @@ fun PartyKhataScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Thermal / POS Slip (58mm)") },
+                            text = { Text(stringResource(R.string.thermal_pos_slip)) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Print,
@@ -297,7 +299,7 @@ fun PartyKhataScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Export Ledger (CSV)") },
+                            text = { Text(stringResource(R.string.export_ledger_csv)) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.FileDownload,
@@ -315,7 +317,7 @@ fun PartyKhataScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Edit Party Details") },
+                            text = { Text(stringResource(R.string.edit_party_details)) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Edit,
@@ -329,7 +331,7 @@ fun PartyKhataScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Delete Party", color = ExpenseRed) },
+                            text = { Text(stringResource(R.string.delete_party), color = ExpenseRed) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
@@ -519,8 +521,8 @@ fun PartyKhataScreen(
     if (showDeletePartyDialog) {
         AlertDialog(
             onDismissRequest = { showDeletePartyDialog = false },
-            title = { Text("Delete ${party.name}?") },
-            text = { Text("This will permanently remove this party and all associated Khata ledger records.") },
+            title = { Text(stringResource(R.string.delete_party_title, party.name)) },
+            text = { Text(stringResource(R.string.delete_party_confirm)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -529,12 +531,12 @@ fun PartyKhataScreen(
                     },
                     modifier = Modifier.testTag("confirm_delete_party_btn")
                 ) {
-                    Text("Delete", color = ExpenseRed, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.delete), color = ExpenseRed, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeletePartyDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -998,11 +1000,11 @@ private fun PartyLedgerTableView(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Date", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(0.9f))
-                    Text("Particulars", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(1.5f))
-                    Text("Debit (Dr)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ExpenseRed, modifier = Modifier.weight(1.1f))
-                    Text("Credit (Cr)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = IncomeGreen, modifier = Modifier.weight(1.1f))
-                    Text("Balance", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate800, modifier = Modifier.weight(1.2f))
+                    Text(stringResource(R.string.date_col), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(0.9f))
+                    Text(stringResource(R.string.particulars_col), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700, modifier = Modifier.weight(1.5f))
+                    Text(stringResource(R.string.debit_dr_col), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ExpenseRed, modifier = Modifier.weight(1.1f))
+                    Text(stringResource(R.string.credit_cr_col), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = IncomeGreen, modifier = Modifier.weight(1.1f))
+                    Text(stringResource(R.string.balance_col), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate800, modifier = Modifier.weight(1.2f))
                 }
             }
 

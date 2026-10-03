@@ -1,6 +1,8 @@
 package com.hisabpro.app.ui.party
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.res.stringResource
+import com.hisabpro.app.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -155,8 +157,8 @@ fun AddPartyDialog(
                     }
                 }
             },
-            title = { Text("Discard changes?") },
-            text = { Text("You have unsaved changes in this party contact form. Are you sure you want to discard them?") },
+            title = { Text(stringResource(R.string.discard_changes)) },
+            text = { Text(stringResource(R.string.discard_party_changes_desc)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -164,7 +166,7 @@ fun AddPartyDialog(
                         onDismiss()
                     }
                 ) {
-                    Text("Discard", color = ExpenseRed, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.delete), color = ExpenseRed, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -180,7 +182,7 @@ fun AddPartyDialog(
                         }
                     }
                 ) {
-                    Text("Cancel", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.cancel), fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -214,7 +216,7 @@ fun AddPartyDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (partyToEdit != null) "Edit Party / Contact" else "Add Party / Contact",
+                    text = if (partyToEdit != null) stringResource(R.string.edit_party_contact) else stringResource(R.string.add_party_contact),
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold
                     ),
@@ -254,7 +256,7 @@ fun AddPartyDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Customer",
+                        text = stringResource(R.string.customer),
                         fontWeight = FontWeight.Bold,
                         color = if (partyType == PartyType.CUSTOMER) PureWhite else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -273,7 +275,7 @@ fun AddPartyDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Supplier",
+                        text = stringResource(R.string.supplier),
                         fontWeight = FontWeight.Bold,
                         color = if (partyType == PartyType.SUPPLIER) PureWhite else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -292,7 +294,7 @@ fun AddPartyDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Both (Cust & Supp)",
+                        text = stringResource(R.string.both_cust_supp),
                         fontWeight = FontWeight.Bold,
                         color = if (partyType == PartyType.BOTH) PureWhite else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -308,7 +310,7 @@ fun AddPartyDialog(
                     name = it
                     errorMessage = null
                 },
-                label = { Text(if (partyType == PartyType.CUSTOMER) "Customer Name *" else "Supplier / Firm Name *") },
+                label = { Text(if (partyType == PartyType.CUSTOMER) stringResource(R.string.customer_name_req) else stringResource(R.string.supplier_firm_name_req)) },
                 placeholder = { Text("e.g. Ramesh Kumar, Om Enterprises") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
@@ -331,7 +333,7 @@ fun AddPartyDialog(
                     phone = it
                     errorMessage = null
                 },
-                label = { Text("Phone / WhatsApp Number *") },
+                label = { Text(stringResource(R.string.phone_whatsapp_req)) },
                 placeholder = { Text("e.g. 9876543210") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
@@ -351,7 +353,7 @@ fun AddPartyDialog(
             OutlinedTextField(
                 value = address,
                 onValueChange = { address = it },
-                label = { Text("Billing Address (Optional)") },
+                label = { Text(stringResource(R.string.billing_address_optional)) },
                 placeholder = { Text("Shop no, Street, City") },
                 maxLines = 2,
                 colors = OutlinedTextFieldDefaults.colors(
@@ -388,7 +390,7 @@ fun AddPartyDialog(
 
             // Tag Selection (Regular / Occasional / Blocked)
             Text(
-                text = "Account Tag",
+                text = stringResource(R.string.account_tag),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -466,7 +468,7 @@ fun AddPartyDialog(
                 )
             ) {
                 Text(
-                    text = if (partyToEdit != null) "Update Party Details" else "Save Party",
+                    text = if (partyToEdit != null) stringResource(R.string.update_party_details) else stringResource(R.string.save_party),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = PureWhite
                 )

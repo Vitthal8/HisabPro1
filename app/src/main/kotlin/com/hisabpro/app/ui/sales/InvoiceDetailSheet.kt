@@ -2,6 +2,8 @@ package com.hisabpro.app.ui.sales
 
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.res.stringResource
+import com.hisabpro.app.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -422,13 +424,13 @@ fun InvoiceDetailSheet(
                         )
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Subtotal (Taxable):", fontSize = 13.sp, color = Slate600)
+                            Text(stringResource(R.string.subtotal_taxable_colon), fontSize = 13.sp, color = Slate600)
                             Text("₹${String.format(Locale.ENGLISH, "%.2f", invoice.subtotal)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Slate900)
                         }
 
                         if (invoice.discountAmount > 0) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Discount:", fontSize = 13.sp, color = ExpenseRed)
+                                Text(stringResource(R.string.discount_colon), fontSize = 13.sp, color = ExpenseRed)
                                 Text("-₹${String.format(Locale.ENGLISH, "%.2f", invoice.discountAmount)}", fontSize = 13.sp, color = ExpenseRed, fontWeight = FontWeight.SemiBold)
                             }
                         }
@@ -436,16 +438,16 @@ fun InvoiceDetailSheet(
                         if (invoice.type == InvoiceType.TAX_INVOICE) {
                             if (invoice.gstMode == GstMode.INTRA_STATE) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("CGST:", fontSize = 13.sp, color = Slate600)
+                                    Text(stringResource(R.string.cgst_colon), fontSize = 13.sp, color = Slate600)
                                     Text("+₹${String.format(Locale.ENGLISH, "%.2f", invoice.cgstTotal)}", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Emerald800)
                                 }
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("SGST:", fontSize = 13.sp, color = Slate600)
+                                    Text(stringResource(R.string.sgst_colon), fontSize = 13.sp, color = Slate600)
                                     Text("+₹${String.format(Locale.ENGLISH, "%.2f", invoice.sgstTotal)}", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Emerald800)
                                 }
                             } else if (invoice.gstMode == GstMode.INTER_STATE) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("IGST:", fontSize = 13.sp, color = Slate600)
+                                    Text(stringResource(R.string.igst_colon), fontSize = 13.sp, color = Slate600)
                                     Text("+₹${String.format(Locale.ENGLISH, "%.2f", invoice.igstTotal)}", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Emerald800)
                                 }
                             }
@@ -465,7 +467,7 @@ fun InvoiceDetailSheet(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("GRAND TOTAL", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Emerald900)
+                                Text(stringResource(R.string.grand_total), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Emerald900)
                                 Text(
                                     text = "₹${String.format(Locale.ENGLISH, "%.2f", invoice.grandTotal)}",
                                     fontWeight = FontWeight.ExtraBold,
@@ -476,13 +478,13 @@ fun InvoiceDetailSheet(
                         }
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Paid Amount:", fontSize = 13.sp, color = Slate600)
+                            Text(stringResource(R.string.paid_amount_colon), fontSize = 13.sp, color = Slate600)
                             Text("₹${String.format(Locale.ENGLISH, "%.2f", invoice.paidAmount)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = IncomeGreen)
                         }
 
                         if (invoice.dueAmount > 0) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Balance Due:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ExpenseRed)
+                                Text(stringResource(R.string.balance_due_colon), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ExpenseRed)
                                 Text("₹${String.format(Locale.ENGLISH, "%.2f", invoice.dueAmount)}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = ExpenseRed)
                             }
                         }

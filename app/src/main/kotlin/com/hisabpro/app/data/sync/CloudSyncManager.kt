@@ -206,6 +206,14 @@ class CloudSyncManager private constructor(private val appContext: Context) {
     private suspend fun performSyncInternal(isManual: Boolean): Result<String> = withContext(Dispatchers.IO) {
         android.util.Log.i("SYNC_QUEUE_DEBUG", "SYNC_START isManual=$isManual")
 
+        if (!com.hisabpro.app.domain.subscription.SubscriptionManager.canUseCloudSync()) {
+            _syncState.value = _syncState.value.copy(
+                isSyncing = false,
+                lastError = "Cloud Synchronization requires a Premium subscription."
+            )
+            return@withContext Result.failure(Exception("Cloud Sync is a Premium-only feature"))
+        }
+
         val session = authManager.getCurrentSession()
         if (session == null) {
             _syncState.value = _syncState.value.copy(
@@ -864,6 +872,9 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
                     val entity = KhataEntryEntity(
                         id = obj.getString("id"),
+                        businessId = obj.optString("business_id", "").ifBlank {
+                            BusinessManager.getInstance(appContext).activeBusinessDatabaseId
+                        },
                         partyId = obj.getString("party_id"),
                         amount = obj.optLong("amount", 0L),
                         type = obj.getString("type"),

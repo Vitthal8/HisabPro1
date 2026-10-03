@@ -1,6 +1,8 @@
 package com.hisabpro.app.ui.party
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.res.stringResource
+import com.hisabpro.app.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -169,8 +171,8 @@ fun AddKhataEntryDialog(
                     }
                 }
             },
-            title = { Text("Discard changes?") },
-            text = { Text("You have unsaved entry details. Are you sure you want to discard them?") },
+            title = { Text(stringResource(R.string.discard_changes)) },
+            text = { Text(stringResource(R.string.discard_khata_changes_desc)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -178,7 +180,7 @@ fun AddKhataEntryDialog(
                         onDismiss()
                     }
                 ) {
-                    Text("Discard", color = ExpenseRed, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.delete), color = ExpenseRed, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -194,7 +196,7 @@ fun AddKhataEntryDialog(
                         }
                     }
                 ) {
-                    Text("Cancel", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.cancel), fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -310,8 +312,8 @@ fun AddKhataEntryDialog(
                     amountText = it
                     errorMessage = null
                 },
-                label = { Text("Amount (₹) *") },
-                placeholder = { Text("0.00") },
+                label = { Text(stringResource(R.string.amount_rupees_req)) },
+                placeholder = { Text(stringResource(R.string.amount_zero_placeholder)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -359,8 +361,8 @@ fun AddKhataEntryDialog(
             OutlinedTextField(
                 value = billNumber,
                 onValueChange = { billNumber = it },
-                label = { Text("Bill / Invoice No. (Optional)") },
-                placeholder = { Text("e.g. INV-1042, BILL-98") },
+                label = { Text(stringResource(R.string.bill_invoice_no_optional)) },
+                placeholder = { Text(stringResource(R.string.bill_no_placeholder_example)) },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -378,8 +380,8 @@ fun AddKhataEntryDialog(
             OutlinedTextField(
                 value = noteText,
                 onValueChange = { noteText = it },
-                label = { Text("Notes / Details (Optional)") },
-                placeholder = { Text("Items purchased, reason, or payment mode remarks") },
+                label = { Text(stringResource(R.string.notes_details_optional)) },
+                placeholder = { Text(stringResource(R.string.notes_placeholder_example)) },
                 maxLines = 3,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = MaterialTheme.colorScheme.onSurface,

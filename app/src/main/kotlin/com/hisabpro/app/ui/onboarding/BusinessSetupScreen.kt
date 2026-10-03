@@ -204,23 +204,46 @@ fun BusinessSetupScreen(
         }
     }
 
-    BackHandler(enabled = onDismiss != null) {
-        handleDismissAttempt()
+    BackHandler(enabled = true) {
+        if (onDismiss != null) {
+            handleDismissAttempt()
+        } else {
+            // Prevent accidental Android back press from terminating the app
+            if (shopName.isBlank()) {
+                val fallback = currentProfile.copy(
+                    shopName = "My Business",
+                    ownerName = ownerName.ifBlank { "Owner" },
+                    hasCompletedOnboarding = true
+                )
+                onSaveProfile(fallback)
+            } else {
+                handleDismissAttempt()
+            }
+        }
     }
 
     if (showDiscardConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showDiscardConfirmDialog = false },
-            title = { Text("Discard changes?") },
-            text = { Text("You have unsaved changes in your business profile form. Are you sure you want to discard them?") },
+            title = { Text("Leave setup?") },
+            text = { Text("Would you like to continue to the main dashboard?") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showDiscardConfirmDialog = false
-                        onDismiss?.invoke()
+                        if (onDismiss != null) {
+                            onDismiss.invoke()
+                        } else {
+                            val fallback = currentProfile.copy(
+                                shopName = shopName.ifBlank { "My Business" },
+                                ownerName = ownerName.ifBlank { "Owner" },
+                                hasCompletedOnboarding = true
+                            )
+                            onSaveProfile(fallback)
+                        }
                     }
                 ) {
-                    Text("Discard", color = ExpenseRed, fontWeight = FontWeight.Bold)
+                    Text("Go to Dashboard", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

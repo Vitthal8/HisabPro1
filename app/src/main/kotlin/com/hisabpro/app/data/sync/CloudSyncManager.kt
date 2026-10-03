@@ -990,6 +990,22 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     phone = newSession.phone ?: "",
                     hasCompletedOnboarding = true
                 )
+            } else if (!newSession.email.isNullOrBlank() && !newSession.isDemoAccount) {
+                val formattedName = newSession.email.substringBefore("@")
+                    .replace(".", " ")
+                    .replace("_", " ")
+                    .split(" ")
+                    .filter { it.isNotBlank() }
+                    .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                    .ifBlank { "My Business" }
+                BusinessProfile(
+                    id = "biz_${newSession.userId.take(8)}",
+                    shopName = "$formattedName Firm",
+                    ownerName = newSession.email.substringBefore("@").replaceFirstChar { it.uppercase() },
+                    email = newSession.email,
+                    phone = newSession.phone ?: "",
+                    hasCompletedOnboarding = true
+                )
             } else {
                 null
             }

@@ -96,31 +96,61 @@ fun MainScreen(
     val localizedContext = remember(context, targetLocale) {
         val config = Configuration(context.resources.configuration)
         config.setLocale(targetLocale)
-        context.createConfigurationContext(config)
+        val configContext = context.createConfigurationContext(config)
+        object : android.content.ContextWrapper(context) {
+            override fun getResources(): android.content.res.Resources = configContext.resources
+        }
     }
 
     val registryOwner = androidx.activity.compose.LocalActivityResultRegistryOwner.current
-    CompositionLocalProvider(
-        LocalConfiguration provides updatedConfig,
-        LocalContext provides localizedContext,
-        androidx.activity.compose.LocalActivityResultRegistryOwner provides (registryOwner ?: (context as androidx.activity.ComponentActivity))
-    ) {
-        MainScreenContent(
-            businessProfile = businessProfile,
-            partyViewModel = partyViewModel,
-            hisabViewModel = hisabViewModel,
-            invoiceViewModel = invoiceViewModel,
-            itemViewModel = itemViewModel,
-            reportsViewModel = reportsViewModel,
-            purchaseViewModel = purchaseViewModel,
-            backupViewModel = backupViewModel,
-            cloudSyncViewModel = cloudSyncViewModel,
-            onPickBackupFile = onPickBackupFile,
-            onSaveBackupToUri = onSaveBackupToUri,
-            onReloadProfile = { settingsRepo.reloadProfile() },
-            onSaveProfile = { updated -> settingsRepo.saveProfile(updated) },
-            modifier = modifier
-        )
+    val activityOwner = (context as? androidx.activity.ComponentActivity)
+    val effectiveRegistryOwner = registryOwner ?: activityOwner
+
+    if (effectiveRegistryOwner != null) {
+        CompositionLocalProvider(
+            LocalConfiguration provides updatedConfig,
+            LocalContext provides localizedContext,
+            androidx.activity.compose.LocalActivityResultRegistryOwner provides effectiveRegistryOwner
+        ) {
+            MainScreenContent(
+                businessProfile = businessProfile,
+                partyViewModel = partyViewModel,
+                hisabViewModel = hisabViewModel,
+                invoiceViewModel = invoiceViewModel,
+                itemViewModel = itemViewModel,
+                reportsViewModel = reportsViewModel,
+                purchaseViewModel = purchaseViewModel,
+                backupViewModel = backupViewModel,
+                cloudSyncViewModel = cloudSyncViewModel,
+                onPickBackupFile = onPickBackupFile,
+                onSaveBackupToUri = onSaveBackupToUri,
+                onReloadProfile = { settingsRepo.reloadProfile() },
+                onSaveProfile = { updated -> settingsRepo.saveProfile(updated) },
+                modifier = modifier
+            )
+        }
+    } else {
+        CompositionLocalProvider(
+            LocalConfiguration provides updatedConfig,
+            LocalContext provides localizedContext
+        ) {
+            MainScreenContent(
+                businessProfile = businessProfile,
+                partyViewModel = partyViewModel,
+                hisabViewModel = hisabViewModel,
+                invoiceViewModel = invoiceViewModel,
+                itemViewModel = itemViewModel,
+                reportsViewModel = reportsViewModel,
+                purchaseViewModel = purchaseViewModel,
+                backupViewModel = backupViewModel,
+                cloudSyncViewModel = cloudSyncViewModel,
+                onPickBackupFile = onPickBackupFile,
+                onSaveBackupToUri = onSaveBackupToUri,
+                onReloadProfile = { settingsRepo.reloadProfile() },
+                onSaveProfile = { updated -> settingsRepo.saveProfile(updated) },
+                modifier = modifier
+            )
+        }
     }
 }
 

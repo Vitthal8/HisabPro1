@@ -83,11 +83,16 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 )
                 if (session != null) {
                     try {
+                        val isUserSwitch = authManager.isDifferentUser(session)
                         val lastUserId = authManager.getLastActiveUserId()
-                        val isUserSwitch = (lastUserId == null) || (lastUserId != session.userId) || authManager.isDifferentUser(session)
+                        val activeBiz = BusinessManager.getInstance(appContext).activeBusiness.value
+                        val hasMismatchedLocalData = lastUserId == null &&
+                            activeBiz.email.isNotBlank() &&
+                            !session.email.isNullOrBlank() &&
+                            !activeBiz.email.equals(session.email, ignoreCase = true)
 
-                        if (isUserSwitch) {
-                            android.util.Log.i("SYNC_USER_SWITCH", "User switch detected for ${session.userId} (${session.email}) [lastUserId=$lastUserId]. Resetting local workspace.")
+                        if (isUserSwitch || hasMismatchedLocalData) {
+                            android.util.Log.i("SYNC_USER_SWITCH", "User switch detected for ${session.userId} (${session.email}). Resetting local workspace.")
                             handleUserSwitch(session)
                         } else {
                             authManager.setLastActiveUserId(session.userId)
@@ -180,10 +185,8 @@ class CloudSyncManager private constructor(private val appContext: Context) {
         db.syncOutboxDao().insert(outboxEvent)
 
         val bizId = try {
-            JSONObject(payloadJson).optString("business_id", JSONObject(payloadJson).optString("businessId", "")).ifBlank {
-                try { BusinessManager.getInstance(appContext).activeBusinessDatabaseId } catch (_: Exception) { "" }
-            }
-        } catch (_: Exception) { "" }
+            JSONObject(payloadJson).optString("business_id", JSONObject(payloadJson).optString("businessId", "default_business"))
+        } catch (_: Exception) { "default_business" }
         android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_ENQUEUE table=$entityType recordId=$entityId businessId=$bizId operation=$operation queueId=$insertedId")
     }
 
@@ -511,7 +514,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
             val lastPulled = metadata?.lastPulledAt ?: 0L
 
             android.util.Log.i("CloudSyncManager", "SYNC_PULL_START table=$table")
-            val result = apiClient.fetchDelta(table, session.accessToken, lastPulled, userId = session.userId)
+            val result = apiClient.fetchDelta(table, session.accessToken, lastPulled)
             if (result.isSuccess) {
                 val records = result.getOrThrow()
                 successCount++
@@ -519,7 +522,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 android.util.Log.i("CloudSyncManager", "SYNC_PULL_RESULT table=$table count=${records.length()}")
                 if (records.length() > 0) {
                     db.withTransaction {
-                        applyRemoteRecords(table, records, session)
+                        applyRemoteRecords(table, records)
                     }
                     totalPulled += records.length()
                 }
@@ -555,42 +558,28 @@ class CloudSyncManager private constructor(private val appContext: Context) {
         return PullResultSummary(totalPulled, successCount, failureCount, tableStatuses)
     }
 
-    private suspend fun ensureParentBusinessExists(bizId: String, session: UserSession) {
+    private suspend fun ensureParentBusinessExists(bizId: String) {
         if (bizId.isBlank()) return
         val existing = db.businessDao().getBusinessSync(bizId)
         if (existing == null) {
             db.businessDao().insertOrUpdate(
                 BusinessEntity(
                     id = bizId,
-                    name = "Business ($bizId)",
-                    email = session.email ?: "",
+                    name = if (bizId == "default_business") "Main Business" else "Business ($bizId) [Restored]",
                     financialYearStart = "01-04"
                 )
             )
-            BusinessManager.getInstance(appContext).reloadFromRoomAndCloud(replaceLocal = false)
+            BusinessManager.getInstance(appContext).reloadFromRoomAndCloud()
         }
     }
 
-    private suspend fun applyRemoteRecords(table: String, records: JSONArray, session: UserSession) {
+    private suspend fun applyRemoteRecords(table: String, records: JSONArray) {
         when (table) {
             "businesses" -> {
                 val list = mutableListOf<BusinessEntity>()
                 val businessProfiles = mutableListOf<BusinessProfile>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val recordUserId = obj.optString("user_id", "")
-                    if (recordUserId.isNotBlank() && recordUserId != session.userId) {
-                        android.util.Log.w("CloudSyncManager", "Skipping business ${obj.optString("id")} belonging to user $recordUserId (current user: ${session.userId})")
-                        continue
-                    }
-                    if (recordUserId.isBlank()) {
-                        val recordEmail = obj.optString("email", "")
-                        if (session.email.isNullOrBlank() || !recordEmail.equals(session.email, ignoreCase = true)) {
-                            android.util.Log.w("CloudSyncManager", "Skipping unassigned business ${obj.optString("id")} for user ${session.userId} (${session.email})")
-                            continue
-                        }
-                    }
-
                     val remote = BusinessEntity(
                         id = obj.getString("id"),
                         name = obj.getString("name"),
@@ -649,13 +638,8 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val deletedIds = mutableListOf<String>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val recordUserId = obj.optString("user_id", "")
-                    if (recordUserId.isNotBlank() && recordUserId != session.userId) continue
-
-                    val rawBiz = obj.optString("business_id", obj.optString("businessId", "")).ifBlank {
-                        BusinessManager.getInstance(appContext).activeBusinessDatabaseId
-                    }
-                    ensureParentBusinessExists(rawBiz, session)
+                    val rawBiz = obj.optString("business_id", obj.optString("businessId", "default_business")).ifBlank { "default_business" }
+                    ensureParentBusinessExists(rawBiz)
                     val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
                     val entity = PartyEntity(
                         id = obj.getString("id"),
@@ -690,13 +674,8 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val deletedIds = mutableListOf<String>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val recordUserId = obj.optString("user_id", "")
-                    if (recordUserId.isNotBlank() && recordUserId != session.userId) continue
-
-                    val rawBiz = obj.optString("business_id", obj.optString("businessId", "")).ifBlank {
-                        BusinessManager.getInstance(appContext).activeBusinessDatabaseId
-                    }
-                    ensureParentBusinessExists(rawBiz, session)
+                    val rawBiz = obj.optString("business_id", obj.optString("businessId", "default_business")).ifBlank { "default_business" }
+                    ensureParentBusinessExists(rawBiz)
                     val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
                     val entity = ItemEntity(
                         id = obj.getString("id"),
@@ -732,13 +711,8 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val deletedIds = mutableListOf<String>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val recordUserId = obj.optString("user_id", "")
-                    if (recordUserId.isNotBlank() && recordUserId != session.userId) continue
-
-                    val rawBiz = obj.optString("business_id", obj.optString("businessId", "")).ifBlank {
-                        BusinessManager.getInstance(appContext).activeBusinessDatabaseId
-                    }
-                    ensureParentBusinessExists(rawBiz, session)
+                    val rawBiz = obj.optString("business_id", obj.optString("businessId", "default_business")).ifBlank { "default_business" }
+                    ensureParentBusinessExists(rawBiz)
                     val rawPartyId = obj.optString("party_id", "").ifBlank { null }
                     val safePartyId = if (rawPartyId != null && db.partyDao().getPartyByIdSync(rawPartyId) != null) rawPartyId else null
                     val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
@@ -788,9 +762,6 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val deletedIds = mutableListOf<String>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val recordUserId = obj.optString("user_id", "")
-                    if (recordUserId.isNotBlank() && recordUserId != session.userId) continue
-
                     val invId = obj.getString("invoice_id")
                     val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
                     if (delAt != null && delAt > 0L) {
@@ -827,15 +798,10 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val deletedIds = mutableListOf<String>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val recordUserId = obj.optString("user_id", "")
-                    if (recordUserId.isNotBlank() && recordUserId != session.userId) continue
-
                     val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
                     val entity = PaymentEntity(
                         id = obj.getString("id"),
-                        businessId = obj.optString("business_id", "").ifBlank {
-                            BusinessManager.getInstance(appContext).activeBusinessDatabaseId
-                        },
+                        businessId = obj.optString("business_id", "default_business"),
                         partyId = obj.optString("party_id", "").ifBlank { null },
                         date = obj.optLong("date", System.currentTimeMillis()),
                         amount = obj.optLong("amount", 0L),
@@ -864,15 +830,10 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val deletedIds = mutableListOf<String>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val recordUserId = obj.optString("user_id", "")
-                    if (recordUserId.isNotBlank() && recordUserId != session.userId) continue
-
                     val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
                     val entity = ExpenseEntity(
                         id = obj.getString("id"),
-                        businessId = obj.optString("business_id", "").ifBlank {
-                            BusinessManager.getInstance(appContext).activeBusinessDatabaseId
-                        },
+                        businessId = obj.optString("business_id", "default_business"),
                         date = obj.optLong("date", System.currentTimeMillis()),
                         category = obj.getString("category"),
                         amount = obj.optLong("amount", 0L),
@@ -900,15 +861,9 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val deletedIds = mutableListOf<String>()
                 for (i in 0 until records.length()) {
                     val obj = records.getJSONObject(i)
-                    val recordUserId = obj.optString("user_id", "")
-                    if (recordUserId.isNotBlank() && recordUserId != session.userId) continue
-
                     val delAt = if (obj.isNull("deleted_at")) null else obj.optLong("deleted_at")
                     val entity = KhataEntryEntity(
                         id = obj.getString("id"),
-                        businessId = obj.optString("business_id", "").ifBlank {
-                            BusinessManager.getInstance(appContext).activeBusinessDatabaseId
-                        },
                         partyId = obj.getString("party_id"),
                         amount = obj.optLong("amount", 0L),
                         type = obj.getString("type"),
@@ -1070,7 +1025,12 @@ class CloudSyncManager private constructor(private val appContext: Context) {
     private fun wipeAllRepositoryCaches() {
         val knownPrefs = listOf(
             "hisab_pro_multi_business_v1",
-            "hisab_pro_settings_v1"
+            "hisab_pro_settings_v1",
+            "hisab_pro_invoices_default_business",
+            "hisab_pro_parties_default_business",
+            "hisab_pro_items_default_business",
+            "hisab_pro_transactions_default_business",
+            "hisab_pro_purchases_default_business"
         )
         for (prefName in knownPrefs) {
             appContext.getSharedPreferences(prefName, Context.MODE_PRIVATE).edit().clear().apply()

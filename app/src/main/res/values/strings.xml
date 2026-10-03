@@ -356,4 +356,5 @@
     <string name="ref_placeholder">e.g. UTR-982173 or CHQ-00123</string>
     <string name="payment_notes_remarks">Payment Notes / Remarks</string>
     <string name="payment_notes_placeholder">e.g. Cleared bill invoice</string>
+    <string name="select_party_placeholder">Select Party</string>
 </resources>

@@ -343,4 +343,18 @@
     <string name="reference_number_optional">संदर्भ / व्यवहार क्रमांक (पर्यायी)</string>
     <string name="payment_notes_optional">पेमेंट टीप (पर्यायी)</string>
     <string name="save_payment">पेमेंट सेव्ह करा</string>
+    <string name="customer_receipt_settle">ग्राहक पावती • बाकी पूर्तता</string>
+    <string name="supplier_payment_clear">सप्लायर पेमेंट • बाकी क्लिअर करा</string>
+    <string name="payment_in_customer">पेमेंट जमा (ग्राहक)</string>
+    <string name="payment_out_supplier">पेमेंट नावे (सप्लायर)</string>
+    <string name="from_customer">ग्राहकाकडून</string>
+    <string name="to_supplier">सप्लायरला</string>
+    <string name="against_ref_invoice">संदर्भ इनवॉइसच्या बदल्यात *</string>
+    <string name="general_credit_custom_ref">सामान्य क्रेडिट / स्वतःचा संदर्भ</string>
+    <string name="amount_paid_rupees_req">भरलेली रक्कम (₹) *</string>
+    <string name="ref_cheque_upi_utr">संदर्भ / धनादेश क्र. / यूपीआय यूटीआर</string>
+    <string name="ref_placeholder">उदा. UTR-982173 किंवा CHQ-00123</string>
+    <string name="payment_notes_remarks">पेमेंट तपशील / शेरा</string>
+    <string name="payment_notes_placeholder">उदा. बिल इनवॉइस पूर्ण केले</string>
+    <string name="select_party_placeholder">पार्टी निवडा</string>
 </resources>

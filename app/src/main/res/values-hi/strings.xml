@@ -343,4 +343,18 @@
     <string name="reference_number_optional">संदर्भ / ट्रांजैक्शन नंबर (वैकल्पिक)</string>
     <string name="payment_notes_optional">भुगतान टिप्पणी (वैकल्पिक)</string>
     <string name="save_payment">भुगतान सुरक्षित करें</string>
+    <string name="customer_receipt_settle">ग्राहक रसीद • बकाया चुकता</string>
+    <string name="supplier_payment_clear">सप्लायर भुगतान • बकाया भुगतान</string>
+    <string name="payment_in_customer">जमा भुगतान (ग्राहक)</string>
+    <string name="payment_out_supplier">निकासी भुगतान (सप्लायर)</string>
+    <string name="from_customer">ग्राहक से</string>
+    <string name="to_supplier">सप्लायर को</string>
+    <string name="against_ref_invoice">संदर्भ इनवॉइस के विरुद्ध *</string>
+    <string name="general_credit_custom_ref">सामान्य क्रेडिट / कस्टम संदर्भ</string>
+    <string name="amount_paid_rupees_req">भुगतान राशि (₹) *</string>
+    <string name="ref_cheque_upi_utr">संदर्भ / चेक क्र. / यूपीआई यूटीआर</string>
+    <string name="ref_placeholder">उदा. UTR-982173 या CHQ-00123</string>
+    <string name="payment_notes_remarks">भुगतान विवरण / टिप्पणी</string>
+    <string name="payment_notes_placeholder">उदा. बिल इनवॉइस चुकता किया</string>
+    <string name="select_party_placeholder">पार्टी चुनें</string>
 </resources>

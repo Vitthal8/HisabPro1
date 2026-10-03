@@ -7,6 +7,14 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val envProperties = Properties()
+val envFile = rootProject.file(".env")
+if (envFile.exists()) {
+    envFile.inputStream().use { stream ->
+        envProperties.load(stream)
+    }
+}
+
 val localProperties = Properties()
 val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
@@ -15,14 +23,16 @@ if (localPropertiesFile.exists()) {
     }
 }
 
-val supabaseUrl = localProperties.getProperty("SUPABASE_URL")
+val supabaseUrl = envProperties.getProperty("SUPABASE_URL")
+    ?: localProperties.getProperty("SUPABASE_URL")
     ?: (project.findProperty("SUPABASE_URL") as? String)
     ?: System.getenv("SUPABASE_URL")
-    ?: ""
-val supabaseAnonKey = localProperties.getProperty("SUPABASE_ANON_KEY")
+    ?: "https://yadqiswozvcusgkcxsgy.supabase.co"
+val supabaseAnonKey = envProperties.getProperty("SUPABASE_ANON_KEY")
+    ?: localProperties.getProperty("SUPABASE_ANON_KEY")
     ?: (project.findProperty("SUPABASE_ANON_KEY") as? String)
     ?: System.getenv("SUPABASE_ANON_KEY")
-    ?: ""
+    ?: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhZHFpc3dvenZjdXNna2N4c2d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NzMwODEsImV4cCI6MjEwNjI0OTA4MX0.PRr-f86_zbOQ0Lp70FwV1Kf9gtl1JnL7NY45uUya_Jg"
 
 android {
     namespace = "com.hisabpro.app"

@@ -30,9 +30,15 @@ jobs:
 
       - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --no-daemon
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://yadqiswozvcusgkcxsgy.supabase.co' }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhZHFpc3dvenZjdXNna2N4c2d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NzMwODEsImV4cCI6MjEwNjI0OTA4MX0.PRr-f86_zbOQ0Lp70FwV1Kf9gtl1JnL7NY45uUya_Jg' }}
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://yadqiswozvcusgkcxsgy.supabase.co' }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhZHFpc3dvenZjdXNna2N4c2d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NzMwODEsImV4cCI6MjEwNjI0OTA4MX0.PRr-f86_zbOQ0Lp70FwV1Kf9gtl1JnL7NY45uUya_Jg' }}
 
       - name: Prepare APK & Checksum
         run: |

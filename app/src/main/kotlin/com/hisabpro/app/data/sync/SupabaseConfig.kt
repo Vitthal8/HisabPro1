@@ -16,17 +16,22 @@ object SupabaseConfig {
     private const val KEY_PROJECT_URL = "supabase_url"
     private const val KEY_ANON_KEY = "supabase_anon_key"
 
-    val DEFAULT_PROJECT_URL: String get() = BuildConfig.SUPABASE_URL
-    val DEFAULT_ANON_KEY: String get() = BuildConfig.SUPABASE_ANON_KEY
+    const val HARDCODED_PROJECT_URL = "https://yadqiswozvcusgkcxsgy.supabase.co"
+    const val HARDCODED_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhZHFpc3dvenZjdXNna2N4c2d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NzMwODEsImV4cCI6MjEwNjI0OTA4MX0.PRr-f86_zbOQ0Lp70FwV1Kf9gtl1JnL7NY45uUya_Jg"
+
+    val DEFAULT_PROJECT_URL: String get() = if (BuildConfig.SUPABASE_URL.isNotBlank() && !BuildConfig.SUPABASE_URL.contains("placeholder")) BuildConfig.SUPABASE_URL else HARDCODED_PROJECT_URL
+    val DEFAULT_ANON_KEY: String get() = if (BuildConfig.SUPABASE_ANON_KEY.isNotBlank() && !BuildConfig.SUPABASE_ANON_KEY.contains("placeholder")) BuildConfig.SUPABASE_ANON_KEY else HARDCODED_ANON_KEY
 
     fun getProjectUrl(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_PROJECT_URL, null)?.ifBlank { null } ?: DEFAULT_PROJECT_URL
+        val saved = prefs.getString(KEY_PROJECT_URL, null)?.ifBlank { null }
+        return if (saved != null && !saved.contains("placeholder")) saved else DEFAULT_PROJECT_URL
     }
 
     fun getAnonKey(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_ANON_KEY, null)?.ifBlank { null } ?: DEFAULT_ANON_KEY
+        val saved = prefs.getString(KEY_ANON_KEY, null)?.ifBlank { null }
+        return if (saved != null && !saved.contains("placeholder")) saved else DEFAULT_ANON_KEY
     }
 
     fun isLiveConfigured(context: Context): Boolean {

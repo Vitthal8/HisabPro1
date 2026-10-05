@@ -101,7 +101,6 @@ fun CloudSyncScreen(
     var emailInput by remember { mutableStateOf("") }
     var passwordInput by remember { mutableStateOf("") }
     var showSignOutDialog by remember { mutableStateOf(false) }
-    var showConfigDialog by remember { mutableStateOf(false) }
 
     BackHandler {
         onBack()
@@ -121,14 +120,6 @@ fun CloudSyncScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack, modifier = Modifier.testTag("btn_sync_back")) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = { showConfigDialog = true },
-                        modifier = Modifier.testTag("btn_sync_server_settings")
-                    ) {
-                        Icon(Icons.Default.Settings, contentDescription = "Supabase Settings")
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -263,6 +254,24 @@ fun CloudSyncScreen(
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+
+                            if (syncState.lastError != null) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = ExpenseRed.copy(alpha = 0.2f),
+                                    modifier = Modifier.fillMaxWidth().testTag("banner_sync_error")
+                                ) {
+                                    Text(
+                                        text = syncState.lastError ?: "",
+                                        color = PureWhite,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        textAlign = TextAlign.Center
                                     )
                                 }
                             }
@@ -586,70 +595,6 @@ fun CloudSyncScreen(
                     }
                 }
             }
-        }
-
-        if (showConfigDialog) {
-            var urlInput by remember { mutableStateOf(viewModel.getSavedSupabaseUrl()) }
-            var keyInput by remember { mutableStateOf(viewModel.getSavedSupabaseAnonKey()) }
-
-            AlertDialog(
-                onDismissRequest = { showConfigDialog = false },
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Cloud, contentDescription = null, tint = SaffronOrange)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Supabase Cloud Settings", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    }
-                },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            text = "Set or update your Supabase project credentials for online synchronization.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        OutlinedTextField(
-                            value = urlInput,
-                            onValueChange = { urlInput = it },
-                            label = { Text("Supabase Project URL") },
-                            placeholder = { Text("https://xyz.supabase.co") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth().testTag("input_sync_config_url")
-                        )
-                        OutlinedTextField(
-                            value = keyInput,
-                            onValueChange = { keyInput = it },
-                            label = { Text("Supabase Anon Public Key") },
-                            placeholder = { Text("eyJhbGciOi...") },
-                            singleLine = false,
-                            maxLines = 3,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth().testTag("input_sync_config_key")
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            viewModel.saveSupabaseConfig(urlInput.trim(), keyInput.trim())
-                            showConfigDialog = false
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
-                        modifier = Modifier.testTag("btn_save_sync_config")
-                    ) {
-                        Text("Save & Apply", color = PureWhite, fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = { showConfigDialog = false },
-                        modifier = Modifier.testTag("btn_cancel_sync_config")
-                    ) {
-                        Text("Cancel")
-                    }
-                }
-            )
         }
     }
 }

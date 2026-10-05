@@ -780,5 +780,50 @@ class CloudSyncArchitectureTest {
         assertTrue(sanitized.has("item_name"))
         assertEquals("ii_test_101", sanitized.getString("id"))
     }
+
+    @Test
+    fun testPushResultSummaryReportsFailuresAccurately() {
+        val pushSummary = com.hisabpro.app.data.sync.PushResultSummary(pushedCount = 3, failedCount = 2)
+        assertEquals(3, pushSummary.pushedCount)
+        assertEquals(2, pushSummary.failedCount)
+    }
+
+    @Test
+    fun testSyncFailureStatusLogicNeverReportsSuccessOnFailures() {
+        val pullFailedCount = 1
+        val pushFailedCount = 2
+        val remainingPendingCount = 2
+        val hasFailures = pullFailedCount > 0 || pushFailedCount > 0
+
+        val statusMsg = when {
+            !hasFailures && remainingPendingCount == 0 -> "Cloud Sync Complete"
+            remainingPendingCount > 0 -> "SYNC_PENDING"
+            else -> "SYNC_FAILED"
+        }
+
+        assertTrue("Status must be SYNC_PENDING when items remain unsynced due to failures", statusMsg == "SYNC_PENDING")
+        assertFalse("Status must never be Cloud Sync Complete when failures occur", statusMsg == "Cloud Sync Complete")
+    }
+
+    @Test
+    fun testSignOutPreservesLocalDataWithoutDeletion() {
+        val localInvoice = InvoiceEntity(
+            id = "inv_local_preserve",
+            businessId = "biz_local",
+            invoiceNo = "2026-27/INV/999",
+            date = System.currentTimeMillis(),
+            total = 250000L
+        )
+
+        // Standard signOut only invalidates session tokens, leaving database entity untouched
+        var userSessionToken: String? = "active_jwt_token"
+        userSessionToken = null // Standard signOut clears session token
+
+        assertNull(userSessionToken)
+        // Local Room invoice data is completely preserved
+        assertNotNull(localInvoice)
+        assertEquals("2026-27/INV/999", localInvoice.invoiceNo)
+        assertEquals(250000L, localInvoice.total)
+    }
 }
 

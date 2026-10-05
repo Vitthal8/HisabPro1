@@ -59,6 +59,11 @@ data class PullResultSummary(
     val tableStatuses: Map<String, String>
 )
 
+data class PushResultSummary(
+    val pushedCount: Int,
+    val failedCount: Int
+)
+
 class CloudSyncManager private constructor(private val appContext: Context) {
 
     private val db = AppDatabase.getInstance(appContext)
@@ -214,13 +219,24 @@ class CloudSyncManager private constructor(private val appContext: Context) {
             return@withContext Result.failure(Exception("Cloud Sync is a Premium-only feature"))
         }
 
-        val session = authManager.getCurrentSession()
+        val session = authManager.refreshTokenIfNeeded() ?: authManager.getCurrentSession()
         if (session == null) {
             _syncState.value = _syncState.value.copy(
                 isSyncing = false,
                 lastError = "Sign in to enable Cloud Synchronization"
             )
             return@withContext Result.failure(Exception("Not authenticated"))
+        }
+
+        if (!SupabaseConfig.isLiveConfigured(appContext)) {
+            val pendingCount = db.syncQueueDao().getPendingCountSync()
+            val stateStatus = if (pendingCount > 0) "SYNC_PENDING" else "SYNC_FAILED"
+            _syncState.value = _syncState.value.copy(
+                isSyncing = false,
+                lastError = "Supabase Cloud is not configured. Please configure Project URL and Anon Key in Settings.",
+                statusMessage = stateStatus
+            )
+            return@withContext Result.failure(Exception("Supabase Cloud is not configured"))
         }
 
         _syncState.value = _syncState.value.copy(
@@ -268,48 +284,61 @@ class CloudSyncManager private constructor(private val appContext: Context) {
             ItemRepository.getInstance(appContext).reloadFromDatabase()
             TransactionRepository.getInstance(appContext).reloadFromDatabase()
 
+            val pushFailedCount = pushResult.failedCount
+            val pullFailedCount = pullResult.failureCount
+            val remainingPendingCount = db.syncQueueDao().getPendingCountSync()
+            val hasFailures = pullFailedCount > 0 || pushFailedCount > 0
+
             val statusMsg = when {
-                pullResult.failureCount == 0 -> "Cloud Sync Complete"
-                pullResult.successCount > 0 -> "Cloud Sync Partial Failure (${pullResult.failureCount} tables failed)"
-                else -> "Cloud Sync Failed"
+                !hasFailures && remainingPendingCount == 0 -> "Cloud Sync Complete"
+                remainingPendingCount > 0 -> "SYNC_PENDING"
+                else -> "SYNC_FAILED"
             }
-            val errStr = if (pullResult.failureCount > 0) "Errors in ${pullResult.failureCount} tables: ${pullResult.tableStatuses.filter { it.value.startsWith("ERROR") }}" else null
+
+            val errStr = when {
+                pushFailedCount > 0 && pullFailedCount > 0 -> "Push failed ($pushFailedCount items) and Pull failed ($pullFailedCount tables)"
+                pushFailedCount > 0 -> "Push failed for $pushFailedCount queued items"
+                pullFailedCount > 0 -> "Errors in $pullFailedCount tables: ${pullResult.tableStatuses.filter { it.value.startsWith("ERROR") }}"
+                else -> null
+            }
 
             val now = System.currentTimeMillis()
             _syncState.value = _syncState.value.copy(
                 isSyncing = false,
-                lastSyncTimeMillis = now,
+                lastSyncTimeMillis = if (!hasFailures) now else _syncState.value.lastSyncTimeMillis,
                 statusMessage = statusMsg,
                 lastError = errStr,
                 totalSyncedRecords = pullResult.totalPulled
             )
 
-            android.util.Log.i("SYNC_QUEUE_DEBUG", "SYNC_END status=$statusMsg")
+            android.util.Log.i("SYNC_QUEUE_DEBUG", "SYNC_END status=$statusMsg hasFailures=$hasFailures")
 
-            if (pullResult.failureCount > 0) {
-                Result.failure(Exception(errStr))
+            if (hasFailures) {
+                Result.failure(Exception(errStr ?: "Sync failed"))
             } else {
                 Result.success("Sync completed successfully")
             }
         } catch (e: Exception) {
             e.printStackTrace()
             android.util.Log.e("SYNC_QUEUE_DEBUG", "SYNC_END failed error=${e.localizedMessage}")
+            val remainingPendingCount = try { db.syncQueueDao().getPendingCountSync() } catch (_: Exception) { 0 }
+            val stateStatus = if (remainingPendingCount > 0) "SYNC_PENDING" else "SYNC_FAILED"
             _syncState.value = _syncState.value.copy(
                 isSyncing = false,
                 lastError = e.localizedMessage ?: "Sync error",
-                statusMessage = "Sync failed"
+                statusMessage = stateStatus
             )
             Result.failure(e)
         }
     }
 
-    private suspend fun executePush(session: UserSession): Int {
+    private suspend fun executePush(session: UserSession): PushResultSummary {
         android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_PUSH_START")
         val now = System.currentTimeMillis()
         val pending = db.syncQueueDao().getPendingItems(currentTime = now, limit = 200)
         android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_FOUND count=${pending.size}")
         if (pending.isEmpty()) {
-            return 0
+            return PushResultSummary(pushedCount = 0, failedCount = 0)
         }
 
         val idsToMark = pending.map { it.id }
@@ -379,17 +408,28 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     }
                 }
             } catch (e: Exception) {
+                val errMsg = e.localizedMessage ?: ""
+                val isRlsError = errMsg.contains("42501") ||
+                        errMsg.contains("row-level security", ignoreCase = true) ||
+                        errMsg.contains("403")
                 val retry = item.retryCount + 1
-                val backoff = (Math.pow(2.0, retry.toDouble()).toLong() * 1000L).coerceAtMost(3600000L)
-                val nextRetry = System.currentTimeMillis() + backoff
-                db.syncQueueDao().updateStatus(
-                    id = item.id,
-                    status = "FAILED",
-                    error = e.localizedMessage,
-                    retryCount = retry,
-                    nextRetryAt = nextRetry
-                )
-                android.util.Log.e("SYNC_QUEUE_DEBUG", "QUEUE_UPLOAD_FAILED table=$table recordId=${item.entityId} error=${e.localizedMessage}")
+
+                if (isRlsError || retry >= 5) {
+                    android.util.Log.w("SYNC_QUEUE_DEBUG", "QUEUE_DISCARD_UNSYNCABLE queueId=${item.id} table=$table recordId=${item.entityId} error=$errMsg")
+                    db.syncQueueDao().deleteById(item.id)
+                    db.syncOutboxDao().deleteByEntity(table, item.entityId)
+                } else {
+                    val backoff = (Math.pow(2.0, retry.toDouble()).toLong() * 1000L).coerceAtMost(3600000L)
+                    val nextRetry = System.currentTimeMillis() + backoff
+                    db.syncQueueDao().updateStatus(
+                        id = item.id,
+                        status = "FAILED",
+                        error = errMsg,
+                        retryCount = retry,
+                        nextRetryAt = nextRetry
+                    )
+                    android.util.Log.e("SYNC_QUEUE_DEBUG", "QUEUE_UPLOAD_FAILED table=$table recordId=${item.entityId} error=$errMsg")
+                }
             }
         }
 
@@ -423,7 +463,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
             db.syncOutboxDao().clearAll()
         }
         android.util.Log.i("SYNC_QUEUE_DEBUG", "QUEUE_PENDING_COUNT count=$remainingCount")
-        return syncedIds.size
+        return PushResultSummary(pushedCount = syncedIds.size, failedCount = sorted.size - syncedIds.size)
     }
 
     private fun sanitizePayloadForTable(table: String, jsonObj: JSONObject): JSONObject {

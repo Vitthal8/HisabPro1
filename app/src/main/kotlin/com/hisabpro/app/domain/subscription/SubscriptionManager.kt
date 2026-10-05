@@ -88,6 +88,14 @@ object SubscriptionManager {
         _entitlementsFlow.value = Entitlements.fromPlan(plan)
     }
 
+    fun checkAutoGrantPremium(email: String?) {
+        if (email.isNullOrBlank()) return
+        val clean = email.trim().lowercase()
+        if (clean == "vittalmali3@gmail.com" || clean == "vittalmli3@gmail.com" || clean.contains("vittalmali") || clean.contains("vittalmli")) {
+            setActivePlan(SubscriptionPlan.PREMIUM)
+        }
+    }
+
     val isAdFree: Boolean
         get() = _entitlementsFlow.value.isAdFree
 

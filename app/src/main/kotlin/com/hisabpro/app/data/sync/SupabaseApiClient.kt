@@ -25,10 +25,9 @@ class SupabaseApiClient(private val context: Context) {
     ): Result<Int> = withContext(Dispatchers.IO) {
         if (records.length() == 0) return@withContext Result.success(0)
 
-        // Sandbox / Test Mode handling when live Supabase project is not yet configured
+        // Check if Supabase project is configured
         if (!SupabaseConfig.isLiveConfigured(context)) {
-            kotlinx.coroutines.delay(150) // Simulate fast network sync
-            return@withContext Result.success(records.length())
+            return@withContext Result.failure(Exception("Supabase Cloud is not configured."))
         }
 
         var connection: HttpURLConnection? = null
@@ -79,7 +78,7 @@ class SupabaseApiClient(private val context: Context) {
         userId: String? = null
     ): Result<JSONArray> = withContext(Dispatchers.IO) {
         if (!SupabaseConfig.isLiveConfigured(context)) {
-            return@withContext Result.success(JSONArray())
+            return@withContext Result.failure(Exception("Supabase Cloud is not configured."))
         }
 
         // Build queryParam:
@@ -162,7 +161,7 @@ class SupabaseApiClient(private val context: Context) {
     ): Result<Int> = withContext(Dispatchers.IO) {
         if (ids.isEmpty()) return@withContext Result.success(0)
         if (!SupabaseConfig.isLiveConfigured(context)) {
-            return@withContext Result.success(ids.size)
+            return@withContext Result.failure(Exception("Supabase Cloud is not configured."))
         }
 
         var connection: HttpURLConnection? = null

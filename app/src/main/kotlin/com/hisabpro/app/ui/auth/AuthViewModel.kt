@@ -161,8 +161,4 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         _successMessage.value = "Supabase server configured successfully! You can now sign in or register."
         _showConfigDialog.value = false
     }
-
-    fun continueOffline() {
-        authManager.continueOffline()
-    }
 }

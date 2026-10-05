@@ -1,6 +1,5 @@
 package com.hisabpro.app.ui.auth
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -50,7 +49,6 @@ fun AuthScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val successMessage by viewModel.successMessage.collectAsStateWithLifecycle()
-    val showConfigDialog by viewModel.showConfigDialog.collectAsStateWithLifecycle()
 
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
@@ -82,55 +80,35 @@ fun AuthScreen(
                     .padding(28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    IconButton(
-                        onClick = { viewModel.openConfigDialog() },
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .testTag("btn_auth_server_settings")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Server Settings",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = SaffronOrange,
-                            modifier = Modifier.size(64.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = "₹",
-                                    fontSize = 36.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PureWhite
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = SaffronOrange,
+                    modifier = Modifier.size(64.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = "HisabPro",
-                            fontSize = 26.sp,
+                            text = "₹",
+                            fontSize = 36.sp,
                             fontWeight = FontWeight.Bold,
-                            color = DeepNavyBlue
-                        )
-                        Text(
-                            text = "Smart Accounting & Billing for Indian Business",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
+                            color = PureWhite
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "HisabPro",
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DeepNavyBlue
+                )
+                Text(
+                    text = "Smart Accounting & Billing for Indian Business",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -145,7 +123,8 @@ fun AuthScreen(
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.align(Alignment.Start)
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Start
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -376,132 +355,7 @@ fun AuthScreen(
                         }
                     }
                 }
-
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 16.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                )
-
-                OutlinedButton(
-                    onClick = { viewModel.continueOffline() },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = DeepNavyBlue
-                    ),
-                    border = BorderStroke(1.5.dp, DeepNavyBlue.copy(alpha = 0.5f)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .testTag("btn_continue_offline")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CloudOff,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Continue in Offline Mode",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Text(
-                    text = "Full billing, GST/non-GST invoices & ledger locally on this phone without cloud setup",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 6.dp)
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                TextButton(
-                    onClick = { viewModel.openConfigDialog() },
-                    modifier = Modifier.testTag("btn_open_server_settings_link")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Configure Supabase Server (URL & Anon Key)",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
-        }
-
-        if (showConfigDialog) {
-            var urlInput by remember { mutableStateOf(viewModel.getSavedSupabaseUrl()) }
-            var keyInput by remember { mutableStateOf(viewModel.getSavedSupabaseAnonKey()) }
-
-            AlertDialog(
-                onDismissRequest = { viewModel.closeConfigDialog() },
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Cloud, contentDescription = null, tint = SaffronOrange)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Supabase Server Settings", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    }
-                },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            text = "Configure your Supabase Cloud instance to enable multi-device sync, authentication, and backups.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        OutlinedTextField(
-                            value = urlInput,
-                            onValueChange = { urlInput = it },
-                            label = { Text("Supabase Project URL") },
-                            placeholder = { Text("https://xyz.supabase.co") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("input_config_supabase_url")
-                        )
-                        OutlinedTextField(
-                            value = keyInput,
-                            onValueChange = { keyInput = it },
-                            label = { Text("Supabase Anon Public Key") },
-                            placeholder = { Text("eyJhbGciOi...") },
-                            singleLine = false,
-                            maxLines = 3,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("input_config_supabase_key")
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            viewModel.saveSupabaseConfig(urlInput.trim(), keyInput.trim())
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
-                        modifier = Modifier.testTag("btn_save_supabase_config")
-                    ) {
-                        Text("Save & Apply", color = PureWhite, fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = { viewModel.closeConfigDialog() },
-                        modifier = Modifier.testTag("btn_cancel_supabase_config")
-                    ) {
-                        Text("Cancel")
-                    }
-                }
-            )
         }
     }
 }

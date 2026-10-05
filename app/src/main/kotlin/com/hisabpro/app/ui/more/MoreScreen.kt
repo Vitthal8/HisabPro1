@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -48,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -76,9 +78,11 @@ fun MoreScreen(
     onOpenCloudSync: () -> Unit,
     onOpenBusinessSwitcher: () -> Unit = {},
     onOpenBankReconciliation: () -> Unit = {},
+    onOpenSubscription: () -> Unit = {},
     onUpdateProfile: (BusinessProfile) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val activePlan by com.hisabpro.app.domain.subscription.SubscriptionManager.activePlanFlow.collectAsStateWithLifecycle(initialValue = com.hisabpro.app.domain.subscription.SubscriptionPlan.FREE)
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -210,6 +214,13 @@ fun MoreScreen(
                 subtitle = stringResource(R.string.local_backup_restore),
                 tag = "more_item_backup",
                 onClick = onOpenBackup
+            )
+            SettingsItemRow(
+                icon = Icons.Default.WorkspacePremium,
+                title = "Subscription & Upgrade Plans",
+                subtitle = "Active Plan: ${activePlan.title} • Tap to view plans",
+                tag = "more_item_subscription",
+                onClick = onOpenSubscription
             )
         }
 

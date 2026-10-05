@@ -190,6 +190,8 @@ private fun MainScreenContent(
 
     var showBusinessSwitcher by remember { mutableStateOf(false) }
     val switcherSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showSubscriptionPaywall by remember { mutableStateOf(false) }
+    val paywallSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var editingBusinessProfile by remember { mutableStateOf<com.hisabpro.app.data.model.BusinessProfile?>(null) }
     var showAddBusinessDialog by remember { mutableStateOf(false) }
     var businessToDelete by remember { mutableStateOf<String?>(null) }
@@ -503,6 +505,7 @@ private fun MainScreenContent(
                     onOpenCloudSync = { activeSubScreen = "cloud_sync" },
                     onOpenBusinessSwitcher = { showBusinessSwitcher = true },
                     onOpenBankReconciliation = { activeSubScreen = "bank_reconciliation" },
+                    onOpenSubscription = { showSubscriptionPaywall = true },
                     onUpdateProfile = { updated -> 
                         onSaveProfile(updated)
                         businessManager.updateActiveBusiness(updated)
@@ -564,6 +567,14 @@ private fun MainScreenContent(
                 showAddBusinessDialog = false
             },
             onDismiss = { showAddBusinessDialog = false }
+        )
+    }
+
+    if (showSubscriptionPaywall) {
+        com.hisabpro.app.ui.subscription.SubscriptionPaywallSheet(
+            sheetState = paywallSheetState,
+            onDismiss = { showSubscriptionPaywall = false },
+            userEmail = cloudSyncViewModel?.syncState?.value?.userEmail ?: businessProfile.email
         )
     }
 }

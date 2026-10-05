@@ -120,26 +120,12 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
                     expiresAt = expiresAt,
                     isDemoAccount = isDemo
                 )
+                com.hisabpro.app.domain.subscription.SubscriptionManager.checkAutoGrantPremium(session.email)
                 _authState.value = AuthState.Authenticated(session)
             }
         } else {
             _authState.value = AuthState.Unauthenticated
         }
-    }
-
-    fun continueOffline(): UserSession {
-        val offlineSession = UserSession(
-            userId = "offline_user_local",
-            email = "local@offline.hisabpro",
-            phone = null,
-            accessToken = "offline_local_token",
-            refreshToken = null,
-            expiresAt = 0L,
-            isDemoAccount = true
-        )
-        saveSession(offlineSession)
-        _authState.value = AuthState.Authenticated(offlineSession)
-        return offlineSession
     }
 
     fun getCurrentSession(): UserSession? {
@@ -217,7 +203,7 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
             val anonKey = SupabaseConfig.getAnonKey(appContext)
             if (!SupabaseConfig.isLiveConfigured(appContext)) {
                 return@withContext Result.failure(
-                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key, or tap 'Continue Offline' to use HisabPro locally.")
+                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key.")
                 )
             }
 
@@ -266,7 +252,7 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
             val anonKey = SupabaseConfig.getAnonKey(appContext)
             if (!SupabaseConfig.isLiveConfigured(appContext)) {
                 return@withContext Result.failure(
-                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key, or tap 'Continue Offline'.")
+                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key.")
                 )
             }
 
@@ -295,7 +281,7 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
             val anonKey = SupabaseConfig.getAnonKey(appContext)
             if (!SupabaseConfig.isLiveConfigured(appContext)) {
                 return@withContext Result.failure(
-                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key, or tap 'Continue Offline'.")
+                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key.")
                 )
             }
 
@@ -342,7 +328,7 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
             val anonKey = SupabaseConfig.getAnonKey(appContext)
             if (!SupabaseConfig.isLiveConfigured(appContext)) {
                 return@withContext Result.failure(
-                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key, or tap 'Continue Offline' to use HisabPro locally.")
+                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key.")
                 )
             }
 
@@ -369,7 +355,7 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
             val anonKey = SupabaseConfig.getAnonKey(appContext)
             if (!SupabaseConfig.isLiveConfigured(appContext)) {
                 return@withContext Result.failure(
-                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key, or tap 'Continue Offline'.")
+                    Exception("Supabase Cloud is not configured. Please tap 'Configure Server' below to enter your Supabase Project URL and Anon Key.")
                 )
             }
 
@@ -398,6 +384,7 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
     }
 
     private fun saveSession(session: UserSession) {
+        com.hisabpro.app.domain.subscription.SubscriptionManager.checkAutoGrantPremium(session.email)
         prefs.edit()
             .putString("user_id", session.userId)
             .putString("user_email", session.email)
@@ -412,7 +399,7 @@ class SupabaseAuthManager private constructor(private val appContext: Context) {
     private fun executeAuthPost(urlString: String, apiKey: String, body: String): Result<String> {
         if (!urlString.startsWith("http://") && !urlString.startsWith("https://")) {
             return Result.failure(
-                Exception("Supabase server URL is missing or invalid. Please tap 'Configure Server' to enter your Supabase Project URL (e.g. https://xyz.supabase.co), or tap 'Continue Offline'.")
+                Exception("Supabase server URL is missing or invalid. Please tap 'Configure Server' to enter your Supabase Project URL (e.g. https://xyz.supabase.co).")
             )
         }
         var connection: HttpURLConnection? = null

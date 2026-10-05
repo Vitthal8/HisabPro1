@@ -69,27 +69,32 @@ class BillingRepository private constructor(context: Context) : PurchasesUpdated
 
     fun startConnection() {
         if (_isServiceConnected.value) return
-
-        billingClient.startConnection(object : BillingClientStateListener {
-            override fun onBillingSetupFinished(billingResult: BillingResult) {
-                if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                    Log.i(TAG, "Google Play Billing setup successful.")
-                    _isServiceConnected.value = true
-                    scope.launch {
-                        querySubscriptionProductDetails()
-                        restorePurchases()
+        scope.launch(Dispatchers.IO) {
+            try {
+                billingClient.startConnection(object : BillingClientStateListener {
+                    override fun onBillingSetupFinished(billingResult: BillingResult) {
+                        if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                            Log.i(TAG, "Google Play Billing setup successful.")
+                            _isServiceConnected.value = true
+                            scope.launch {
+                                querySubscriptionProductDetails()
+                                restorePurchases()
+                            }
+                        } else {
+                            Log.e(TAG, "Billing setup failed with response code: ${billingResult.responseCode}")
+                            _isServiceConnected.value = false
+                        }
                     }
-                } else {
-                    Log.e(TAG, "Billing setup failed with response code: ${billingResult.responseCode}")
-                    _isServiceConnected.value = false
-                }
-            }
 
-            override fun onBillingServiceDisconnected() {
-                Log.w(TAG, "Billing service disconnected. Will retry connection on next interaction.")
-                _isServiceConnected.value = false
+                    override fun onBillingServiceDisconnected() {
+                        Log.w(TAG, "Billing service disconnected. Will retry connection on next interaction.")
+                        _isServiceConnected.value = false
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception starting billing connection", e)
             }
-        })
+        }
     }
 
     private suspend fun querySubscriptionProductDetails() = withContext(Dispatchers.IO) {

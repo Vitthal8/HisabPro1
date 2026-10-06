@@ -627,6 +627,7 @@ class BackupManager private constructor(private val appContext: Context) {
             iiArray.put(JSONObject().apply {
                 put("id", ii.id)
                 put("invoice_id", ii.invoiceId)
+                put("business_id", ii.businessId)
                 put("item_id", ii.itemId ?: "")
                 put("item_name", ii.itemName)
                 put("hsn_code", ii.hsnCode)
@@ -638,6 +639,8 @@ class BackupManager private constructor(private val appContext: Context) {
                 put("sgst_rate", ii.sgstRate)
                 put("igst_rate", ii.igstRate)
                 put("amount", ii.amount)
+                put("created_at", ii.createdAt)
+                put("updated_at", ii.updatedAt)
             })
         }
         obj.put("invoice_items", iiArray)
@@ -1036,6 +1039,7 @@ internal fun validateBackupJsonInternal(jsonString: String, fileName: String, fi
                     InvoiceItemEntity(
                         id = ii.getString("id"),
                         invoiceId = ii.getString("invoice_id"),
+                        businessId = ii.optString("business_id", ""),
                         itemId = itemIdVal,
                         itemName = ii.getString("item_name"),
                         hsnCode = ii.optString("hsn_code", ""),
@@ -1046,7 +1050,9 @@ internal fun validateBackupJsonInternal(jsonString: String, fileName: String, fi
                         cgstRate = ii.optDouble("cgst_rate", 0.0),
                         sgstRate = ii.optDouble("sgst_rate", 0.0),
                         igstRate = ii.optDouble("igst_rate", 0.0),
-                        amount = ii.optLong("amount", 0L)
+                        amount = ii.optLong("amount", 0L),
+                        createdAt = ii.optLong("created_at", System.currentTimeMillis()),
+                        updatedAt = ii.optLong("updated_at", System.currentTimeMillis())
                     )
                 )
             }

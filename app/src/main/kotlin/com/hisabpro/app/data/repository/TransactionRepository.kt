@@ -200,7 +200,8 @@ class TransactionRepository(private val context: Context) {
         item: Transaction,
         enqueueForSync: Boolean = false,
         overrideBizId: String? = null,
-        linkedPartyId: String? = null
+        linkedPartyId: String? = null,
+        linkedInvoiceId: String? = null
     ) {
         try {
             ensureActiveBusiness()
@@ -248,7 +249,7 @@ class TransactionRepository(private val context: Context) {
                     mode = item.paymentMode.name,
                     referenceNo = item.title,
                     notes = item.note,
-                    linkedInvoiceId = null
+                    linkedInvoiceId = linkedInvoiceId
                 )
                 db.paymentDao().insertPayment(pay)
                 if (enqueueForSync) {
@@ -288,7 +289,8 @@ class TransactionRepository(private val context: Context) {
         paymentMode: PaymentMode,
         note: String,
         explicitBusinessId: String? = null,
-        partyId: String? = null
+        partyId: String? = null,
+        linkedInvoiceId: String? = null
     ) {
         val targetBiz = if (!explicitBusinessId.isNullOrBlank()) {
             explicitBusinessId
@@ -320,7 +322,13 @@ class TransactionRepository(private val context: Context) {
         val updated = listOf(newTx) + _transactions.value
         saveTransactions(updated, syncAllRoom = false)
         scope.launch {
-            saveSingleTransactionDbInternal(newTx, enqueueForSync = true, overrideBizId = targetBiz, linkedPartyId = partyId)
+            saveSingleTransactionDbInternal(
+                item = newTx,
+                enqueueForSync = true,
+                overrideBizId = targetBiz,
+                linkedPartyId = partyId,
+                linkedInvoiceId = linkedInvoiceId
+            )
         }
     }
 

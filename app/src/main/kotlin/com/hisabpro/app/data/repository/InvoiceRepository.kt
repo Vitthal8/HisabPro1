@@ -294,26 +294,36 @@ class InvoiceRepository(private val context: Context) {
                 total = inv.grandTotal.toPaise(),
                 paidAmount = inv.paidAmount.toPaise(),
                 paymentStatus = inv.paymentStatus.name,
-                paymentMode = if (inv.paidAmount > 0) inv.paymentMode.ifBlank { "Cash" } else "UNPAID",
+                paymentMode = if (inv.paidAmount > 0) inv.paymentMode.ifBlank { "Cash" } else "",
                 notes = inv.notes,
                 isGst = inv.type != InvoiceType.NON_GST_BILL && inv.gstMode != GstMode.EXEMPT,
                 createdAt = inv.createdAt
             )
+            val isGstActive = inv.type != InvoiceType.NON_GST_BILL && inv.gstMode != GstMode.EXEMPT
             val itemEntities = inv.items.map { item ->
+                val cgst = if (isGstActive && inv.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0
+                val sgst = if (isGstActive && inv.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0
+                val igst = if (isGstActive && inv.gstMode == GstMode.INTER_STATE) item.gstRate else 0.0
+
                 InvoiceItemEntity(
                     id = item.id,
                     invoiceId = inv.id,
+                    businessId = targetBizId,
                     itemName = item.description,
                     hsnCode = item.hsnCode,
                     qty = item.quantity,
                     unit = item.unit,
                     rate = item.unitPrice.toPaise(),
-                    cgstRate = if (inv.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0,
-                    sgstRate = if (inv.gstMode == GstMode.INTRA_STATE) item.gstRate / 2.0 else 0.0,
-                    amount = item.getTotal(inv.gstMode).toPaise()
+                    discount = item.discount.toPaise(),
+                    cgstRate = cgst,
+                    sgstRate = sgst,
+                    igstRate = igst,
+                    amount = item.getTotal(inv.gstMode).toPaise(),
+                    createdAt = inv.createdAt,
+                    updatedAt = System.currentTimeMillis()
                 )
             }
-            db.invoiceDao().insertInvoiceWithItems(invoiceEntity, itemEntities)
+            db.invoiceDao().updateInvoiceWithItems(invoiceEntity, itemEntities)
             
             // Enqueue into Sync Queue for Cloud Sync only on user mutation
             if (enqueueForSync) {
@@ -357,6 +367,7 @@ class InvoiceRepository(private val context: Context) {
                         val itemPayload = JSONObject().apply {
                             put("id", itemEnt.id)
                             put("invoice_id", itemEnt.invoiceId)
+                            put("business_id", itemEnt.businessId)
                             if (!itemEnt.itemId.isNullOrBlank()) put("item_id", itemEnt.itemId) else put("item_id", JSONObject.NULL)
                             put("item_name", itemEnt.itemName)
                             put("hsn_code", itemEnt.hsnCode)
@@ -368,6 +379,8 @@ class InvoiceRepository(private val context: Context) {
                             put("sgst_rate", itemEnt.sgstRate)
                             put("igst_rate", itemEnt.igstRate)
                             put("amount", itemEnt.amount)
+                            put("created_at", itemEnt.createdAt)
+                            put("updated_at", itemEnt.updatedAt)
                         }
                         com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
                             entityType = "invoice_item",
@@ -388,10 +401,15 @@ class InvoiceRepository(private val context: Context) {
         }
     }
 
-    fun generateNextInvoiceNumber(type: InvoiceType, prefixOverride: String? = null): String {
-        val countForType = _invoices.value.count { it.type == type } + 1
+    fun generateNextInvoiceNumber(type: InvoiceType, prefixOverride: String? = null, dateMillis: Long = System.currentTimeMillis()): String {
+        val fy = com.hisabpro.app.util.IndianAccountingFormat.getFinancialYear(dateMillis)
+        val countForType = _invoices.value.count {
+            it.businessId == activeBizId &&
+            it.type == type &&
+            com.hisabpro.app.util.IndianAccountingFormat.getFinancialYear(it.dateMillis) == fy
+        } + 1
         val prefix = if (!prefixOverride.isNullOrBlank()) prefixOverride.trim() else type.prefix
-        return com.hisabpro.app.util.IndianAccountingFormat.formatInvoiceNumberWithFY(prefix, countForType)
+        return com.hisabpro.app.util.IndianAccountingFormat.formatInvoiceNumberWithFY(prefix, countForType, dateMillis)
     }
 
     fun updateCustomerDetails(
@@ -442,18 +460,44 @@ class InvoiceRepository(private val context: Context) {
     }
 
     fun deleteInvoice(invoiceId: String) {
+        val targetInv = _invoices.value.find { it.id == invoiceId }
         val updated = _invoices.value.filterNot { it.id == invoiceId }
         saveInternal(updated, syncAllRoom = false)
         scope.launch {
             try {
-                db.invoiceDao().deleteInvoiceWithItems(invoiceId, activeBizId)
-                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).enqueueChange(
-                    entityType = "invoice",
-                    entityId = invoiceId,
-                    operation = "DELETE",
-                    payloadJson = "{}"
+                val targetBizId = targetInv?.businessId?.ifBlank { activeBizId } ?: activeBizId
+                val timestamp = System.currentTimeMillis()
+                val invoiceNo = targetInv?.invoiceNumber ?: ""
+                val partyId = targetInv?.customerId
+
+                db.invoiceDao().cascadeSoftDeleteInvoice(
+                    invoiceId = invoiceId,
+                    invoiceNo = invoiceNo,
+                    partyId = partyId,
+                    businessId = targetBizId,
+                    timestamp = timestamp
                 )
-                com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context).triggerSync(isManual = false)
+
+                val syncManager = com.hisabpro.app.data.sync.CloudSyncManager.getInstance(context)
+                syncManager.enqueueChange("invoice", invoiceId, "DELETE", "{}")
+                targetInv?.items?.forEach { item ->
+                    syncManager.enqueueChange("invoice_item", item.id, "DELETE", "{}")
+                }
+                if (!partyId.isNullOrBlank() && invoiceNo.isNotBlank()) {
+                    val matchingKhata = db.khataDao().getEntriesForPartySync(targetBizId, partyId)
+                        .filter { it.billNumber == invoiceNo || it.billNumber == invoiceId || it.note.contains(invoiceNo) }
+                    matchingKhata.forEach { k ->
+                        syncManager.enqueueChange("khata_entry", k.id, "DELETE", "{}")
+                    }
+                }
+                val matchingPayments = db.paymentDao().getAllPaymentsSync(targetBizId)
+                    .filter { it.linkedInvoiceId == invoiceId }
+                matchingPayments.forEach { p ->
+                    syncManager.enqueueChange("payment", p.id, "DELETE", "{}")
+                }
+
+                syncManager.triggerSync(isManual = false)
+                PartyRepository.getInstance(context).reloadFromDatabase(targetBizId)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

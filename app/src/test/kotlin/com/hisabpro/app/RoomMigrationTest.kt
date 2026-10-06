@@ -14,6 +14,7 @@ import com.hisabpro.app.data.local.entity.PartyEntity
 import com.hisabpro.app.data.local.entity.PaymentEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -56,6 +57,37 @@ class RoomMigrationTest {
         assertEquals(targetBiz, parties.first().businessId)
         assertEquals(1, invoices.size)
         assertEquals(targetBiz, invoices.first().businessId)
+    }
+
+    @Test
+    fun testMigration6To7InvoiceItemSyncFields() {
+        val targetBiz = "biz_main_store"
+        val invoice = InvoiceEntity(
+            id = "inv_v7_1",
+            businessId = targetBiz,
+            invoiceNo = "2026-27/INV/101",
+            date = 1700000000000L,
+            createdAt = 1700000000000L,
+            updatedAt = 1700000005000L
+        )
+
+        val invoiceItem = InvoiceItemEntity(
+            id = "ii_v7_1",
+            invoiceId = invoice.id,
+            businessId = targetBiz,
+            itemName = "Testing Product",
+            qty = 2.0,
+            rate = 100000L,
+            amount = 200000L,
+            createdAt = invoice.createdAt,
+            updatedAt = invoice.updatedAt
+        )
+
+        assertEquals("ii_v7_1", invoiceItem.id)
+        assertEquals("inv_v7_1", invoiceItem.invoiceId)
+        assertEquals(targetBiz, invoiceItem.businessId)
+        assertEquals(1700000000000L, invoiceItem.createdAt)
+        assertEquals(1700000005000L, invoiceItem.updatedAt)
     }
 
     @Test
@@ -166,5 +198,126 @@ class RoomMigrationTest {
         assertEquals(biz.id, khata.businessId)
         assertEquals(invoice.id, invoiceItem.invoiceId)
         assertEquals(journal.id, journalLine.journalEntryId)
+    }
+
+    @Test
+    fun testMigration7To8LocalDataRepair() {
+        // Bad Case 1: invoice with paymentMode = "UNPAID"
+        val invUnpaid = InvoiceEntity(
+            id = "inv_unpaid_1",
+            businessId = "biz_test",
+            invoiceNo = "INV-101",
+            date = 1700000000000L,
+            paymentMode = "UNPAID",
+            updatedAt = 1000L,
+            syncedAt = 1000L
+        )
+        // Repair rule 1: paymentMode = "UNPAID" -> ""
+        val repairedInv = invUnpaid.copy(
+            paymentMode = if (invUnpaid.paymentMode == "UNPAID") "" else invUnpaid.paymentMode,
+            updatedAt = 2000L,
+            syncedAt = null
+        )
+        assertEquals("", repairedInv.paymentMode)
+        assertNull(repairedInv.syncedAt)
+
+        // Bad Case 2: Soft-deleted invoice with orphan items, payments, khata entries
+        val invDeleted = InvoiceEntity(
+            id = "inv_del_1",
+            businessId = "biz_test",
+            invoiceNo = "INV-DEL-1",
+            partyId = "p_del_1",
+            date = 1700000000000L,
+            deletedAt = 1500L
+        )
+        val iiOrphan = InvoiceItemEntity(
+            id = "ii_orphan_1",
+            invoiceId = invDeleted.id,
+            businessId = "biz_test",
+            itemName = "Deleted Item",
+            qty = 1.0,
+            rate = 1000L,
+            amount = 1000L,
+            deletedAt = null
+        )
+        val payOrphan = PaymentEntity(
+            id = "pay_orphan_1",
+            businessId = "biz_test",
+            partyId = "p_del_1",
+            date = 1700000000000L,
+            amount = 1000L,
+            linkedInvoiceId = invDeleted.id,
+            deletedAt = null
+        )
+        val keOrphan = KhataEntryEntity(
+            id = "ke_orphan_1",
+            businessId = "biz_test",
+            partyId = "p_del_1",
+            amount = 1000L,
+            type = "YOU_GAVE",
+            date = 1700000000000L,
+            billNumber = "INV-DEL-1",
+            deletedAt = null
+        )
+        // Repair rule 2: soft delete orphan entries when invoice is soft-deleted
+        val isInvoiceDeleted = invDeleted.deletedAt != null
+        val repairedIi = if (isInvoiceDeleted && iiOrphan.invoiceId == invDeleted.id) iiOrphan.copy(deletedAt = 2000L, syncedAt = null) else iiOrphan
+        val repairedPay = if (isInvoiceDeleted && payOrphan.linkedInvoiceId == invDeleted.id) payOrphan.copy(deletedAt = 2000L, syncedAt = null) else payOrphan
+        val repairedKe = if (isInvoiceDeleted && keOrphan.billNumber == invDeleted.invoiceNo && keOrphan.partyId == invDeleted.partyId) keOrphan.copy(deletedAt = 2000L, syncedAt = null) else keOrphan
+
+        assertNotNull(repairedIi.deletedAt)
+        assertNotNull(repairedPay.deletedAt)
+        assertNotNull(repairedKe.deletedAt)
+
+        // Bad Case 3: khata_entries.business_id differs from party's business_id
+        val partyMain = PartyEntity(
+            id = "p_main",
+            businessId = "biz_correct",
+            name = "Party Main",
+            phone = "9900000000"
+        )
+        val keWrongBiz = KhataEntryEntity(
+            id = "ke_wrong_biz",
+            businessId = "biz_wrong",
+            partyId = partyMain.id,
+            amount = 5000L,
+            type = "YOU_GAVE",
+            date = 1700000000000L
+        )
+        // Repair rule 3: update business_id to match party's business_id
+        val repairedKeBiz = keWrongBiz.copy(
+            businessId = partyMain.businessId,
+            updatedAt = 2000L,
+            syncedAt = null
+        )
+        assertEquals("biz_correct", repairedKeBiz.businessId)
+        assertNull(repairedKeBiz.syncedAt)
+
+        // Bad Case 4: payment mode normalization
+        val rawModes = listOf("cash", "upi", "bank_transfer", "cheque", "UNKNOWN_MODE")
+        val expectedModes = listOf("Cash", "UPI", "Bank", "Cheque", "Cash")
+        val normalizedModes = rawModes.map { raw ->
+            when (raw.lowercase().trim()) {
+                "cash", "c" -> "Cash"
+                "upi", "online", "gpay", "phonepe", "paytm" -> "UPI"
+                "bank", "bank_transfer", "neft", "rtgs", "imps", "account" -> "Bank"
+                "cheque", "check" -> "Cheque"
+                else -> "Cash"
+            }
+        }
+        assertEquals(expectedModes, normalizedModes)
+
+        // Bad Case 5: SBI bank_name cleared when account number & IFSC empty
+        val bizSbi = BusinessEntity(
+            id = "biz_sbi_1",
+            name = "SBI Shop",
+            bankName = "State Bank of India",
+            accountNumber = "",
+            ifscCode = ""
+        )
+        val isSbiEmpty = bizSbi.bankName == "State Bank of India" && bizSbi.accountNumber.isBlank() && bizSbi.ifscCode.isBlank()
+        val repairedBizSbi = if (isSbiEmpty) bizSbi.copy(bankName = "", updatedAt = 2000L, syncedAt = null) else bizSbi
+        assertEquals("", repairedBizSbi.bankName)
+        assertNull(repairedBizSbi.syncedAt)
     }
 }

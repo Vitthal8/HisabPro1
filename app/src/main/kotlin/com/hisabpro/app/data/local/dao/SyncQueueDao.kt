@@ -43,6 +43,10 @@ interface SyncQueueDao {
     @Query("DELETE FROM sync_queue WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>)
 
+    @Query("DELETE FROM sync_queue WHERE entity_id = :entityId")
+    suspend fun deleteByEntityId(entityId: String)
+
+
     @Query("DELETE FROM sync_queue WHERE status = 'SYNCED'")
     suspend fun deleteSyncedItems()
 

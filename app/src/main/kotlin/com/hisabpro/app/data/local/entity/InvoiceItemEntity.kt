@@ -10,7 +10,8 @@ import androidx.room.PrimaryKey
     tableName = "invoice_items",
     indices = [
         Index(value = ["invoice_id"]),
-        Index(value = ["item_id"])
+        Index(value = ["item_id"]),
+        Index(value = ["business_id"])
     ],
     foreignKeys = [
         ForeignKey(
@@ -32,6 +33,8 @@ data class InvoiceItemEntity(
     val id: String,
     @ColumnInfo(name = "invoice_id")
     val invoiceId: String,
+    @ColumnInfo(name = "business_id")
+    val businessId: String = "",
     @ColumnInfo(name = "item_id")
     val itemId: String? = null,
     @ColumnInfo(name = "item_name")
@@ -49,6 +52,10 @@ data class InvoiceItemEntity(
     @ColumnInfo(name = "igst_rate")
     val igstRate: Double = 0.0,
     val amount: Long = 0L,       // In paise
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(name = "updated_at")
+    val updatedAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "deleted_at")
     val deletedAt: Long? = null,
     @ColumnInfo(name = "synced_at")

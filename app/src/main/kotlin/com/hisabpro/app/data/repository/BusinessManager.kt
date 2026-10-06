@@ -45,7 +45,7 @@ class BusinessManager private constructor(private val context: Context) {
             val active = _activeBusiness.value
             if (active.id.isNotBlank()) return active.id
             val name = active.shopName.trim()
-            if (name.isBlank()) return "default_business"
+            if (name.isBlank()) return "biz_main_store"
             val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
             return "biz_$sanitized"
         }
@@ -57,7 +57,7 @@ class BusinessManager private constructor(private val context: Context) {
             } else {
                 val name = profile.shopName.trim()
                 if (name.isBlank()) {
-                    "default_business"
+                    "biz_main_store"
                 } else {
                     val sanitized = name.lowercase().replace(Regex("[^a-z0-9]"), "_")
                     "biz_$sanitized"
@@ -67,7 +67,7 @@ class BusinessManager private constructor(private val context: Context) {
         .stateIn(
             scope = scope,
             started = SharingStarted.Eagerly,
-            initialValue = "default_business"
+            initialValue = "biz_main_store"
         )
 
     init {

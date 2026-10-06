@@ -48,6 +48,11 @@ class CreateInvoiceUseCase(
         val profile = settingsRepository?.profile?.value ?: com.hisabpro.app.data.model.BusinessProfile()
         val sanitizedInvoice = com.hisabpro.app.domain.accounting.GstPolicy.sanitizeInvoiceForStorage(invoice, profile)
 
+        val taxValidation = InputValidator.validateGstInvoiceTaxRates(sanitizedInvoice, profile.isGstRegistered)
+        if (!taxValidation.isSuccess) {
+            return Result.failure(IllegalArgumentException(taxValidation.errorMessage ?: "Invalid tax calculation"))
+        }
+
         // 4. Save Invoice
         val saved = invoiceRepository.addInvoice(sanitizedInvoice)
 
@@ -63,7 +68,7 @@ class CreateInvoiceUseCase(
 
         // 5. Cashbook / Daybook Income Entry for Paid Sales
         if (saved.paidAmount > 0) {
-            val paymentMode = PaymentMode.CASH // Default payment mode on invoice
+            val paymentMode = PaymentMode.fromString(saved.paymentMode)
             transactionRepository.addTransaction(
                 title = "Sale #${saved.invoiceNumber} - ${saved.customerName}",
                 amount = saved.paidAmount,
@@ -72,7 +77,9 @@ class CreateInvoiceUseCase(
                 dateMillis = saved.dateMillis,
                 paymentMode = paymentMode,
                 note = "Bill #${saved.invoiceNumber} payment received",
-                explicitBusinessId = saved.businessId
+                explicitBusinessId = saved.businessId,
+                partyId = saved.customerId,
+                linkedInvoiceId = saved.id
             )
         }
 

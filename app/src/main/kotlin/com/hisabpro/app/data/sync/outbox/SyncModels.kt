@@ -124,6 +124,9 @@ data class InvoiceItemPayload(
     @SerialName("invoice_id")
     val invoiceId: String,
 
+    @SerialName("business_id")
+    val businessId: String = "",
+
     @SerialName("item_id")
     val itemId: String? = null,
 
@@ -157,8 +160,17 @@ data class InvoiceItemPayload(
     @SerialName("amount")
     val amount: Long = 0L,
 
+    @SerialName("created_at")
+    val createdAt: Long = System.currentTimeMillis(),
+
+    @SerialName("updated_at")
+    val updatedAt: Long = System.currentTimeMillis(),
+
     @SerialName("deleted_at")
-    val deletedAt: Long? = null
+    val deletedAt: Long? = null,
+
+    @SerialName("synced_at")
+    val syncedAt: Long? = null
 )
 
 /**

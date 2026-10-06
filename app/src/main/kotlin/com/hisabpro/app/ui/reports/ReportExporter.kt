@@ -855,7 +855,8 @@ object ReportExporter {
                 out.write("Grand Total,${bill.grandTotal}\n")
                 out.write("Paid Amount,${bill.paidAmount}\n")
                 out.write("Balance Due,${bill.dueAmount}\n")
-                out.write("Payment Mode,\"${bill.paymentMode}\"\n")
+                val cleanMode = if (bill.paymentMode.equals("UNPAID", ignoreCase = true)) "" else bill.paymentMode
+                out.write("Payment Mode,\"$cleanMode\"\n")
                 if (bill.notes.isNotBlank()) out.write("Notes,\"${bill.notes.replace("\"", "\"\"")}\"\n")
             }
 
@@ -1168,7 +1169,8 @@ object ReportExporter {
         sb.appendLine(row("GRAND TOTAL:", "INR ${HisabViewModel.formatAmount(invoice.grandTotal)}"))
         sb.appendLine(dline)
 
-        sb.appendLine(row("Paid (${invoice.paymentMode}):", "INR ${HisabViewModel.formatAmount(invoice.paidAmount)}"))
+        val cleanPayMode = if (invoice.paymentMode.equals("UNPAID", ignoreCase = true)) "Cash" else invoice.paymentMode.ifBlank { "Cash" }
+        sb.appendLine(row("Paid ($cleanPayMode):", "INR ${HisabViewModel.formatAmount(invoice.paidAmount)}"))
         val balanceDue = (invoice.grandTotal - invoice.paidAmount).coerceAtLeast(0.0)
         if (balanceDue > 0) {
             sb.appendLine(row("BALANCE DUE:", "INR ${HisabViewModel.formatAmount(balanceDue)}"))

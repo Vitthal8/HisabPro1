@@ -447,7 +447,8 @@ fun PurchaseDetailSheet(
                     }
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Paid Amount (${bill.paymentMode}):", fontSize = 13.sp, color = Slate600)
+                        val displayMode = if (bill.paymentMode.equals("UNPAID", ignoreCase = true) || bill.paymentMode.isBlank()) "Cash" else bill.paymentMode
+                        Text("Paid Amount ($displayMode):", fontSize = 13.sp, color = Slate600)
                         Text("₹${String.format(Locale.ENGLISH, "%.2f", bill.paidAmount)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = IncomeGreen)
                     }
 
@@ -594,7 +595,8 @@ private fun sharePurchaseVoucher(context: Context, bill: PurchaseBill) {
         appendLine("Subtotal: ₹${String.format(Locale.ENGLISH, "%.2f", bill.subtotal)}")
         appendLine("Total Tax (ITC): ₹${String.format(Locale.ENGLISH, "%.2f", bill.totalTax)}")
         appendLine("*Grand Total: ₹${String.format(Locale.ENGLISH, "%.2f", bill.grandTotal)}*")
-        appendLine("Paid: ₹${String.format(Locale.ENGLISH, "%.2f", bill.paidAmount)} (${bill.paymentMode})")
+        val shareMode = if (bill.paymentMode.equals("UNPAID", ignoreCase = true) || bill.paymentMode.isBlank()) "Cash" else bill.paymentMode
+        appendLine("Paid: ₹${String.format(Locale.ENGLISH, "%.2f", bill.paidAmount)} ($shareMode)")
         if (bill.dueAmount > 0.01) {
             appendLine("⚠️ *Balance Payable: ₹${String.format(Locale.ENGLISH, "%.2f", bill.dueAmount)}*")
         } else {

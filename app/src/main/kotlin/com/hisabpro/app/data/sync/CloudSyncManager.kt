@@ -394,6 +394,16 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                     }
                 } else {
                     val rawObj = JSONObject(item.payloadJson)
+                    val payloadUpdatedAt = rawObj.optLong("updated_at", 0L)
+                    if (table == "khata_entries") {
+                        val localEnt = db.khataDao().getEntryByIdSync(item.entityId)
+                        if (localEnt != null && localEnt.updatedAt > payloadUpdatedAt && localEnt.syncedAt != null) {
+                            android.util.Log.i("CloudSyncManager", "PUSH_DISCARD_STALE_QUEUE table=$table id=${item.entityId} payloadUpdatedAt=$payloadUpdatedAt localUpdatedAt=${localEnt.updatedAt}")
+                            syncedIds.add(item.id)
+                            db.syncOutboxDao().deleteByEntity(table, item.entityId)
+                            continue
+                        }
+                    }
                     rawObj.put("user_id", session.userId)
                     val sanitizedObj = sanitizePayloadForTable(table, rawObj)
                     val array = JSONArray().put(sanitizedObj)
@@ -412,29 +422,57 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                 val isRlsError = errMsg.contains("42501") ||
                         errMsg.contains("row-level security", ignoreCase = true) ||
                         errMsg.contains("403")
-                val retry = item.retryCount + 1
+                val isUniqueCollision = errMsg.contains("23505") || errMsg.contains("unique constraint", ignoreCase = true)
+                var resolvedByRetry = false
 
-                if (isRlsError || retry >= 5) {
-                    android.util.Log.w("SYNC_QUEUE_DEBUG", "QUEUE_DISCARD_UNSYNCABLE queueId=${item.id} table=$table recordId=${item.entityId} error=$errMsg")
-                    db.syncQueueDao().deleteById(item.id)
-                    db.syncOutboxDao().deleteByEntity(table, item.entityId)
-                } else {
-                    val backoff = (Math.pow(2.0, retry.toDouble()).toLong() * 1000L).coerceAtMost(3600000L)
-                    val nextRetry = System.currentTimeMillis() + backoff
-                    db.syncQueueDao().updateStatus(
-                        id = item.id,
-                        status = "FAILED",
-                        error = errMsg,
-                        retryCount = retry,
-                        nextRetryAt = nextRetry
-                    )
-                    android.util.Log.e("SYNC_QUEUE_DEBUG", "QUEUE_UPLOAD_FAILED table=$table recordId=${item.entityId} error=$errMsg")
+                if (table == "invoices" && isUniqueCollision) {
+                    try {
+                        val invEntity = db.invoiceDao().getInvoiceByIdSync(item.entityId)
+                        if (invEntity != null) {
+                            val renumbered = invEntity.invoiceNo + "-1"
+                            val updatedInv = invEntity.copy(invoiceNo = renumbered, updatedAt = System.currentTimeMillis())
+                            db.invoiceDao().updateInvoice(updatedInv)
+                            val rawObj = JSONObject(item.payloadJson).apply {
+                                put("invoice_no", renumbered)
+                                put("user_id", session.userId)
+                                put("updated_at", updatedInv.updatedAt)
+                            }
+                            val sanitizedObj = sanitizePayloadForTable(table, rawObj)
+                            val res = apiClient.upsertBatch(table, session.accessToken, JSONArray().put(sanitizedObj), onConflict = "id")
+                            if (res.isSuccess) {
+                                syncedIds.add(item.id)
+                                resolvedByRetry = true
+                            }
+                        }
+                    } catch (_: Exception) { }
+                }
+
+                if (!resolvedByRetry) {
+                    val retry = item.retryCount + 1
+
+                    if (isRlsError || retry >= 5) {
+                        android.util.Log.w("SYNC_QUEUE_DEBUG", "QUEUE_DISCARD_UNSYNCABLE queueId=${item.id} table=$table recordId=${item.entityId} error=$errMsg")
+                        db.syncQueueDao().deleteById(item.id)
+                        db.syncOutboxDao().deleteByEntity(table, item.entityId)
+                    } else {
+                        val backoff = (Math.pow(2.0, retry.toDouble()).toLong() * 1000L).coerceAtMost(3600000L)
+                        val nextRetry = System.currentTimeMillis() + backoff
+                        db.syncQueueDao().updateStatus(
+                            id = item.id,
+                            status = "FAILED",
+                            error = errMsg,
+                            retryCount = retry,
+                            nextRetryAt = nextRetry
+                        )
+                        android.util.Log.e("SYNC_QUEUE_DEBUG", "QUEUE_UPLOAD_FAILED table=$table recordId=${item.entityId} error=$errMsg")
+                    }
                 }
             }
         }
 
         if (syncedIds.isNotEmpty()) {
             db.syncQueueDao().deleteByIds(syncedIds)
+            val nowSynced = System.currentTimeMillis()
             for (item in sorted) {
                 if (item.id in syncedIds) {
                     val table = when (item.entityType) {
@@ -452,6 +490,9 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                         else -> item.entityType
                     }
                     db.syncOutboxDao().deleteByEntity(table, item.entityId)
+                    try {
+                        db.openHelper.writableDatabase.execSQL("UPDATE `$table` SET `synced_at` = $nowSynced WHERE `id` = '${item.entityId}';")
+                    } catch (_: Exception) { }
                 }
             }
             for (syncedId in syncedIds) {
@@ -469,10 +510,10 @@ class CloudSyncManager private constructor(private val appContext: Context) {
     private fun sanitizePayloadForTable(table: String, jsonObj: JSONObject): JSONObject {
         val allowedColumns = when (table) {
             "invoice_items" -> setOf(
-                "id", "user_id", "invoice_id", "item_id", "item_name",
+                "id", "user_id", "invoice_id", "business_id", "item_id", "item_name",
                 "hsn_code", "qty", "unit", "rate", "discount",
                 "cgst_rate", "sgst_rate", "igst_rate", "amount",
-                "deleted_at", "synced_at"
+                "created_at", "updated_at", "deleted_at", "synced_at"
             )
             "invoices" -> setOf(
                 "id", "user_id", "business_id", "invoice_no", "date",
@@ -821,6 +862,7 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                             InvoiceItemEntity(
                                 id = obj.getString("id"),
                                 invoiceId = invId,
+                                businessId = obj.optString("business_id", ""),
                                 itemId = safeItemId,
                                 itemName = obj.optString("item_name", obj.optString("description", "")),
                                 hsnCode = obj.optString("hsn_code", ""),
@@ -832,6 +874,8 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                                 sgstRate = obj.optDouble("sgst_rate", 0.0),
                                 igstRate = obj.optDouble("igst_rate", 0.0),
                                 amount = obj.optLong("amount", 0L),
+                                createdAt = obj.optLong("created_at", System.currentTimeMillis()),
+                                updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
                                 deletedAt = delAt,
                                 syncedAt = System.currentTimeMillis()
                             )
@@ -923,12 +967,20 @@ class CloudSyncManager private constructor(private val appContext: Context) {
                         note = obj.optString("note", ""),
                         createdAt = obj.optLong("created_at", System.currentTimeMillis()),
                         updatedAt = obj.optLong("updated_at", System.currentTimeMillis()),
-                        deletedAt = delAt
+                        deletedAt = delAt,
+                        syncedAt = System.currentTimeMillis()
                     )
                     if (delAt != null && delAt > 0L) {
                         deletedIds.add(entity.id)
                     } else {
-                        list.add(entity)
+                        val existingLocal = db.khataDao().getEntryByIdSync(entity.id)
+                        if (existingLocal == null || entity.updatedAt >= existingLocal.updatedAt) {
+                            list.add(entity)
+                            db.syncQueueDao().deleteByEntityId(entity.id)
+                            db.syncOutboxDao().deleteByEntity("khata_entries", entity.id)
+                        } else {
+                            android.util.Log.i("CloudSyncManager", "PULL_IGNORE_STALE_SERVER table=khata_entries id=${entity.id} serverUpdatedAt=${entity.updatedAt} localUpdatedAt=${existingLocal.updatedAt}")
+                        }
                     }
                 }
                 if (list.isNotEmpty()) db.khataDao().insertAllEntries(list)

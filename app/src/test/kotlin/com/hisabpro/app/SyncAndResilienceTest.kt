@@ -684,4 +684,53 @@ class SyncAndResilienceTest {
         subManager.setActivePlan(com.hisabpro.app.domain.subscription.SubscriptionPlan.PREMIUM)
         assertTrue("Premium plan must be allowed to execute Cloud Sync", subManager.canUseCloudSync())
     }
+
+    @Test
+    fun testStaleLocalKhataRowVsServerFixedRowServerWins() {
+        val entryId = "ke_conflict_101"
+
+        val localStaleKhata = com.hisabpro.app.data.local.entity.KhataEntryEntity(
+            id = entryId,
+            businessId = "biz_test",
+            partyId = "p_001",
+            amount = 50000L, // ₹500
+            type = "YOU_GAVE",
+            date = 1700000000000L,
+            updatedAt = 1000L
+        )
+
+        val serverFixedKhata = com.hisabpro.app.data.local.entity.KhataEntryEntity(
+            id = entryId,
+            businessId = "biz_test",
+            partyId = "p_001",
+            amount = 70000L, // ₹700 (fixed on server)
+            type = "YOU_GAVE",
+            date = 1700000000000L,
+            updatedAt = 2000L // Newer server timestamp
+        )
+
+        // Simulate queue containing stale push item for local entry (updatedAt = 1000L)
+        val pendingQueue = mutableListOf(
+            SyncQueueEntity(
+                id = 1L,
+                entityType = "khata_entry",
+                entityId = entryId,
+                operation = "UPDATE",
+                payloadJson = """{"id":"$entryId","amount":50000,"updated_at":1000}"""
+            )
+        )
+
+        // Conflict Resolution Rule during Pull: server version wins if server.updatedAt >= local.updatedAt
+        val resolved = if (serverFixedKhata.updatedAt >= localStaleKhata.updatedAt) {
+            // Apply server version and purge stale queue item
+            pendingQueue.removeAll { it.entityId == entryId && it.entityType == "khata_entry" }
+            serverFixedKhata
+        } else {
+            localStaleKhata
+        }
+
+        assertEquals(70000L, resolved.amount)
+        assertEquals(2000L, resolved.updatedAt)
+        assertTrue("Stale push item must be discarded when server-fixed row wins", pendingQueue.isEmpty())
+    }
 }

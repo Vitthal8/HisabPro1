@@ -50,7 +50,7 @@ import com.hisabpro.app.data.local.entity.SyncQueueEntity
         SyncMetadataEntity::class,
         SyncOutbox::class
     ],
-    version = 6,
+    version = 8,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -666,6 +666,146 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `invoice_items` ADD COLUMN `business_id` TEXT NOT NULL DEFAULT '';")
+                db.execSQL("ALTER TABLE `invoice_items` ADD COLUMN `created_at` INTEGER NOT NULL DEFAULT 0;")
+                db.execSQL("ALTER TABLE `invoice_items` ADD COLUMN `updated_at` INTEGER NOT NULL DEFAULT 0;")
+
+                db.execSQL("""
+                    UPDATE `invoice_items`
+                    SET
+                        `business_id` = COALESCE((SELECT `business_id` FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id`), ''),
+                        `created_at` = COALESCE((SELECT `created_at` FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id`), 0),
+                        `updated_at` = COALESCE((SELECT `updated_at` FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id`), 0)
+                """.trimIndent())
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_invoice_items_business_id` ON `invoice_items` (`business_id`);")
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val now = System.currentTimeMillis()
+
+                // 1. Sets invoices.payment_mode = '' where it equals 'UNPAID'
+                db.execSQL("""
+                    UPDATE `invoices`
+                    SET `payment_mode` = '',
+                        `updated_at` = $now,
+                        `synced_at` = NULL
+                    WHERE `payment_mode` = 'UNPAID';
+                """.trimIndent())
+
+                // 2a. Soft-deletes invoice_items whose invoice is soft-deleted, unless a live invoice with same party and number exists
+                db.execSQL("""
+                    UPDATE `invoice_items`
+                    SET `deleted_at` = $now,
+                        `updated_at` = $now,
+                        `synced_at` = NULL
+                    WHERE `deleted_at` IS NULL
+                      AND `invoice_id` IN (
+                          SELECT `id` FROM `invoices` WHERE `deleted_at` IS NOT NULL
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM `invoices` live_inv
+                          JOIN `invoices` deleted_inv ON deleted_inv.`id` = `invoice_items`.`invoice_id`
+                          WHERE live_inv.`deleted_at` IS NULL
+                            AND live_inv.`party_id` IS NOT NULL
+                            AND live_inv.`party_id` != ''
+                            AND live_inv.`party_id` = deleted_inv.`party_id`
+                            AND live_inv.`invoice_no` = deleted_inv.`invoice_no`
+                      );
+                """.trimIndent())
+
+                // 2b. Soft-deletes payments (via linked_invoice_id) whose invoice is soft-deleted, unless a live invoice with same party and number exists
+                db.execSQL("""
+                    UPDATE `payments`
+                    SET `deleted_at` = $now,
+                        `updated_at` = $now,
+                        `synced_at` = NULL
+                    WHERE `deleted_at` IS NULL
+                      AND `linked_invoice_id` IS NOT NULL
+                      AND `linked_invoice_id` != ''
+                      AND `linked_invoice_id` IN (
+                          SELECT `id` FROM `invoices` WHERE `deleted_at` IS NOT NULL
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM `invoices` live_inv
+                          JOIN `invoices` deleted_inv ON deleted_inv.`id` = `payments`.`linked_invoice_id`
+                          WHERE live_inv.`deleted_at` IS NULL
+                            AND live_inv.`party_id` IS NOT NULL
+                            AND live_inv.`party_id` != ''
+                            AND live_inv.`party_id` = deleted_inv.`party_id`
+                            AND live_inv.`invoice_no` = deleted_inv.`invoice_no`
+                      );
+                """.trimIndent())
+
+                // 2c. Soft-deletes khata_entries (via party_id + bill_number) whose invoice is soft-deleted, unless a live invoice with same party and number exists
+                db.execSQL("""
+                    UPDATE `khata_entries`
+                    SET `deleted_at` = $now,
+                        `updated_at` = $now,
+                        `synced_at` = NULL
+                    WHERE `deleted_at` IS NULL
+                      AND `bill_number` IS NOT NULL AND TRIM(`bill_number`) != ''
+                      AND EXISTS (
+                          SELECT 1 FROM `invoices` deleted_inv
+                          WHERE deleted_inv.`deleted_at` IS NOT NULL
+                            AND deleted_inv.`party_id` = `khata_entries`.`party_id`
+                            AND deleted_inv.`invoice_no` = `khata_entries`.`bill_number`
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM `invoices` live_inv
+                          WHERE live_inv.`deleted_at` IS NULL
+                            AND live_inv.`party_id` = `khata_entries`.`party_id`
+                            AND live_inv.`invoice_no` = `khata_entries`.`bill_number`
+                      );
+                """.trimIndent())
+
+                // 3. Sets khata_entries.business_id to the party's business_id where they differ
+                db.execSQL("""
+                    UPDATE `khata_entries`
+                    SET `business_id` = (
+                        SELECT `parties`.`business_id` FROM `parties` WHERE `parties`.`id` = `khata_entries`.`party_id`
+                    ),
+                    `updated_at` = $now,
+                    `synced_at` = NULL
+                    WHERE EXISTS (
+                        SELECT 1 FROM `parties`
+                        WHERE `parties`.`id` = `khata_entries`.`party_id`
+                          AND `parties`.`business_id` != `khata_entries`.`business_id`
+                    );
+                """.trimIndent())
+
+                // 4. Normalises payments.mode to Cash / UPI / Bank / Cheque
+                db.execSQL("""
+                    UPDATE `payments`
+                    SET `mode` = CASE
+                        WHEN LOWER(TRIM(`mode`)) IN ('cash', 'c') THEN 'Cash'
+                        WHEN LOWER(TRIM(`mode`)) IN ('upi', 'online', 'gpay', 'phonepe', 'paytm') THEN 'UPI'
+                        WHEN LOWER(TRIM(`mode`)) IN ('bank', 'bank_transfer', 'neft', 'rtgs', 'imps', 'account') THEN 'Bank'
+                        WHEN LOWER(TRIM(`mode`)) IN ('cheque', 'check') THEN 'Cheque'
+                        ELSE 'Cash'
+                    END,
+                    `updated_at` = $now,
+                    `synced_at` = NULL
+                    WHERE `mode` NOT IN ('Cash', 'UPI', 'Bank', 'Cheque');
+                """.trimIndent())
+
+                // 5. Clears bank_name where it is 'State Bank of India' and account number and IFSC are empty
+                db.execSQL("""
+                    UPDATE `businesses`
+                    SET `bank_name` = '',
+                        `updated_at` = $now,
+                        `synced_at` = NULL
+                    WHERE `bank_name` = 'State Bank of India'
+                      AND (`account_number` IS NULL OR TRIM(`account_number`) = '')
+                      AND (`ifsc_code` IS NULL OR TRIM(`ifsc_code`) = '');
+                """.trimIndent())
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -673,7 +813,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "hisabpro_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .build().also { INSTANCE = it }
             }
         }

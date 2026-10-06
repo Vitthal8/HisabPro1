@@ -350,7 +350,8 @@ object InvoicePdfGenerator {
         val formattedDate = IndianAccountingFormat.formatIndianDate(invoice.dateMillis)
         canvas.drawText("Date: $formattedDate", rightX + 10f, y + 43f, paint)
 
-        val payModeLine = "Payment Mode: ${invoice.paymentMode.ifBlank { "Cash" }}"
+        val cleanPayMode = if (invoice.paymentMode.equals("UNPAID", ignoreCase = true)) "" else invoice.paymentMode
+        val payModeLine = "Payment Mode: ${cleanPayMode.ifBlank { "Cash" }}"
         val gstModeLine = if (isGst) "  |  ${invoice.gstMode.label.take(16)}" else ""
         canvas.drawText("$payModeLine$gstModeLine", rightX + 10f, y + 57f, paint)
 

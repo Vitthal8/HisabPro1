@@ -28,6 +28,11 @@ class UpdateInvoiceUseCase(
         val profile = settingsRepository?.profile?.value ?: com.hisabpro.app.data.model.BusinessProfile()
         val sanitizedInvoice = com.hisabpro.app.domain.accounting.GstPolicy.sanitizeInvoiceForStorage(updatedInvoice, profile)
 
+        val taxValidation = InputValidator.validateGstInvoiceTaxRates(sanitizedInvoice, profile.isGstRegistered)
+        if (!taxValidation.isSuccess) {
+            return Result.failure(IllegalArgumentException(taxValidation.errorMessage ?: "Invalid tax calculation"))
+        }
+
         val oldInvoice = invoiceRepository.invoices.value.find { it.id == sanitizedInvoice.id }
         if (oldInvoice != null) {
             // Reconcile stock for items added, removed, or quantity altered, or status changed

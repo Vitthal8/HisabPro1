@@ -20,6 +20,9 @@ interface KhataDao {
     @Query("SELECT * FROM khata_entries WHERE business_id = :businessId AND party_id = :partyId ORDER BY date DESC")
     suspend fun getEntriesForPartySync(businessId: String, partyId: String): List<KhataEntryEntity>
 
+    @Query("SELECT * FROM khata_entries WHERE id = :id")
+    suspend fun getEntryByIdSync(id: String): KhataEntryEntity?
+
     @Upsert
     suspend fun insertEntry(entry: KhataEntryEntity)
 

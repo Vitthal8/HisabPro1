@@ -39,13 +39,13 @@ interface InvoiceDao {
     @Query("SELECT * FROM invoices WHERE id = :id AND business_id = :businessId LIMIT 1")
     suspend fun getInvoiceByIdAndBusinessSync(id: String, businessId: String): InvoiceEntity?
 
-    @Query("SELECT * FROM invoice_items WHERE invoice_id = :invoiceId")
+    @Query("SELECT * FROM invoice_items WHERE invoice_id = :invoiceId AND (deleted_at IS NULL OR deleted_at = 0)")
     fun getItemsForInvoice(invoiceId: String): Flow<List<InvoiceItemEntity>>
 
-    @Query("SELECT * FROM invoice_items WHERE invoice_id = :invoiceId")
+    @Query("SELECT * FROM invoice_items WHERE invoice_id = :invoiceId AND (deleted_at IS NULL OR deleted_at = 0)")
     suspend fun getItemsForInvoiceSync(invoiceId: String): List<InvoiceItemEntity>
 
-    @Query("SELECT COALESCE(SUM(total), 0) FROM invoices WHERE business_id = :businessId AND date BETWEEN :startDate AND :endDate")
+    @Query("SELECT COALESCE(SUM(total), 0) FROM invoices WHERE business_id = :businessId AND date BETWEEN :startDate AND :endDate AND (deleted_at IS NULL OR deleted_at = 0)")
     fun getTotalSalesByDateRange(businessId: String, startDate: Long, endDate: Long): Flow<Long>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -66,17 +66,75 @@ interface InvoiceDao {
     @Query("DELETE FROM invoices WHERE id = :id")
     suspend fun deleteInvoiceLegacy(id: String)
 
+    @Query("UPDATE invoices SET deleted_at = :timestamp, updated_at = :timestamp, synced_at = NULL WHERE id = :invoiceId AND business_id = :businessId")
+    suspend fun softDeleteInvoice(invoiceId: String, businessId: String, timestamp: Long): Int
+
+    @Query("UPDATE invoice_items SET deleted_at = :timestamp, updated_at = :timestamp, synced_at = NULL WHERE invoice_id = :invoiceId")
+    suspend fun softDeleteInvoiceItems(invoiceId: String, timestamp: Long): Int
+
+    @Query("UPDATE khata_entries SET deleted_at = :timestamp, updated_at = :timestamp, synced_at = NULL WHERE business_id = :businessId AND (bill_number = :invoiceNo OR bill_number = :invoiceId OR note LIKE '%' || :invoiceNo || '%') AND (:partyId IS NULL OR party_id = :partyId)")
+    suspend fun softDeleteKhataEntriesForInvoice(invoiceId: String, invoiceNo: String, partyId: String?, businessId: String, timestamp: Long): Int
+
+    @Query("UPDATE payments SET deleted_at = :timestamp, updated_at = :timestamp, synced_at = NULL WHERE business_id = :businessId AND linked_invoice_id = :invoiceId")
+    suspend fun softDeletePaymentsForInvoice(invoiceId: String, businessId: String, timestamp: Long): Int
+
+    @Query("UPDATE invoice_items SET deleted_at = :timestamp, updated_at = :timestamp, synced_at = NULL WHERE id = :itemId")
+    suspend fun softDeleteInvoiceItem(itemId: String, timestamp: Long): Int
+
+    @Query("UPDATE invoices SET synced_at = :syncedAt WHERE id = :invoiceId")
+    suspend fun updateInvoiceSyncedAt(invoiceId: String, syncedAt: Long = System.currentTimeMillis()): Int
+
+    @Query("UPDATE invoice_items SET synced_at = :syncedAt WHERE id = :itemId")
+    suspend fun updateInvoiceItemSyncedAt(itemId: String, syncedAt: Long = System.currentTimeMillis()): Int
+
     @Transaction
-    suspend fun insertInvoiceWithItems(invoice: InvoiceEntity, items: List<InvoiceItemEntity>) {
+    suspend fun cascadeSoftDeleteInvoice(
+        invoiceId: String,
+        invoiceNo: String,
+        partyId: String?,
+        businessId: String,
+        timestamp: Long = System.currentTimeMillis()
+    ) {
+        softDeleteInvoice(invoiceId, businessId, timestamp)
+        softDeleteInvoiceItems(invoiceId, timestamp)
+        softDeleteKhataEntriesForInvoice(invoiceId, invoiceNo, partyId, businessId, timestamp)
+        softDeletePaymentsForInvoice(invoiceId, businessId, timestamp)
+    }
+
+    @Transaction
+    suspend fun updateInvoiceWithItems(
+        invoice: InvoiceEntity,
+        items: List<InvoiceItemEntity>,
+        timestamp: Long = System.currentTimeMillis()
+    ) {
+        val existingItems = getItemsForInvoiceSync(invoice.id)
+        val newIds = items.map { it.id }.toSet()
+
+        for (existing in existingItems) {
+            if (existing.id !in newIds && (existing.deletedAt == null || existing.deletedAt == 0L)) {
+                softDeleteInvoiceItem(existing.id, timestamp)
+            }
+        }
+
         insertInvoice(invoice)
-        deleteItemsForInvoice(invoice.id)
         insertInvoiceItems(items)
     }
 
     @Transaction
+    suspend fun insertInvoiceWithItems(invoice: InvoiceEntity, items: List<InvoiceItemEntity>) {
+        updateInvoiceWithItems(invoice, items)
+    }
+
+    @Transaction
     suspend fun deleteInvoiceWithItems(invoiceId: String, businessId: String) {
-        deleteItemsForInvoice(invoiceId)
-        deleteInvoice(invoiceId, businessId)
+        val inv = getInvoiceByIdAndBusinessSync(invoiceId, businessId)
+        cascadeSoftDeleteInvoice(
+            invoiceId = invoiceId,
+            invoiceNo = inv?.invoiceNo ?: "",
+            partyId = inv?.partyId,
+            businessId = businessId,
+            timestamp = System.currentTimeMillis()
+        )
     }
 
     @Query("SELECT * FROM invoices ORDER BY date DESC")
@@ -225,7 +283,7 @@ fun InvoiceEntity.toPayload(): InvoicePayload = InvoicePayload(
     total = total,
     paidAmount = paidAmount,
     paymentStatus = paymentStatus,
-    paymentMode = paymentMode,
+    paymentMode = if (paymentMode.equals("UNPAID", ignoreCase = true)) "" else paymentMode,
     notes = notes,
     isGst = isGst,
     createdAt = createdAt,
@@ -240,6 +298,7 @@ fun InvoiceItemEntity.toPayload(): InvoiceItemPayload = InvoiceItemPayload(
     id = id,
     userId = "",
     invoiceId = invoiceId,
+    businessId = businessId,
     itemId = itemId,
     itemName = itemName,
     hsnCode = hsnCode,
@@ -251,5 +310,8 @@ fun InvoiceItemEntity.toPayload(): InvoiceItemPayload = InvoiceItemPayload(
     sgstRate = sgstRate,
     igstRate = igstRate,
     amount = amount,
-    deletedAt = deletedAt
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    deletedAt = deletedAt,
+    syncedAt = syncedAt
 )

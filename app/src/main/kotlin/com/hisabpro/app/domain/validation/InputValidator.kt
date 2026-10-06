@@ -132,6 +132,20 @@ object InputValidator {
         return ValidationResult.Success
     }
 
+    fun validateGstInvoiceTaxRates(invoice: com.hisabpro.app.data.model.Invoice, isGstRegistered: Boolean): ValidationResult {
+        if (!isGstRegistered || invoice.type == com.hisabpro.app.data.model.InvoiceType.NON_GST_BILL || invoice.gstMode == com.hisabpro.app.data.model.GstMode.EXEMPT) {
+            return ValidationResult.Success
+        }
+
+        val hasNonZeroRates = invoice.items.any { it.gstRate > 0.0 }
+        if (hasNonZeroRates && invoice.totalTax <= 0.0) {
+            return ValidationResult.Error(
+                message = "GST Tax Invoice cannot have 0 tax when items have non-zero GST rates."
+            )
+        }
+        return ValidationResult.Success
+    }
+
     fun validatePaymentAmount(amount: Double): ValidationResult {
         if (amount <= 0.0) {
             return ValidationResult.Error(

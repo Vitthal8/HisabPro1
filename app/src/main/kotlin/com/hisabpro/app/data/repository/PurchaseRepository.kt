@@ -154,15 +154,13 @@ class PurchaseRepository(private val context: Context) {
         _purchases.value = list.sortedByDescending { it.dateMillis }
     }
 
-    fun generateNextPurchaseNumber(prefixOverride: String? = null): String {
-        val year = Calendar.getInstance().get(Calendar.YEAR) % 100
-        val nextYear = year + 1
-        val fy = "$year-$nextYear"
-
-        val count = _purchases.value.size + 1
-        val padded = String.format("%03d", count)
+    fun generateNextPurchaseNumber(prefixOverride: String? = null, dateMillis: Long = System.currentTimeMillis()): String {
+        val fy = com.hisabpro.app.util.IndianAccountingFormat.getFinancialYear(dateMillis)
+        val count = _purchases.value.count {
+            com.hisabpro.app.util.IndianAccountingFormat.getFinancialYear(it.dateMillis) == fy
+        } + 1
         val prefix = if (!prefixOverride.isNullOrBlank()) prefixOverride.trim() else "PUR"
-        return "$prefix-$fy-$padded"
+        return com.hisabpro.app.util.IndianAccountingFormat.formatInvoiceNumberWithFY(prefix, count, dateMillis)
     }
 
     fun updateSupplierDetails(

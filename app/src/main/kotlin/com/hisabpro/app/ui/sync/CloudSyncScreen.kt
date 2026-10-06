@@ -112,7 +112,7 @@ fun CloudSyncScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "Supabase Cloud Sync",
+                        text = "Cloud Sync & Backup",
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
@@ -553,7 +553,7 @@ fun CloudSyncScreen(
                                         colors = ButtonDefaults.buttonColors(containerColor = DeepNavyBlue),
                                         modifier = Modifier.fillMaxWidth().testTag("btn_email_signin")
                                     ) {
-                                        Text("Sign In with Supabase", fontWeight = FontWeight.Bold)
+                                        Text("Sign In to Cloud", fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }

@@ -76,6 +76,20 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             _errorMessage.value = null
             _successMessage.value = null
             val result = authManager.signInWithEmail(em, pass)
+            if (result.isSuccess) {
+                try {
+                    val bizManager = com.hisabpro.app.data.repository.BusinessManager.getInstance(getApplication())
+                    val settingsRepo = com.hisabpro.app.data.repository.SettingsRepository.getInstance(getApplication())
+                    bizManager.reloadFromRoom()
+                    val active = bizManager.activeBusiness.value
+                    if (active.shopName.isNotBlank()) {
+                        settingsRepo.updateProfile(active.copy(hasCompletedOnboarding = true))
+                    }
+                    com.hisabpro.app.data.sync.CloudSyncManager.getInstance(getApplication()).triggerSync(isManual = false)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
             _isLoading.value = false
             if (result.isFailure) {
                 _errorMessage.value = result.exceptionOrNull()?.localizedMessage ?: "Sign in failed. Please check credentials."

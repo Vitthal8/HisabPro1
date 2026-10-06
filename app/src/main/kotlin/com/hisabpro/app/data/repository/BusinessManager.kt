@@ -77,6 +77,8 @@ class BusinessManager private constructor(private val context: Context) {
     companion object {
         private const val KEY_BUSINESS_LIST = "key_business_list_json"
         private const val KEY_ACTIVE_ID = "key_active_business_id"
+        private const val KEY_DELETED_BUSINESS_IDS = "key_deleted_business_ids"
+        private const val KEY_DELETED_TIMESTAMPS_JSON = "key_deleted_business_timestamps_json"
 
         @Volatile
         private var INSTANCE: BusinessManager? = null
@@ -86,6 +88,65 @@ class BusinessManager private constructor(private val context: Context) {
                 INSTANCE ?: BusinessManager(context.applicationContext).also { INSTANCE = it }
             }
         }
+    }
+
+    fun isBusinessDeleted(businessIdOrName: String): Boolean {
+        if (businessIdOrName.isBlank()) return false
+        val deletedSet = prefs.getStringSet(KEY_DELETED_BUSINESS_IDS, emptySet()) ?: emptySet()
+        val sanitized = sanitizeBizId(businessIdOrName)
+        return deletedSet.contains(businessIdOrName) ||
+               deletedSet.contains(sanitized) ||
+               deletedSet.any { it.equals(businessIdOrName, ignoreCase = true) }
+    }
+
+    fun getBusinessDeletedTimestamp(businessIdOrName: String): Long? {
+        if (businessIdOrName.isBlank()) return null
+        if (!isBusinessDeleted(businessIdOrName)) return null
+        val rawJson = prefs.getString(KEY_DELETED_TIMESTAMPS_JSON, null) ?: return System.currentTimeMillis()
+        return try {
+            val obj = JSONObject(rawJson)
+            val sanitized = sanitizeBizId(businessIdOrName)
+            when {
+                obj.has(businessIdOrName) -> obj.getLong(businessIdOrName)
+                obj.has(sanitized) -> obj.getLong(sanitized)
+                else -> System.currentTimeMillis()
+            }
+        } catch (_: Exception) {
+            System.currentTimeMillis()
+        }
+    }
+
+    fun isRogueOrDeleted(profile: BusinessProfile): Boolean {
+        if (isBusinessDeleted(profile.id) || isBusinessDeleted(profile.shopName)) return true
+        if (profile.shopName.contains("[Restored]", ignoreCase = true) || profile.id.contains("[Restored]")) return true
+        if (profile.shopName.equals("Ganesh Traders", ignoreCase = true) || profile.id == "biz_ganesh_traders") return true
+        return false
+    }
+
+    fun markBusinessDeleted(businessIdOrName: String, timestamp: Long = System.currentTimeMillis()) {
+        if (businessIdOrName.isBlank()) return
+        val currentSet = prefs.getStringSet(KEY_DELETED_BUSINESS_IDS, emptySet())?.toMutableSet() ?: mutableSetOf()
+        currentSet.add(businessIdOrName)
+        val sanitized = sanitizeBizId(businessIdOrName)
+        if (sanitized != "default_business") {
+            currentSet.add(sanitized)
+        }
+
+        val rawJson = prefs.getString(KEY_DELETED_TIMESTAMPS_JSON, null)
+        val obj = try {
+            if (!rawJson.isNullOrBlank()) JSONObject(rawJson) else JSONObject()
+        } catch (_: Exception) {
+            JSONObject()
+        }
+        obj.put(businessIdOrName, timestamp)
+        if (sanitized != "default_business") {
+            obj.put(sanitized, timestamp)
+        }
+
+        prefs.edit()
+            .putStringSet(KEY_DELETED_BUSINESS_IDS, currentSet)
+            .putString(KEY_DELETED_TIMESTAMPS_JSON, obj.toString())
+            .apply()
     }
 
     private fun loadBusinesses() {
@@ -99,13 +160,18 @@ class BusinessManager private constructor(private val context: Context) {
                 val list = mutableListOf<BusinessProfile>()
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
-                    list.add(parseProfileFromJson(obj))
+                    val parsed = parseProfileFromJson(obj)
+                    if (!isRogueOrDeleted(parsed)) {
+                        list.add(parsed)
+                    }
                 }
                 if (list.isNotEmpty()) {
                     _businesses.value = list
                     val matched = list.find { it.id == activeId || it.shopName == activeId || it.gstin == activeId } ?: list.first()
                     _activeBusiness.value = matched
+                    _activeBusinessId.value = matched.id.ifBlank { matched.shopName }
                     SettingsRepository.getInstance(appContext).updateProfile(matched)
+                    persistBusinessesToPrefs(list, matched.id.ifBlank { matched.shopName })
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -120,13 +186,26 @@ class BusinessManager private constructor(private val context: Context) {
 
     suspend fun reloadFromRoom() {
         try {
+            // Clean up rogue legacy entities
+            db.businessDao().deleteBusiness("biz_ganesh_traders")
+
             val dbEntities = db.businessDao().getAllBusinessesSync()
             if (dbEntities.isEmpty()) return
 
-            val currentList = _businesses.value.toMutableList()
+            val currentList = _businesses.value.filterNot { isRogueOrDeleted(it) }.toMutableList()
             val map = currentList.associateBy { it.id.ifBlank { sanitizeBizId(it.shopName) } }.toMutableMap()
 
             for (ent in dbEntities) {
+                if (ent.id == "biz_ganesh_traders" || 
+                    ent.name.contains("Ganesh Traders", ignoreCase = true) || 
+                    ent.name.contains("[Restored]", ignoreCase = true) ||
+                    isBusinessDeleted(ent.id) || 
+                    isBusinessDeleted(ent.name)) {
+                    db.businessDao().deleteBusiness(ent.id)
+                    markBusinessDeleted(ent.id)
+                    markBusinessDeleted(ent.name)
+                    continue
+                }
                 val existing = map[ent.id]
                 val merged = BusinessProfile(
                     id = ent.id,
@@ -163,9 +242,9 @@ class BusinessManager private constructor(private val context: Context) {
         }
     }
 
-    private fun sanitizeBizId(name: String): String {
+    fun sanitizeBizId(name: String): String {
         val trimmed = name.trim()
-        if (trimmed.isBlank()) error("No active business selected")
+        if (trimmed.isBlank()) return "default_business"
         val sanitized = trimmed.lowercase().replace(Regex("[^a-z0-9]"), "_")
         return "biz_$sanitized"
     }
@@ -224,7 +303,7 @@ class BusinessManager private constructor(private val context: Context) {
             appLanguage = obj.optString("appLanguage", "en"),
             isDarkMode = obj.optBoolean("isDarkMode", false),
             themeAccent = obj.optString("themeAccent", "Saffron"),
-            hasCompletedOnboarding = obj.optBoolean("hasCompletedOnboarding", false)
+            hasCompletedOnboarding = obj.optBoolean("hasCompletedOnboarding", false) || obj.optString("shopName", "").isNotBlank()
         )
     }
 
@@ -416,8 +495,9 @@ class BusinessManager private constructor(private val context: Context) {
 
     suspend fun reloadFromRoomAndCloud(cloudProfiles: List<BusinessProfile> = emptyList(), replaceLocal: Boolean = false) {
         try {
-            if (cloudProfiles.isNotEmpty()) {
-                val entities = cloudProfiles.map { p ->
+            val validCloudProfiles = cloudProfiles.filterNot { isBusinessDeleted(it.id) || isBusinessDeleted(it.shopName) }
+            if (validCloudProfiles.isNotEmpty()) {
+                val entities = validCloudProfiles.map { p ->
                     val bizId = if (p.id.isNotBlank()) p.id else sanitizeBizId(p.shopName)
                     BusinessEntity(
                         id = bizId,
@@ -442,16 +522,17 @@ class BusinessManager private constructor(private val context: Context) {
             }
 
             val dbEntities = db.businessDao().getAllBusinessesSync()
-            val currentList = if (replaceLocal) mutableListOf() else _businesses.value.toMutableList()
+            val currentList = if (replaceLocal) mutableListOf() else _businesses.value.filterNot { isBusinessDeleted(it.id) || isBusinessDeleted(it.shopName) }.toMutableList()
             val map = currentList.associateBy { if (it.id.isNotBlank()) it.id else sanitizeBizId(it.shopName) }.toMutableMap()
 
-            for (p in cloudProfiles) {
+            for (p in validCloudProfiles) {
                 val bizId = if (p.id.isNotBlank()) p.id else sanitizeBizId(p.shopName)
                 map[bizId] = p.copy(id = bizId)
             }
 
             if (!replaceLocal) {
                 for (ent in dbEntities) {
+                    if (isBusinessDeleted(ent.id) || isBusinessDeleted(ent.name)) continue
                     val existing = map[ent.id]
                     val merged = BusinessProfile(
                         id = ent.id,
@@ -475,9 +556,10 @@ class BusinessManager private constructor(private val context: Context) {
                 }
             } else {
                 for (ent in dbEntities) {
+                    if (isBusinessDeleted(ent.id) || isBusinessDeleted(ent.name)) continue
                     if (map.containsKey(ent.id)) {
                         // Preserved from cloudProfiles
-                    } else if (cloudProfiles.isEmpty() && ent.name.isNotBlank()) {
+                    } else if (validCloudProfiles.isEmpty() && ent.name.isNotBlank()) {
                         map[ent.id] = BusinessProfile(
                             id = ent.id,
                             shopName = ent.name,
@@ -584,26 +666,54 @@ class BusinessManager private constructor(private val context: Context) {
             } ?: return@withContext Result.failure(Exception("Company profile '$businessIdOrShopName' not found."))
 
             val targetDbId = targetProfile.id.ifBlank { sanitizeBizId(targetProfile.shopName) }
+            val now = System.currentTimeMillis()
 
-            // 1. Atomically delete all dependent database records and insert SyncOutbox DELETE event
+            // 1. Mark as permanently deleted in local persistent tombstone set with LWW timestamp
+            markBusinessDeleted(targetDbId, now)
+            if (targetProfile.id.isNotBlank()) markBusinessDeleted(targetProfile.id, now)
+            markBusinessDeleted(targetProfile.shopName, now)
+            val nameSanitized = sanitizeBizId(targetProfile.shopName)
+            if (nameSanitized != "default_business") {
+                markBusinessDeleted(nameSanitized, now)
+            }
+
+            // 2. Atomically delete all dependent database records and insert SyncOutbox DELETE event
             db.businessDao().deleteBusinessCascadeLocally(
                 businessId = targetDbId,
                 outboxDao = db.syncOutboxDao()
             )
 
-            // 2. Remove company from active in-memory list and switch active business
-            val updatedList = list.filterNot { it.id == targetProfile.id || it.shopName == targetProfile.shopName }
+            // 3. Enqueue DELETE in CloudSyncManager syncQueue so executePush will upload deletion to Supabase
+            val delPayload = JSONObject().apply {
+                put("id", targetDbId)
+                put("user_id", com.hisabpro.app.data.sync.SupabaseAuthManager.getInstance(appContext).getCurrentSession()?.userId ?: "")
+                put("deleted_at", now)
+                put("updated_at", now)
+            }
+            com.hisabpro.app.data.sync.CloudSyncManager.getInstance(appContext).enqueueChange(
+                entityType = "business",
+                entityId = targetDbId,
+                operation = "DELETE",
+                payloadJson = delPayload.toString()
+            )
+
+            // 4. Remove company from active in-memory list and switch active business
+            val updatedList = list.filterNot { 
+                it.id == targetProfile.id || 
+                it.shopName.equals(targetProfile.shopName, ignoreCase = true) ||
+                it.id == targetDbId
+            }
             val newActive = updatedList.first()
 
             saveBusinessesInternal(updatedList, newActive.shopName)
 
-            // 3. Refresh active in-memory repositories
+            // 5. Refresh active in-memory repositories
             InvoiceRepository.getInstance(appContext).reloadFromDatabase()
             PartyRepository.getInstance(appContext).reloadFromDatabase()
             ItemRepository.getInstance(appContext).reloadFromDatabase()
             TransactionRepository.getInstance(appContext).reloadFromDatabase()
 
-            // 4. Trigger sync worker to upload deletion to Supabase
+            // 6. Trigger sync worker to upload deletion to Supabase
             com.hisabpro.app.data.sync.CloudSyncManager.getInstance(appContext).triggerSync(isManual = false)
 
             Result.success(Unit)

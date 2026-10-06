@@ -113,7 +113,7 @@ class SettingsRepository(context: Context) {
                     appLanguage = obj.optString("appLanguage", "en"),
                     isDarkMode = obj.optBoolean("isDarkMode", false),
                     themeAccent = obj.optString("themeAccent", "Saffron"),
-                    hasCompletedOnboarding = obj.optBoolean("hasCompletedOnboarding", false)
+                    hasCompletedOnboarding = obj.optBoolean("hasCompletedOnboarding", false) || obj.optString("shopName", "").isNotBlank()
                 )
                 _sharedProfile.value = loaded
             } catch (e: Exception) {

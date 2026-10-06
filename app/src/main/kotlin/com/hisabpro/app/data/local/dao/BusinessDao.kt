@@ -17,10 +17,10 @@ interface BusinessDao {
     @Query("SELECT * FROM businesses WHERE id = :id LIMIT 1")
     suspend fun getBusinessSync(id: String): BusinessEntity?
 
-    @Query("SELECT * FROM businesses ORDER BY name ASC")
+    @Query("SELECT * FROM businesses WHERE deleted_at IS NULL ORDER BY name ASC")
     fun getAllBusinesses(): Flow<List<BusinessEntity>>
 
-    @Query("SELECT * FROM businesses ORDER BY name ASC")
+    @Query("SELECT * FROM businesses WHERE deleted_at IS NULL ORDER BY name ASC")
     suspend fun getAllBusinessesSync(): List<BusinessEntity>
 
     @Upsert
@@ -68,9 +68,13 @@ interface BusinessDao {
     @Query("DELETE FROM businesses WHERE id = :businessId")
     suspend fun deleteBusinessRecord(businessId: String)
 
+    @Query("UPDATE businesses SET deleted_at = :now, updated_at = :now WHERE id = :businessId")
+    suspend fun markBusinessDeletedTombstone(businessId: String, now: Long)
+
     /**
      * Atomically wipes all dependent local business database records (invoices, items, expenses, etc.)
-     * and inserts a DELETE outbox event into SyncOutbox in a single Room @Transaction.
+     * and sets an explicit Tombstone (deleted_at = now, updated_at = now) on the business record
+     * to enforce Last-Write-Wins and prevent cloud resurrection.
      */
     @Transaction
     suspend fun deleteBusinessCascadeLocally(
@@ -88,9 +92,15 @@ interface BusinessDao {
         deleteItemsForBusiness(businessId)
         deletePartiesForBusiness(businessId)
         deleteAccountsForBusiness(businessId)
-        deleteBusinessRecord(businessId)
 
         val now = System.currentTimeMillis()
+        val existing = getBusinessSync(businessId)
+        if (existing != null) {
+            markBusinessDeletedTombstone(businessId, now)
+        } else {
+            insertOrUpdate(BusinessEntity(id = businessId, name = businessId, deletedAt = now, updatedAt = now))
+        }
+
         val idempotencyKey = "del_biz_${businessId}_$now"
         val payloadJson = "{\"id\":\"$businessId\",\"idempotency_key\":\"$idempotencyKey\"}"
 

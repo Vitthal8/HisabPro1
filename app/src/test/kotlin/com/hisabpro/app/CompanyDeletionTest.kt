@@ -96,4 +96,102 @@ class CompanyDeletionTest {
 
         assertTrue("Deletion allowed when multiple companies exist", canDeleteCompany(multiBusinesses))
     }
+
+    @Test
+    fun testDeletedBusinessFilteringPreventsCloudResurrection() {
+        val deletedIds = mutableSetOf<String>()
+        val deletedBizId = "biz_branch_2"
+        deletedIds.add(deletedBizId)
+        deletedIds.add("Vittal Electronics")
+
+        val incomingCloudProfiles = listOf(
+            BusinessProfile(id = "biz_vittal_supermarket", shopName = "Vittal Supermarket"),
+            BusinessProfile(id = "biz_branch_2", shopName = "Vittal Electronics")
+        )
+
+        // Filter incoming cloud profiles using the deleted tombstone set
+        val filtered = incomingCloudProfiles.filterNot { 
+            deletedIds.contains(it.id) || deletedIds.contains(it.shopName) 
+        }
+
+        assertEquals(1, filtered.size)
+        assertEquals("biz_vittal_supermarket", filtered.first().id)
+        assertFalse("Deleted company must not be resurrected by cloud pull", filtered.any { it.id == deletedBizId })
+    }
+
+    @Test
+    fun testSyncQueueDeletePayloadForBusiness() {
+        val bizId = "biz_closed_shop"
+        val payload = org.json.JSONObject().apply {
+            put("id", bizId)
+            put("user_id", "user_12345")
+            put("deleted_at", 1760000000000L)
+        }
+
+        assertEquals(bizId, payload.getString("id"))
+        assertEquals("user_12345", payload.getString("user_id"))
+        assertEquals(1760000000000L, payload.getLong("deleted_at"))
+    }
+
+    @Test
+    fun testLastWriteWins_LocalDeletionWinsAgainstOlderRemoteUpdate() {
+        val localTombstone = com.hisabpro.app.data.local.entity.BusinessEntity(
+            id = "biz_branch_pune",
+            name = "Pune Branch",
+            deletedAt = 2000L,
+            updatedAt = 2000L
+        )
+
+        val olderRemoteGhost = com.hisabpro.app.data.local.entity.BusinessEntity(
+            id = "biz_branch_pune",
+            name = "Pune Branch",
+            deletedAt = null,
+            updatedAt = 1500L
+        )
+
+        val resolved = com.hisabpro.app.data.sync.ConflictResolver.resolveBusiness(localTombstone, olderRemoteGhost)
+        assertTrue("Local deletion with newer timestamp must WIN (LWW)", resolved.deletedAt != null)
+        assertEquals(2000L, resolved.deletedAt)
+    }
+
+    @Test
+    fun testLastWriteWins_NewerRemoteUpdateWinsAgainstOlderLocalDeletion() {
+        val localTombstone = com.hisabpro.app.data.local.entity.BusinessEntity(
+            id = "biz_branch_pune",
+            name = "Pune Branch",
+            deletedAt = 1000L,
+            updatedAt = 1000L
+        )
+
+        val newerRemoteUpdate = com.hisabpro.app.data.local.entity.BusinessEntity(
+            id = "biz_branch_pune",
+            name = "Pune Branch Reopened",
+            deletedAt = null,
+            updatedAt = 2500L
+        )
+
+        val resolved = com.hisabpro.app.data.sync.ConflictResolver.resolveBusiness(localTombstone, newerRemoteUpdate)
+        assertTrue("Remote record updated AFTER deletion must win by LWW", resolved.deletedAt == null)
+        assertEquals("Pune Branch Reopened", resolved.name)
+    }
+
+    @Test
+    fun testLastWriteWins_SynthesizedTombstoneTimestampWins() {
+        val remoteGhost = com.hisabpro.app.data.local.entity.BusinessEntity(
+            id = "biz_deleted_shop",
+            name = "Deleted Shop",
+            deletedAt = null,
+            updatedAt = 3000L
+        )
+
+        // Local row in Room is null, but persistent tombstone timestamp is 4000L
+        val resolved = com.hisabpro.app.data.sync.ConflictResolver.resolveBusiness(
+            local = null,
+            remote = remoteGhost,
+            localTombstoneTimestamp = 4000L
+        )
+
+        assertTrue("Synthesized tombstone timestamp >= remote updatedAt must WIN and remain deleted", resolved.deletedAt != null)
+        assertEquals(4000L, resolved.deletedAt)
+    }
 }

@@ -22,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -183,9 +184,34 @@ private fun MainScreenContent(
     val hisabUiState by hisabViewModel.uiState.collectAsStateWithLifecycle()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    var showBusinessSetup by rememberSaveable(businessProfile.id, businessProfile.shopName, businessProfile.hasCompletedOnboarding) {
-        mutableStateOf(!businessProfile.hasCompletedOnboarding || businessProfile.shopName.isBlank())
+
+    val effectiveProfile = when {
+        activeBusiness.shopName.isNotBlank() -> activeBusiness
+        businessProfile.shopName.isNotBlank() -> businessProfile
+        allBusinesses.isNotEmpty() -> allBusinesses.first()
+        else -> businessProfile
     }
+
+    val hasExistingBusiness = effectiveProfile.shopName.isNotBlank() || 
+                             effectiveProfile.hasCompletedOnboarding ||
+                             allBusinesses.isNotEmpty()
+
+    var showBusinessSetup by rememberSaveable(
+        effectiveProfile.id,
+        effectiveProfile.shopName,
+        effectiveProfile.hasCompletedOnboarding,
+        allBusinesses.size
+    ) {
+        mutableStateOf(!hasExistingBusiness)
+    }
+
+    // Automatically dismiss setup screen if business data exists or arrives from cloud sync
+    LaunchedEffect(effectiveProfile.shopName, effectiveProfile.hasCompletedOnboarding, allBusinesses.size) {
+        if (effectiveProfile.shopName.isNotBlank() || allBusinesses.isNotEmpty()) {
+            showBusinessSetup = false
+        }
+    }
+
     var activeSubScreen by rememberSaveable { mutableStateOf<String?>(null) } // "items", "cashbook", "backup", "cloud_sync", "bank_reconciliation"
 
     var showBusinessSwitcher by remember { mutableStateOf(false) }
@@ -205,18 +231,16 @@ private fun MainScreenContent(
         activeSubScreen = null
     }
 
-    if (showBusinessSetup) {
+    if (showBusinessSetup && !hasExistingBusiness) {
         BusinessSetupScreen(
-            currentProfile = businessProfile,
-            isInitialOnboarding = !businessProfile.hasCompletedOnboarding,
+            currentProfile = effectiveProfile,
+            isInitialOnboarding = !hasExistingBusiness,
             onSaveProfile = { updated ->
                 onSaveProfile(updated)
                 businessManager.updateActiveBusiness(updated)
                 showBusinessSetup = false
             },
-            onDismiss = if (businessProfile.hasCompletedOnboarding) {
-                { showBusinessSetup = false }
-            } else null
+            onDismiss = { showBusinessSetup = false }
         )
         return
     }

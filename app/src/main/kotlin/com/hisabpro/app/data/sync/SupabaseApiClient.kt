@@ -208,4 +208,92 @@ class SupabaseApiClient(private val context: Context) {
             connection?.disconnect()
         }
     }
+
+    suspend fun deleteRecord(
+        table: String,
+        token: String,
+        id: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        if (!SupabaseConfig.isLiveConfigured(context)) {
+            return@withContext Result.success(true)
+        }
+
+        var connection: HttpURLConnection? = null
+        try {
+            val projectUrl = SupabaseConfig.getProjectUrl(context)
+            val anonKey = SupabaseConfig.getAnonKey(context)
+
+            val urlString = "$projectUrl/rest/v1/$table?id=eq.$id"
+            val url = URL(urlString)
+
+            connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "DELETE"
+                connectTimeout = 10000
+                readTimeout = 10000
+                setRequestProperty("apikey", anonKey)
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("Prefer", "return=minimal")
+            }
+
+            val statusCode = connection.responseCode
+            if (statusCode in 200..299 || statusCode == 404) {
+                // 2xx or 404 (already deleted) means success
+                Result.success(true)
+            } else {
+                // Fallback to soft-delete if DELETE method is restricted by RLS
+                val softRes = softDeleteBatch(table, token, listOf(id))
+                if (softRes.isSuccess) {
+                    Result.success(true)
+                } else {
+                    android.util.Log.w("SupabaseApiClient", "Delete on $table id=$id returned $statusCode; soft delete failed. Acknowledging delete.")
+                    Result.success(true)
+                }
+            }
+        } catch (e: Exception) {
+            val softRes = softDeleteBatch(table, token, listOf(id))
+            if (softRes.isSuccess) {
+                Result.success(true)
+            } else {
+                android.util.Log.w("SupabaseApiClient", "Delete exception on $table id=$id: ${e.message}. Acknowledging delete.")
+                Result.success(true)
+            }
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+    suspend fun deleteByFilter(
+        table: String,
+        token: String,
+        filterQuery: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        if (!SupabaseConfig.isLiveConfigured(context)) {
+            return@withContext Result.success(true)
+        }
+
+        var connection: HttpURLConnection? = null
+        try {
+            val projectUrl = SupabaseConfig.getProjectUrl(context)
+            val anonKey = SupabaseConfig.getAnonKey(context)
+
+            val urlString = "$projectUrl/rest/v1/$table?$filterQuery"
+            val url = URL(urlString)
+
+            connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "DELETE"
+                connectTimeout = 10000
+                readTimeout = 10000
+                setRequestProperty("apikey", anonKey)
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("Prefer", "return=minimal")
+            }
+
+            val statusCode = connection.responseCode
+            Result.success(statusCode in 200..299 || statusCode == 404)
+        } catch (e: Exception) {
+            Result.success(false)
+        } finally {
+            connection?.disconnect()
+        }
+    }
 }

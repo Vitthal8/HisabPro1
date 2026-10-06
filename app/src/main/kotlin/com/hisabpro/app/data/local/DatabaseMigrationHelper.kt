@@ -17,9 +17,16 @@ object DatabaseMigrationHelper {
     fun migrateIfNecessary(context: Context, database: AppDatabase, scope: CoroutineScope = CoroutineScope(Dispatchers.IO)) {
         scope.launch {
             try {
+                // Remove any rogue/accidental dummy businesses from previous migrations
+                database.businessDao().deleteBusiness("biz_ganesh_traders")
+
                 val settingsPrefs = context.getSharedPreferences("hisab_pro_settings_v1", Context.MODE_PRIVATE)
-                val businessName = settingsPrefs.getString("business_name", "Ganesh Traders") ?: "Ganesh Traders"
-                val sanitized = businessName.trim().lowercase().replace(Regex("[^a-z0-9]"), "_").ifBlank { "ganesh_traders" }
+                val businessName = settingsPrefs.getString("business_name", null)
+                if (businessName.isNullOrBlank() || businessName.equals("Ganesh Traders", ignoreCase = true)) {
+                    // No legitimate legacy business name found; skip migration to prevent dummy company creation
+                    return@launch
+                }
+                val sanitized = businessName.trim().lowercase().replace(Regex("[^a-z0-9]"), "_").ifBlank { return@launch }
                 val targetBusinessId = "biz_$sanitized"
 
                 // 1. Business Profile
@@ -27,9 +34,9 @@ object DatabaseMigrationHelper {
                 if (existingBusiness == null) {
                     val isGst = settingsPrefs.getBoolean("is_gst_registered", false)
                     val gstin = settingsPrefs.getString("business_gstin", "") ?: ""
-                    val phone = settingsPrefs.getString("business_phone", "9822012345") ?: "9822012345"
-                    val address = settingsPrefs.getString("business_address", "Market Yard, Pune, Maharashtra 411037") ?: ""
-                    val upiId = settingsPrefs.getString("business_upi_id", "ganeshtraders@okaxis") ?: ""
+                    val phone = settingsPrefs.getString("business_phone", "") ?: ""
+                    val address = settingsPrefs.getString("business_address", "") ?: ""
+                    val upiId = settingsPrefs.getString("business_upi_id", "") ?: ""
 
                     database.businessDao().insertOrUpdate(
                         BusinessEntity(

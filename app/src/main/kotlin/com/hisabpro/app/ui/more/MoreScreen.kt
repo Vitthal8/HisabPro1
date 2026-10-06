@@ -203,7 +203,7 @@ fun MoreScreen(
             )
             SettingsItemRow(
                 icon = Icons.Default.CloudSync,
-                title = "Supabase Cloud Sync",
+                title = "Cloud Sync & Backup",
                 subtitle = "Automatic cloud backup & multi-device sync",
                 tag = "more_item_cloud_sync",
                 onClick = onOpenCloudSync
